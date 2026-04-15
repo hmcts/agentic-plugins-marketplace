@@ -1,25 +1,28 @@
 # GitHub MCP Server
 
-Gives Claude the ability to interact with GitHub — search code, read files, manage issues, create and review pull requests — without leaving the conversation.
+Gives Claude the ability to interact with GitHub — search code, read files, manage issues, create and review pull requests — without leaving the conversation. Uses the `gh` CLI for authentication, so no Personal Access Token is needed.
 
 ## Tools provided
 
-| Tool | Description |
-|------|-------------|
-| `search_repositories` | Search GitHub repositories |
-| `get_file_contents` | Read a file from any public (or accessible private) repo |
-| `create_issue` | Open a new issue |
-| `list_issues` | List issues with filtering |
-| `create_pull_request` | Open a pull request |
-| `get_pull_request` | Fetch PR details and diff |
-| `search_code` | Full-text code search across GitHub |
+Exposes the full GitHub API surface via `gh mcp serve`. Key capabilities include:
+
+| Category | Examples |
+|----------|---------|
+| Repositories | search, create, fork, get metadata |
+| Files | read contents, list directory, get commits |
+| Issues | create, list, update, comment |
+| Pull requests | create, list, review, merge, get diff |
+| Code search | full-text search across GitHub |
+| Actions | list runs, get logs |
+| Notifications | list, mark as read |
 
 ## Prerequisites
 
-- Node.js 18+ (for `npx`)
-- A GitHub Personal Access Token with the scopes your use-case needs:
-  - `repo` — full access to private repositories
-  - `read:org` — read org membership (optional)
+- [`gh` CLI](https://cli.github.com/) installed and authenticated:
+  ```bash
+  brew install gh   # macOS
+  gh auth login
+  ```
 
 ## Installation
 
@@ -27,20 +30,12 @@ Gives Claude the ability to interact with GitHub — search code, read files, ma
 /plugin install github@agentic-plugins-marketplace
 ```
 
-The `/plugin` TUI will prompt for `GITHUB_PERSONAL_ACCESS_TOKEN` and store it in your OS keychain.
+No additional configuration needed — the server inherits your existing `gh` session.
 
-## Configuration
+## Usage examples
 
-Set the following environment variable before installing, or export it in your shell profile:
-
-```bash
-export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
-```
-
-## Usage example
-
-Once installed, Claude can answer questions like:
-
-> "List all open issues labelled `bug` in anthropics/claude-code and summarise the top 5."
+> "List all open issues labelled `bug` in hmcts/agentic-plugins-marketplace and summarise the top 5."
 
 > "Search for usages of `useEffect` with missing dependency arrays across my org's repos."
+
+> "Create a PR from my current branch to main with a summary of the changes."
