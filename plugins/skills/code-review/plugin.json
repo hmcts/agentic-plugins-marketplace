@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/plugin.schema.json",
+  "name": "code-review",
+  "version": "1.0.0",
+  "description": "Structured code review of the current branch — security, correctness, performance, and readability",
+  "type": "skill",
+  "author": "agentic-plugins-marketplace",
+  "license": "MIT",
+  "tags": ["code-review", "quality", "security", "pr"],
+  "skill": {
+    "file": "skill.md",
+    "trigger": "review"
+  }
+}

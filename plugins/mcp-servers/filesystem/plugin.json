@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/plugin.schema.json",
+  "name": "filesystem",
+  "version": "1.0.0",
+  "description": "Give Claude sandboxed read/write access to directories on your local filesystem",
+  "type": "mcp-server",
+  "author": "Anthropic",
+  "license": "MIT",
+  "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+  "tags": ["filesystem", "files", "local", "read", "write"],
+  "mcp": {
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "${ALLOWED_DIRECTORIES}"],
+    "env": {}
+  }
+}

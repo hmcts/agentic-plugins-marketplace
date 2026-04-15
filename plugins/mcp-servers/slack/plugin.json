@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../schemas/plugin.schema.json",
+  "name": "slack",
+  "version": "1.0.0",
+  "description": "Read channel history and post messages to Slack workspaces from Claude",
+  "type": "mcp-server",
+  "author": "Anthropic",
+  "license": "MIT",
+  "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/slack",
+  "tags": ["slack", "messaging", "collaboration", "notifications"],
+  "mcp": {
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-slack"],
+    "env": {
+      "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+      "SLACK_TEAM_ID": "${SLACK_TEAM_ID}"
+    }
+  }
+}

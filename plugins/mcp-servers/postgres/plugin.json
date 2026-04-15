@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/plugin.schema.json",
+  "name": "postgres",
+  "version": "1.0.0",
+  "description": "Let Claude inspect schemas and run read-only SQL queries against a PostgreSQL database",
+  "type": "mcp-server",
+  "author": "Anthropic",
+  "license": "MIT",
+  "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
+  "tags": ["database", "postgres", "sql", "analytics"],
+  "mcp": {
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-postgres", "${DATABASE_URL}"],
+    "env": {
+      "DATABASE_URL": "${DATABASE_URL}"
+    }
+  }
+}

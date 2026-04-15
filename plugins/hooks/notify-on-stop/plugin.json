@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/plugin.schema.json",
+  "name": "notify-on-stop",
+  "version": "1.0.0",
+  "description": "Send a desktop notification (macOS / Linux) when Claude finishes a task",
+  "type": "hook",
+  "author": "agentic-plugins-marketplace",
+  "license": "MIT",
+  "tags": ["notifications", "productivity", "desktop", "macos", "linux"],
+  "hook": {
+    "event": "Stop",
+    "command": "~/.claude/hooks/notify-on-stop.sh"
+  }
+}

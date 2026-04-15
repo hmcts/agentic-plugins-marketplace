@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/plugin.schema.json",
+  "name": "python-project",
+  "version": "1.0.0",
+  "description": "CLAUDE.md template for Python projects using uv, pytest, ruff, and mypy",
+  "type": "template",
+  "author": "agentic-plugins-marketplace",
+  "license": "MIT",
+  "tags": ["python", "uv", "pytest", "ruff", "mypy", "template"],
+  "template": {
+    "file": "CLAUDE.md",
+    "targetPath": "CLAUDE.md"
+  }
+}

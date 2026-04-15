@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/plugin.schema.json",
+  "name": "github",
+  "version": "1.0.0",
+  "description": "Search repos, read files, manage issues and PRs on GitHub directly from Claude",
+  "type": "mcp-server",
+  "author": "Anthropic",
+  "license": "MIT",
+  "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
+  "tags": ["github", "git", "issues", "pull-requests", "code-search"],
+  "mcp": {
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-github"],
+    "env": {
+      "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+    }
+  }
+}
