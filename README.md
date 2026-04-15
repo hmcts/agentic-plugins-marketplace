@@ -15,6 +15,7 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
   - [Hooks](#hooks)
   - [Templates](#templates)
 - [Installation](#installation)
+  - [Team setup — commit .claude/settings.json](#team-setup--commit-claudesettingsjson)
   - [Step 1 — add this marketplace](#step-1--add-this-marketplace)
   - [Step 2 — browse and install](#step-2--browse-and-install)
   - [What gets installed automatically](#what-gets-installed-automatically)
@@ -137,6 +138,16 @@ Navigate to the **Marketplaces** tab and add:
 ```
 github@hmcts/agentic-plugins-marketplace
 ```
+
+### Team setup — commit `.claude/settings.json`
+
+This repo ships a `.claude/settings.json` that pre-registers the marketplace and lists all plugins as enabled. If you fork or use this repo as a base, your teammates get the marketplace pre-configured — they only need to run one command after cloning:
+
+```
+/plugin install --all @agentic-plugins-marketplace
+```
+
+After that, `enabledPlugins` keeps all plugins active automatically for the project.
 
 ### Step 2 — browse and install
 
