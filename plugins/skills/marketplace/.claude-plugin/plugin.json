@@ -1,0 +1,8 @@
+{
+  "name": "marketplace-skill",
+  "version": "1.0.0",
+  "description": "Browse and install marketplace plugins conversationally from within Claude Code",
+  "author": "agentic-plugins-marketplace",
+  "license": "MIT",
+  "keywords": ["marketplace", "plugins", "install", "discover"]
+}

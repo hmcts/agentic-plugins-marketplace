@@ -41,17 +41,32 @@ Thank you for contributing! This guide explains how to add new plugins, what eac
 
 ---
 
+## Two installation paths — keep both working
+
+Every plugin supports two independent install paths:
+
+| Path | How it works | Key files |
+|------|-------------|-----------|
+| **`/plugin` TUI** | Claude Code's native plugin system reads `.claude-plugin/` and type-specific directories | `.claude-plugin/plugin.json`, `.mcp.json` / `skills/<t>/SKILL.md` / `hooks/hooks.json` |
+| **`install.sh`** | Bash installer reads `plugin.json` and copies/registers things manually | `plugin.json`, `skill.md` / `hook.sh` / `CLAUDE.md` |
+
+When you add or modify a plugin, **both paths must keep working**. The files for each path live side-by-side in the same plugin directory.
+
+---
+
 ## General rules for all plugins
 
-Every plugin lives in its own directory under the relevant type folder and must contain:
+Every plugin lives in its own directory under the relevant type folder and must contain **at minimum**:
 
 ```
 plugins/<type>/<plugin-name>/
-├── plugin.json    ← manifest — validated against schemas/plugin.schema.json
-└── README.md      ← user-facing documentation
+├── .claude-plugin/
+│   └── plugin.json    ← native metadata for /plugin system
+├── plugin.json        ← installer manifest (validated against schemas/plugin.schema.json)
+└── README.md          ← user-facing documentation
 ```
 
-Additional files (scripts, prompt files, template files) live in the same directory.
+Additional type-specific files are described in each section below.
 
 ### Naming
 
@@ -87,7 +102,10 @@ MCP servers wrap an existing MCP-compatible package (e.g. an `@modelcontextproto
 
 ```
 plugins/mcp-servers/<name>/
-├── plugin.json
+├── .claude-plugin/
+│   └── plugin.json   ← native metadata; include userConfig for required env vars
+├── .mcp.json         ← native MCP server config read by /plugin
+├── plugin.json       ← installer manifest
 └── README.md
 ```
 
@@ -114,12 +132,48 @@ plugins/mcp-servers/<name>/
 }
 ```
 
+### .mcp.json format
+
+```jsonc
+{
+  "mcpServers": {
+    "<server-name>": {
+      "command": "npx",
+      "args": ["-y", "@scope/server-package"],
+      "env": {
+        "API_KEY": "${API_KEY}"   // ${VAR} = user must supply
+      }
+    }
+  }
+}
+```
+
+### .claude-plugin/plugin.json — userConfig
+
+Declare each `${VAR}` placeholder in `userConfig` so the `/plugin` TUI can prompt the user and store secrets in the OS keychain:
+
+```jsonc
+{
+  "name": "my-server",
+  "userConfig": {
+    "API_KEY": {
+      "description": "API key for the service",
+      "required": true,
+      "secret": true      // stored in OS keychain, not settings.json
+    }
+  }
+}
+```
+
 ### Checklist
 
 - [ ] `plugin.json` validates against the schema
-- [ ] All `${VAR}` placeholders are documented in the README
+- [ ] `.mcp.json` present with correct server config
+- [ ] `.claude-plugin/plugin.json` has `userConfig` entry for every `${VAR}` placeholder
+- [ ] All `${VAR}` placeholders are also documented in the README
 - [ ] README lists the tools the server exposes (name + description)
 - [ ] README includes an example `claude mcp add` command as a manual alternative
+- [ ] `.claude-plugin/marketplace.json` entry added
 - [ ] `registry.json` updated with a new entry for this plugin
 
 ---
@@ -132,10 +186,17 @@ Skills are Markdown prompt files that give Claude a structured task description 
 
 ```
 plugins/skills/<name>/
-├── plugin.json
-├── skill.md      ← the prompt; filename can differ, set in plugin.json
+├── .claude-plugin/
+│   └── plugin.json         ← native metadata
+├── skills/
+│   └── <trigger>/
+│       └── SKILL.md        ← native skill file read by /plugin (same content as skill.md)
+├── plugin.json             ← installer manifest
+├── skill.md                ← skill file read by install.sh
 └── README.md
 ```
+
+`skills/<trigger>/SKILL.md` and `skill.md` must have identical content — they are two entry points to the same prompt for the two install paths.
 
 ### plugin.json fields
 
@@ -168,8 +229,11 @@ A skill file is a prompt Claude receives instead of user input when the slash co
 ### Checklist
 
 - [ ] `skill.md` contains clear, actionable instructions
+- [ ] `skills/<trigger>/SKILL.md` is present with identical content
 - [ ] Trigger name does not clash with an existing skill (check `plugins/skills/`)
+- [ ] `.claude-plugin/plugin.json` present
 - [ ] README shows the slash command and a concrete example output
+- [ ] `.claude-plugin/marketplace.json` entry added
 - [ ] `registry.json` updated
 
 ---
@@ -182,8 +246,12 @@ Hooks are shell scripts that run at specific points in the Claude Code session l
 
 ```
 plugins/hooks/<name>/
-├── plugin.json
-├── hook.sh       ← the shell script (must be POSIX-compatible bash)
+├── .claude-plugin/
+│   └── plugin.json       ← native metadata
+├── hooks/
+│   └── hooks.json        ← native hook config read by /plugin
+├── plugin.json           ← installer manifest
+├── hook.sh               ← hook script (referenced by both hooks.json and install.sh)
 └── README.md
 ```
 
@@ -227,12 +295,34 @@ plugins/hooks/<name>/
 - Avoid blocking I/O in `PreToolUse` hooks — they delay the tool call.
 - Non-zero exit from a `PreToolUse` hook **blocks** the tool call and surfaces the exit code to the user. Use this power deliberately.
 
+### hooks/hooks.json format
+
+```jsonc
+{
+  "Stop": [                       // lifecycle event
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hook.sh"  // path within the installed plugin
+        }
+      ]
+    }
+  ]
+}
+```
+
+Use `${CLAUDE_PLUGIN_ROOT}` for the script path — it resolves to the plugin's installed directory regardless of where Claude Code is run from.
+
 ### Checklist
 
 - [ ] `hook.sh` starts with `set -euo pipefail`
 - [ ] Script is idempotent
+- [ ] `hooks/hooks.json` present with correct event and `${CLAUDE_PLUGIN_ROOT}` path
+- [ ] `.claude-plugin/plugin.json` present
 - [ ] README documents which env variables are read and any required system tools
 - [ ] Manual install instructions included (for users who don't use the installer)
+- [ ] `.claude-plugin/marketplace.json` entry added
 - [ ] `registry.json` updated
 
 ---
@@ -333,11 +423,14 @@ Keep entries sorted alphabetically within each type, then across types in the or
 ### PR checklist
 
 - [ ] Plugin directory follows the structure described above
-- [ ] `plugin.json` validates against the schema
+- [ ] `plugin.json` validates against the schema (`npx ajv validate -s schemas/plugin.schema.json -d plugins/<type>/<name>/plugin.json`)
+- [ ] `.claude-plugin/plugin.json` present with at minimum a `name` field
+- [ ] Type-specific native file present: `.mcp.json` / `skills/<trigger>/SKILL.md` / `hooks/hooks.json`
 - [ ] `README.md` covers prerequisites, installation, configuration, and a usage example
+- [ ] `.claude-plugin/marketplace.json` updated with the new plugin entry
 - [ ] `registry.json` updated
 - [ ] No secrets or credentials included anywhere
-- [ ] `--dry-run` completes without errors
+- [ ] `--dry-run` completes without errors (`./scripts/install.sh <type>/<name> --dry-run`)
 
 ---
 

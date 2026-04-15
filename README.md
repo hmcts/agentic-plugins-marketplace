@@ -12,6 +12,7 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
   - [Skills (slash commands)](#skills-slash-commands)
   - [Hooks](#hooks)
   - [Templates](#templates)
+- [Installing via /plugin (native TUI)](#installing-via-plugin-native-tui)
 - [Installing from within Claude](#installing-from-within-claude)
   - [Option A — Marketplace skill (quickest bootstrap)](#option-a--marketplace-skill-quickest-bootstrap)
   - [Option B — Marketplace MCP server (fully integrated)](#option-b--marketplace-mcp-server-fully-integrated)
@@ -76,6 +77,52 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 |--------|-------|-------------|
 | [python-project](plugins/templates/python-project/) | Python / uv | `CLAUDE.md` for Python with uv, pytest, ruff, mypy |
 | [nodejs-project](plugins/templates/nodejs-project/) | Node.js / TypeScript | `CLAUDE.md` for TypeScript with Vitest and ESLint |
+
+---
+
+## Installing via /plugin (native TUI)
+
+This is the recommended way to install plugins. Claude Code's built-in `/plugin` command opens a terminal UI with four tabs — **Discover**, **Installed**, **Marketplaces**, and **Errors**. This marketplace is a registered source, so you can browse and install everything from that UI.
+
+### Step 1 — add this marketplace as a source
+
+```
+/plugin
+```
+
+Navigate to the **Marketplaces** tab and add:
+
+```
+github@your-org/agentic-plugins-marketplace
+```
+
+### Step 2 — browse and install
+
+Switch to the **Discover** tab. All plugins from this marketplace appear alongside any others you have registered. Use `Tab`/`Shift+Tab` to navigate between tabs.
+
+To install from the command line without opening the TUI:
+
+```bash
+# Install a single plugin
+/plugin install github@agentic-plugins-marketplace   # installs the marketplace MCP server
+/plugin install code-review@agentic-plugins-marketplace
+/plugin install audit-log@agentic-plugins-marketplace
+
+# Install all plugins in this marketplace at once
+/plugin install --all @agentic-plugins-marketplace
+```
+
+### What gets installed
+
+When you install a plugin via `/plugin`, Claude Code reads that plugin's directory from this repo and automatically wires up everything inside it:
+
+| File in plugin dir | What Claude Code does with it |
+|-------------------|-------------------------------|
+| `.mcp.json` | Registers the MCP server — prompts for required env vars and stores secrets in OS keychain |
+| `skills/<trigger>/SKILL.md` | Adds the `/trigger` slash command |
+| `hooks/hooks.json` | Registers the lifecycle hook |
+
+No manual JSON editing, no copying files — it all happens in one step.
 
 ---
 
@@ -231,31 +278,45 @@ The installer copies the `CLAUDE.md` file to your project root (or `--target` di
 
 ```
 agentic-plugins-marketplace/
+├── .claude-plugin/
+│   └── marketplace.json    ← /plugin marketplace catalog (native TUI)
 ├── plugins/
-│   ├── mcp-servers/        # MCP server plugins
+│   ├── mcp-servers/
 │   │   └── <name>/
-│   │       ├── plugin.json     ← manifest (required)
-│   │       └── README.md       ← user-facing docs (required)
-│   ├── skills/             # Slash-command prompt plugins
-│   │   └── <name>/
-│   │       ├── plugin.json
-│   │       ├── skill.md        ← the prompt template
+│   │       ├── .claude-plugin/
+│   │       │   └── plugin.json ← native plugin metadata + userConfig
+│   │       ├── .mcp.json       ← native MCP server config (read by /plugin)
+│   │       ├── plugin.json     ← installer manifest (read by install.sh)
 │   │       └── README.md
-│   ├── hooks/              # Lifecycle hook plugins
+│   ├── skills/
 │   │   └── <name>/
+│   │       ├── .claude-plugin/
+│   │       │   └── plugin.json
+│   │       ├── skills/
+│   │       │   └── <trigger>/
+│   │       │       └── SKILL.md  ← native skill file (read by /plugin)
+│   │       ├── skill.md          ← installer skill file (read by install.sh)
 │   │       ├── plugin.json
-│   │       ├── hook.sh         ← the hook script
 │   │       └── README.md
-│   └── templates/          # CLAUDE.md project templates
+│   ├── hooks/
+│   │   └── <name>/
+│   │       ├── .claude-plugin/
+│   │       │   └── plugin.json
+│   │       ├── hooks/
+│   │       │   └── hooks.json  ← native hook config (read by /plugin)
+│   │       ├── hook.sh         ← hook script
+│   │       ├── plugin.json
+│   │       └── README.md
+│   └── templates/
 │       └── <name>/
 │           ├── plugin.json
-│           ├── CLAUDE.md       ← the template file
+│           ├── CLAUDE.md
 │           └── README.md
 ├── schemas/
 │   └── plugin.schema.json  ← JSON Schema for plugin.json
 ├── scripts/
-│   └── install.sh          ← installer script
-├── registry.json           ← machine-readable plugin index
+│   └── install.sh          ← bash installer (alternative to /plugin)
+├── registry.json           ← machine-readable index (used by install.sh + marketplace MCP)
 ├── README.md
 └── CONTRIBUTING.md
 ```

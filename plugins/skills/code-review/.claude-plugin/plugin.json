@@ -1,0 +1,8 @@
+{
+  "name": "code-review",
+  "version": "1.0.0",
+  "description": "Structured code review of the current branch — security, correctness, performance, and readability",
+  "author": "agentic-plugins-marketplace",
+  "license": "MIT",
+  "keywords": ["code-review", "quality", "security", "pr"]
+}

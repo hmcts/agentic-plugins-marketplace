@@ -1,0 +1,8 @@
+{
+  "name": "conventional-commit",
+  "version": "1.0.0",
+  "description": "Generate a Conventional Commits-compliant git commit message from staged changes",
+  "author": "agentic-plugins-marketplace",
+  "license": "MIT",
+  "keywords": ["git", "commit", "conventional-commits", "workflow"]
+}

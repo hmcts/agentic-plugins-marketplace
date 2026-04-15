@@ -1,0 +1,8 @@
+{
+  "name": "marketplace",
+  "version": "1.0.0",
+  "description": "MCP server that lets Claude browse, search, and install marketplace plugins as tools",
+  "author": "agentic-plugins-marketplace",
+  "license": "MIT",
+  "keywords": ["marketplace", "plugins", "install", "discover"]
+}

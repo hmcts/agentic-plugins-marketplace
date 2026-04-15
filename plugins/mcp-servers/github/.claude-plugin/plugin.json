@@ -1,0 +1,16 @@
+{
+  "name": "github",
+  "version": "1.0.0",
+  "description": "Search repos, read files, manage issues and PRs on GitHub directly from Claude",
+  "author": "Anthropic",
+  "license": "MIT",
+  "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
+  "keywords": ["github", "git", "issues", "pull-requests", "code-search"],
+  "userConfig": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": {
+      "description": "GitHub Personal Access Token with repo scope",
+      "required": true,
+      "secret": true
+    }
+  }
+}

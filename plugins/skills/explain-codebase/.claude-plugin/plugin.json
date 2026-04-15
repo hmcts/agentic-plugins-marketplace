@@ -1,0 +1,8 @@
+{
+  "name": "explain-codebase",
+  "version": "1.0.0",
+  "description": "Generate a layered onboarding explanation of the current codebase for new developers",
+  "author": "agentic-plugins-marketplace",
+  "license": "MIT",
+  "keywords": ["onboarding", "documentation", "architecture", "developer-experience"]
+}

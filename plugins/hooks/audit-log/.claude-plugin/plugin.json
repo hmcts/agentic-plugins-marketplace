@@ -1,0 +1,8 @@
+{
+  "name": "audit-log",
+  "version": "1.0.0",
+  "description": "Append a JSON audit trail of every tool Claude calls to ~/.claude/audit.log",
+  "author": "agentic-plugins-marketplace",
+  "license": "MIT",
+  "keywords": ["audit", "logging", "security", "compliance", "observability"]
+}
