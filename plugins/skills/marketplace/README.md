@@ -25,7 +25,7 @@ Claude will show a dry-run of what the installer will do and ask for confirmatio
 The marketplace repository must be cloned locally. Claude will prompt you to clone it if it is not found:
 
 ```bash
-git clone https://github.com/your-org/agentic-plugins-marketplace.git
+git clone https://github.com/hmcts/agentic-plugins-marketplace.git
 ```
 
 ## Installation
@@ -34,7 +34,7 @@ This skill is the only plugin you need to bootstrap the rest. Install it once wi
 
 ```bash
 mkdir -p ~/.claude/skills && curl -fsSL \
-  https://raw.githubusercontent.com/your-org/agentic-plugins-marketplace/main/plugins/skills/marketplace/skill.md \
+  https://raw.githubusercontent.com/hmcts/agentic-plugins-marketplace/main/plugins/skills/marketplace/skill.md \
   -o ~/.claude/skills/marketplace.md
 ```
 

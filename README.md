@@ -88,7 +88,7 @@ Open Claude Code and run:
 Navigate to the **Marketplaces** tab and add:
 
 ```
-github@your-org/agentic-plugins-marketplace
+github@hmcts/agentic-plugins-marketplace
 ```
 
 ### Step 2 — browse and install
