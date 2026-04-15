@@ -4,6 +4,24 @@ Thank you for contributing! This guide explains how to add new plugins, what eac
 
 ---
 
+## Table of contents
+
+- [Before you start](#before-you-start)
+- [Plugin types overview](#plugin-types-overview)
+- [General rules for all plugins](#general-rules-for-all-plugins)
+  - [Naming](#naming)
+  - [plugin.json requirements](#pluginjson-requirements)
+  - [README.md requirements](#readmemd-requirements)
+- [Adding an MCP server](#adding-an-mcp-server)
+- [Adding a skill](#adding-a-skill)
+- [Adding a hook](#adding-a-hook)
+- [Adding a template](#adding-a-template)
+- [Updating registry.json](#updating-registryjson)
+- [Submitting a pull request](#submitting-a-pull-request)
+- [Code of conduct](#code-of-conduct)
+
+---
+
 ## Before you start
 
 - Check [registry.json](registry.json) and the `plugins/` directory to make sure a similar plugin does not already exist.

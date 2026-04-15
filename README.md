@@ -4,6 +4,30 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 
 ---
 
+## Table of contents
+
+- [Plugin types](#plugin-types)
+- [Available plugins](#available-plugins)
+  - [MCP Servers](#mcp-servers)
+  - [Skills (slash commands)](#skills-slash-commands)
+  - [Hooks](#hooks)
+  - [Templates](#templates)
+- [Installation](#installation)
+  - [Prerequisites](#prerequisites)
+  - [Quick install](#quick-install)
+  - [Install a specific plugin](#install-a-specific-plugin)
+  - [Dry run](#dry-run)
+- [How each type installs](#how-each-type-installs)
+  - [MCP Servers](#mcp-servers-1)
+  - [Skills](#skills)
+  - [Hooks](#hooks-1)
+  - [Templates](#templates-1)
+- [Repository layout](#repository-layout)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
 ## Plugin types
 
 | Type | What it does | Installed to |
