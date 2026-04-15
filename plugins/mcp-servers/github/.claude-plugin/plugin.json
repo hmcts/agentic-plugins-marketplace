@@ -1,9 +1,0 @@
-{
-  "name": "github",
-  "version": "1.0.0",
-  "description": "Search repos, read files, manage issues and PRs on GitHub directly from Claude",
-  "author": "GitHub",
-  "license": "MIT",
-  "homepage": "https://github.com/github/github-mcp-server",
-  "keywords": ["github", "git", "issues", "pull-requests", "code-search"]
-}

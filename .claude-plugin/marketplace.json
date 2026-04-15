@@ -6,14 +6,6 @@
   },
   "plugins": [
     {
-      "name": "github",
-      "source": "./plugins/mcp-servers/github",
-      "description": "Search repos, read files, manage issues and PRs on GitHub directly from Claude",
-      "version": "1.0.0",
-      "category": "mcp-server",
-      "tags": ["github", "git", "issues", "pull-requests", "code-search"]
-    },
-    {
       "name": "filesystem",
       "source": "./plugins/mcp-servers/filesystem",
       "description": "Give Claude sandboxed read/write access to directories on your local filesystem",

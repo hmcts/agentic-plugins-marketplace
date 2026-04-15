@@ -7,14 +7,15 @@ MCP servers extend Claude with new **tools** — callable functions that let Cla
 | Plugin | Description |
 |--------|-------------|
 | [marketplace](./marketplace/) | Browse and search marketplace plugins via Claude tools |
-| [github](./github/) | Search repos, read files, manage issues and PRs |
 | [filesystem](./filesystem/) | Sandboxed read/write access to local directories |
 | [postgres](./postgres/) | Read-only SQL queries against PostgreSQL |
-| [slack](./slack/) | Read channel history and post messages to Slack |
+| [slack](./slack/) | Read channels and post messages to Slack |
+
+> **GitHub** — use the official plugin at [claude.com/plugins/github](https://claude.com/plugins/github) rather than a community duplicate.
 
 ## Installation
 
-```bash
+```
 /plugin install <name>@agentic-plugins-marketplace
 ```
 

@@ -89,10 +89,11 @@ Hook scripts (`hook.sh`) execute as shell commands with the full privileges of y
 | Plugin | Description |
 |--------|-------------|
 | [marketplace](plugins/mcp-servers/marketplace/) | Browse and search marketplace plugins via Claude tools |
-| [github](plugins/mcp-servers/github/) | Search repos, read files, manage issues and PRs |
 | [filesystem](plugins/mcp-servers/filesystem/) | Sandboxed read/write access to local directories |
 | [postgres](plugins/mcp-servers/postgres/) | Read-only SQL queries against PostgreSQL |
 | [slack](plugins/mcp-servers/slack/) | Read channel history and post messages to Slack |
+
+> **GitHub** — use the official plugin at [claude.com/plugins/github](https://claude.com/plugins/github) (172k+ installs, maintained by GitHub). It wraps the same `gh mcp serve` server and is better maintained than a community duplicate would be.
 
 ### Skills
 
