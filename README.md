@@ -6,6 +6,8 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 
 ## Table of contents
 
+- [Official Claude plugin marketplaces](#official-claude-plugin-marketplaces)
+- [Security — prompt injection risk](#security--prompt-injection-risk)
 - [Plugin types](#plugin-types)
 - [Available plugins](#available-plugins)
   - [MCP Servers](#mcp-servers)
@@ -22,6 +24,50 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 - [Repository layout](#repository-layout)
 - [Contributing](#contributing)
 - [License](#license)
+
+---
+
+## Official Claude plugin marketplaces
+
+Before adding plugins from community sources, check the official registries — they curate vetted, production-ready integrations:
+
+| Marketplace | What it contains | URL |
+|-------------|-----------------|-----|
+| **Anthropic official plugins** | Curated integrations (GitHub, Slack, Jira, etc.) maintained by Anthropic | [claude.com/plugins](https://claude.com/plugins) |
+| **MCP Registry** | Open registry of MCP servers backed by Anthropic, GitHub, and Microsoft | [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io) |
+| **Claude Code `/plugin` built-in** | Accessible inside Claude Code via `/plugin` → Discover tab | run `/plugin` in Claude Code |
+
+In Claude Code you can add the official marketplace as a source alongside this one:
+
+```
+/plugin
+→ Marketplaces tab → Add: claude-plugins-official
+```
+
+---
+
+## Security — prompt injection risk
+
+> **Warning: only install plugins from sources you trust.**
+
+Plugins run with significant privilege inside your Claude session. There are three distinct attack surfaces:
+
+**MCP servers — prompt injection via tool responses**
+When Claude calls a tool, the server's response is injected directly into Claude's context. A malicious server can embed text designed to hijack Claude's subsequent behaviour — for example, instructing it to exfiltrate files, call destructive tools, or ignore safety guidelines. This is particularly dangerous because the injected content arrives as "tool output" rather than user input, making it harder to detect.
+
+**Skills — prompt injection via SKILL.md**
+A skill file from an untrusted source can contain hidden or misleading instructions that override Claude's normal behaviour when the slash command is invoked.
+
+**Hooks — arbitrary code execution**
+Hook scripts (`hook.sh`) execute as shell commands with the full privileges of your user account. A malicious hook can read credentials, exfiltrate data, or install persistent backdoors — with no sandboxing.
+
+### How to protect yourself
+
+- **Prefer official marketplaces** (see above) for any plugin that touches sensitive systems.
+- **Read the source before installing.** For MCP servers, review the server code or verify it is published by a known maintainer. For skills, read `SKILL.md` in full. For hooks, read `hook.sh` line by line.
+- **Use the `audit-log` hook** to record every tool Claude calls — it makes injected behaviour visible after the fact.
+- **Scope permissions tightly.** For MCP servers, use read-only credentials where possible (e.g., a read-only database user for the `postgres` plugin).
+- **Treat unknown marketplaces like unknown npm packages** — the blast radius of a compromised plugin is your entire Claude session and anything it has access to.
 
 ---
 

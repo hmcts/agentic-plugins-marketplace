@@ -14,6 +14,7 @@ Thank you for contributing! This guide covers how to add new plugins, what files
 - [Adding a hook](#adding-a-hook)
 - [Adding a template](#adding-a-template)
 - [Updating the marketplace catalog](#updating-the-marketplace-catalog)
+- [Security — porting from external sources](#security--porting-from-external-sources)
 - [Submitting a pull request](#submitting-a-pull-request)
 - [Code of conduct](#code-of-conduct)
 
@@ -23,6 +24,7 @@ Thank you for contributing! This guide covers how to add new plugins, what files
 
 - Check `.claude-plugin/marketplace.json` and `plugins/` to make sure a similar plugin doesn't already exist.
 - Open an issue first if you're unsure whether a plugin fits or want feedback on the idea.
+- If you are porting a plugin from an external source, read the [security guidance below](#security-porting-from-external-sources) before proceeding.
 
 ---
 
@@ -296,6 +298,42 @@ After adding or modifying a plugin, add or update its entry in `.claude-plugin/m
 ```
 
 Keep entries sorted: `mcp-server` → `skill` → `hook` → `template`, alphabetically within each group.
+
+---
+
+## Security — porting from external sources
+
+> **Warning: never copy a plugin from an external source without a full security review.**
+
+When you port a plugin from outside this organisation — a public GitHub repo, a blog post, a third-party marketplace — you are potentially introducing code that runs with elevated privilege inside every installer's Claude session. The review bar must be higher than for plugins written from scratch, because you cannot know the original author's intent.
+
+### What to audit before submitting
+
+**MCP servers**
+
+- Read the server's source code in full, or verify it comes from a reputable publisher (e.g., an official `@modelcontextprotocol/server-*` package, or a package owned by the service provider itself).
+- Check what the server does with tool responses. A malicious server can embed instructions in response text that hijack Claude's subsequent behaviour — **prompt injection via tool output**. Look for anything that constructs response strings from external data without sanitisation.
+- Confirm the server does not phone home, write files outside its declared scope, or request more permissions than it needs.
+- Pin to a specific version or commit hash in `.mcp.json` rather than a floating `latest`.
+
+**Skills**
+
+- Read `SKILL.md` in full, including any HTML comments (`<!-- -->`), Unicode whitespace, or zero-width characters that could conceal instructions.
+- A SKILL.md from an untrusted source can contain hidden prompt-injection payloads that override Claude's behaviour when the slash command is invoked. Treat it with the same scrutiny as executable code.
+
+**Hooks**
+
+- Hook scripts run as shell commands with your full user privileges — **no sandboxing**. A single malicious line can exfiltrate credentials, install persistence, or destroy data.
+- Read every line of `hook.sh`. Do not trust scripts that use `eval`, pipe from the internet, or obfuscate logic with base64 / here-docs.
+- Run the script in a throwaway environment first if you have any doubt.
+
+### Porting checklist
+
+- [ ] Source repository identified and linked in the PR description
+- [ ] Server source code reviewed (MCP servers) or skill file read in full (skills)
+- [ ] No obfuscated code, unexpected network calls, or excessive filesystem access
+- [ ] Version pinned to a specific release, not `latest`
+- [ ] PR description explains what the plugin does and why it is safe to include
 
 ---
 
