@@ -6,6 +6,7 @@ Model Context Protocol (MCP) servers extend Claude with new **tools** — callab
 
 | Plugin | Description | Author |
 |--------|-------------|--------|
+| [marketplace](./marketplace/) | Browse, search, and install plugins via Claude tools | agentic-plugins-marketplace |
 | [github](./github/) | Search repos, read files, manage issues and PRs | Anthropic |
 | [filesystem](./filesystem/) | Sandboxed read/write access to local directories | Anthropic |
 | [postgres](./postgres/) | Read-only SQL queries against PostgreSQL | Anthropic |

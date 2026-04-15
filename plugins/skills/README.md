@@ -6,6 +6,7 @@ Skills are reusable prompt templates that give Claude a structured playbook for 
 
 | Plugin | Trigger | Description |
 |--------|---------|-------------|
+| [marketplace](./marketplace/) | `/marketplace` | Browse and install plugins conversationally |
 | [code-review](./code-review/) | `/review` | Structured PR review — security, correctness, performance |
 | [conventional-commit](./conventional-commit/) | `/commit` | Generate Conventional Commits messages from staged changes |
 | [explain-codebase](./explain-codebase/) | `/explain` | Onboarding guide for a new developer |

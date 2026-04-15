@@ -3,6 +3,15 @@
   "version": "1",
   "plugins": [
     {
+      "path": "plugins/mcp-servers/marketplace",
+      "name": "marketplace",
+      "version": "1.0.0",
+      "type": "mcp-server",
+      "description": "MCP server that lets Claude browse, search, and install marketplace plugins as tools",
+      "tags": ["marketplace", "plugins", "install", "discover", "mcp"],
+      "author": "agentic-plugins-marketplace"
+    },
+    {
       "path": "plugins/mcp-servers/github",
       "name": "github",
       "version": "1.0.0",
@@ -37,6 +46,15 @@
       "description": "Read channel history and post messages to Slack workspaces from Claude",
       "tags": ["slack", "messaging", "collaboration", "notifications"],
       "author": "Anthropic"
+    },
+    {
+      "path": "plugins/skills/marketplace",
+      "name": "marketplace",
+      "version": "1.0.0",
+      "type": "skill",
+      "description": "Browse and install marketplace plugins conversationally from within Claude Code",
+      "tags": ["marketplace", "plugins", "install", "discover"],
+      "author": "agentic-plugins-marketplace"
     },
     {
       "path": "plugins/skills/code-review",

@@ -12,7 +12,10 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
   - [Skills (slash commands)](#skills-slash-commands)
   - [Hooks](#hooks)
   - [Templates](#templates)
-- [Installation](#installation)
+- [Installing from within Claude](#installing-from-within-claude)
+  - [Option A — Marketplace skill (quickest bootstrap)](#option-a--marketplace-skill-quickest-bootstrap)
+  - [Option B — Marketplace MCP server (fully integrated)](#option-b--marketplace-mcp-server-fully-integrated)
+- [Installation (CLI)](#installation-cli)
   - [Prerequisites](#prerequisites)
   - [Quick install](#quick-install)
   - [Install a specific plugin](#install-a-specific-plugin)
@@ -45,6 +48,7 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 
 | Plugin | Description |
 |--------|-------------|
+| [marketplace](plugins/mcp-servers/marketplace/) | Browse, search, and install plugins via Claude tools |
 | [github](plugins/mcp-servers/github/) | Search repos, read files, manage issues and PRs |
 | [filesystem](plugins/mcp-servers/filesystem/) | Sandboxed read/write access to local directories |
 | [postgres](plugins/mcp-servers/postgres/) | Read-only SQL queries against PostgreSQL |
@@ -54,6 +58,7 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 
 | Plugin | Trigger | Description |
 |--------|---------|-------------|
+| [marketplace](plugins/skills/marketplace/) | `/marketplace` | Browse and install plugins conversationally |
 | [code-review](plugins/skills/code-review/) | `/review` | Structured PR review — security, correctness, performance |
 | [conventional-commit](plugins/skills/conventional-commit/) | `/commit` | Conventional Commits message from staged changes |
 | [explain-codebase](plugins/skills/explain-codebase/) | `/explain` | Onboarding guide for new developers |
@@ -74,7 +79,66 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 
 ---
 
-## Installation
+## Installing from within Claude
+
+By default the marketplace is just a git repository — Claude has no awareness of it. Two plugins change that, making the marketplace self-discoverable from inside any Claude Code session.
+
+### Option A — Marketplace skill (quickest bootstrap)
+
+The `/marketplace` skill is a single Markdown file. Install it with one `curl` command — **no git clone needed**:
+
+```bash
+mkdir -p ~/.claude/skills && curl -fsSL \
+  https://raw.githubusercontent.com/your-org/agentic-plugins-marketplace/main/plugins/skills/marketplace/skill.md \
+  -o ~/.claude/skills/marketplace.md
+```
+
+From your next Claude Code session, type `/marketplace` and talk to Claude naturally:
+
+```
+/marketplace
+> what plugins are available?
+> anything for Slack?
+> install the github MCP server
+```
+
+Claude will show a dry-run and ask for confirmation before making any changes.
+
+### Option B — Marketplace MCP server (fully integrated)
+
+The marketplace MCP server registers four tools (`list_plugins`, `search_plugins`, `get_plugin`, `install_plugin`) that are available in **every** conversation — Claude can proactively suggest plugins without you having to invoke a slash command first.
+
+```bash
+# 1. Clone the marketplace
+git clone https://github.com/your-org/agentic-plugins-marketplace.git ~/marketplace
+export MARKETPLACE_DIR=~/marketplace
+
+# 2. Register the MCP server
+claude mcp add marketplace \
+  -e MARKETPLACE_DIR=$MARKETPLACE_DIR \
+  -- node $MARKETPLACE_DIR/plugins/mcp-servers/marketplace/server.js
+```
+
+Restart Claude Code. Claude can now answer questions like:
+
+> "Is there a plugin that logs what tools you use?"
+
+> "Install the notify-on-stop hook."
+
+See [plugins/mcp-servers/marketplace/](plugins/mcp-servers/marketplace/) for full documentation.
+
+### Comparison
+
+| | Marketplace skill | Marketplace MCP server |
+|---|---|---|
+| Setup | `curl` one file | Clone repo + `claude mcp add` |
+| Requires Node.js | No | Yes |
+| Invocation | `/marketplace` command | Available in every conversation |
+| Claude proactively suggests plugins | No | Yes |
+
+---
+
+## Installation (CLI)
 
 ### Prerequisites
 

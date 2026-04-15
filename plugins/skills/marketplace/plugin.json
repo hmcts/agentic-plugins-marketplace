@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../schemas/plugin.schema.json",
+  "name": "marketplace",
+  "version": "1.0.0",
+  "description": "Browse and install marketplace plugins conversationally from within Claude Code",
+  "type": "skill",
+  "author": "agentic-plugins-marketplace",
+  "license": "MIT",
+  "tags": ["marketplace", "plugins", "install", "discover"],
+  "skill": {
+    "file": "skill.md",
+    "trigger": "marketplace"
+  }
+}
