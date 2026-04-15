@@ -14,6 +14,10 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
   - [Skills](#skills)
   - [Hooks](#hooks)
   - [Templates](#templates)
+- [Recommended official plugins](#recommended-official-plugins)
+  - [MCP servers — integrations](#mcp-servers--integrations)
+  - [Skills — slash commands](#skills--slash-commands)
+  - [Hooks — automatic](#hooks--automatic)
 - [Installation](#installation)
   - [Team setup — commit .claude/settings.json](#team-setup--commit-claudesettingsjson)
   - [Step 1 — add this marketplace](#step-1--add-this-marketplace)
@@ -119,6 +123,90 @@ Hook scripts (`hook.sh`) execute as shell commands with the full privileges of y
 | [python-project](plugins/templates/python-project/) | Python / uv | `CLAUDE.md` for Python with uv, pytest, ruff, mypy |
 | [nodejs-project](plugins/templates/nodejs-project/) | Node.js / TypeScript | `CLAUDE.md` for TypeScript with Vitest and ESLint |
 
+> **A note on plugin overhead** — every installed plugin has a cost. MCP servers run as persistent subprocesses and expose all their tools to Claude on every turn, making responses slightly slower and more expensive. `PreToolUse` hooks execute synchronously before every tool call — a slow or broken hook blocks Claude entirely. `PostToolUse` hooks multiply across tool calls, spawning a subprocess each time. Skills cost nothing until invoked. The practical rule: enable hooks and skills for the whole team, but let individuals opt in to MCP servers based on the services they actually use.
+
+---
+
+## Recommended official plugins
+
+Curated picks from [claude.com/plugins](https://claude.com/plugins), grouped by type and category. Install any of them in Claude Code via `/plugin`.
+
+> Most of these are hooks or skills and have negligible overhead. MCP servers (GitHub, Greptile, Atlassian, the LSPs) launch subprocesses — only install the ones your project actively uses.
+
+### MCP servers — integrations
+
+#### Developer tools
+
+| Plugin | Description |
+|--------|-------------|
+| [GitHub](https://claude.com/plugins/github) | Official GitHub integration — manage repos, issues, PRs, Actions, and Dependabot alerts directly from Claude |
+| [Greptile](https://claude.com/plugins/greptile) | AI-powered codebase search and automated PR reviews integrated with GitHub and GitLab |
+| [Pyright LSP](https://claude.com/plugins/pyright-lsp) | Python static type checking — real-time type errors and diagnostics without executing code |
+| [TypeScript LSP](https://claude.com/plugins/typescript-lsp) | TS/JS code intelligence — go-to-definition, find references, real-time error checking |
+
+#### Project management
+
+| Plugin | Description |
+|--------|-------------|
+| [Atlassian](https://claude.com/plugins/atlassian) | Search and manage Jira, Confluence, and Compass via natural language commands |
+
+### Skills — slash commands
+
+#### Architecture & workflow
+
+| Plugin | Trigger | Description |
+|--------|---------|-------------|
+| [Superpowers](https://claude.com/plugins/superpowers) | `/brainstorming`, `/execute-plan` | TDD cycles, Socratic planning, and subagent-driven development with built-in review checkpoints |
+| [Claude Code Setup](https://claude.com/plugins/claude-code-setup) | — | Analyses your project and recommends relevant MCP servers, skills, hooks, and agents |
+
+#### Git & version control
+
+| Plugin | Trigger | Description |
+|--------|---------|-------------|
+| [Commit Commands](https://claude.com/plugins/commit-commands) | `/commit`, `/commit-push-pr`, `/clean_gone` | Generates commit messages matching repo style; full commit → push → PR workflow in one command |
+
+#### Code review
+
+| Plugin | Trigger | Description |
+|--------|---------|-------------|
+| [Code Review](https://claude.com/plugins/code-review) | `/code-review` | Five parallel review agents with confidence-score filtering to reduce false positives |
+| [PR Review Toolkit](https://claude.com/plugins/pr-review-toolkit) | — | Six specialised agents covering tests, type design, silent failures, docs, and code simplicity |
+
+#### Memory & documentation
+
+| Plugin | Trigger | Description |
+|--------|---------|-------------|
+| [Remember](https://claude.com/plugins/remember) | `/remember` | Captures sessions into tiered logs so Claude recalls decisions and file changes across restarts |
+| [CLAUDE.md Management](https://claude.com/plugins/claude-md-management) | `/revise-claude-md` | Audits and proposes updates to CLAUDE.md files to keep project memory accurate |
+
+#### Plugin development
+
+| Plugin | Trigger | Description |
+|--------|---------|-------------|
+| [Plugin Developer Toolkit](https://claude.com/plugins/plugin-dev) | `/plugin-dev:create-plugin` | 8-phase guided workflow for building hooks, skills, MCP servers, and agents |
+| [Skill Creator](https://claude.com/plugins/skill-creator) | `/skill-creator` | Create, evaluate, improve, and A/B benchmark Claude Code skills |
+
+### Hooks — automatic
+
+#### Security
+
+| Plugin | Event | Description |
+|--------|-------|-------------|
+| [Security Guidance](https://claude.com/plugins/security-guidance) | `PreToolUse` | Intercepts Write/Edit operations and warns on command injection, XSS, eval, and unsafe deserialization before changes land |
+
+#### Code quality
+
+| Plugin | Event | Description |
+|--------|-------|-------------|
+| [Code Simplifier](https://claude.com/plugins/code-simplifier) | automatic | Simplifies recently modified code — reduces nesting, improves naming, removes redundancy while preserving behaviour |
+
+#### Learning & output style
+
+| Plugin | Event | Description |
+|--------|-------|-------------|
+| [Learning Output Style](https://claude.com/plugins/learning-output-style) | session start | Pauses at architectural decisions and prompts you to contribute key code, turning sessions into hands-on learning |
+| [Explanatory Output Style](https://claude.com/plugins/explanatory-output-style) | session start | Adds insight boxes to responses covering codebase-specific patterns and design trade-offs |
+
 ---
 
 ## Installation
@@ -141,13 +229,17 @@ github@hmcts/agentic-plugins-marketplace
 
 ### Team setup — commit `.claude/settings.json`
 
-This repo ships a `.claude/settings.json` that pre-registers the marketplace and lists all plugins as enabled. If you fork or use this repo as a base, your teammates get the marketplace pre-configured — they only need to run one command after cloning:
+This repo ships a `.claude/settings.json` that pre-registers the marketplace and auto-enables all skills, hooks, and templates. MCP servers are intentionally excluded from auto-install — they run as persistent subprocesses and require credentials, so team members should opt in individually based on the services they use.
+
+The settings file also enables [Security Guidance](https://claude.com/plugins/security-guidance) from the official marketplace, which intercepts Write/Edit operations and warns on common vulnerabilities before changes land.
+
+After cloning, run:
 
 ```
 /plugin install --all @agentic-plugins-marketplace
 ```
 
-After that, `enabledPlugins` keeps all plugins active automatically for the project.
+`enabledPlugins` keeps the activated plugins live for the project without further configuration.
 
 ### Step 2 — browse and install
 
