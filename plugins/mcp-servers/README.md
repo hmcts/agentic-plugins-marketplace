@@ -9,9 +9,9 @@ MCP servers extend Claude with new **tools** — callable functions that let Cla
 | [marketplace](./marketplace/) | Browse and search marketplace plugins via Claude tools |
 | [filesystem](./filesystem/) | Sandboxed read/write access to local directories |
 | [postgres](./postgres/) | Read-only SQL queries against PostgreSQL |
-| [slack](./slack/) | Read channels and post messages to Slack |
 
 > **GitHub** — use the official plugin at [claude.com/plugins/github](https://claude.com/plugins/github) rather than a community duplicate.
+> **Slack** — use the official plugin at [claude.com/plugins/slack](https://claude.com/plugins/slack) rather than a community duplicate.
 
 ## Installation
 

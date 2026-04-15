@@ -22,14 +22,6 @@
       "tags": ["database", "postgres", "sql", "analytics"]
     },
     {
-      "name": "slack",
-      "source": "./plugins/mcp-servers/slack",
-      "description": "Read channel history and post messages to Slack workspaces from Claude",
-      "version": "1.0.0",
-      "category": "mcp-server",
-      "tags": ["slack", "messaging", "collaboration", "notifications"]
-    },
-    {
       "name": "marketplace",
       "source": "./plugins/mcp-servers/marketplace",
       "description": "MCP server that lets Claude browse, search, and install marketplace plugins as tools",
