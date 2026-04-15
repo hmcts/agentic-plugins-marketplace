@@ -24,22 +24,18 @@ Exposes a sandboxed set of directories to Claude, allowing it to read, write, an
 
 ## Installation
 
-```bash
-# Quick install via the marketplace installer
-./scripts/install.sh mcp-servers/filesystem
-
-# Or add manually — pass the directories you want accessible as extra arguments
-claude mcp add filesystem \
-  -- npx -y @modelcontextprotocol/server-filesystem /path/to/dir1 /path/to/dir2
 ```
+/plugin install filesystem@agentic-plugins-marketplace
+```
+
+The `/plugin` TUI will prompt for `FILESYSTEM_ALLOWED_DIRS` — enter a space-separated list of absolute paths Claude is allowed to access.
 
 ## Configuration
 
-Pass one or more absolute directory paths as arguments. Claude will only be able to access files within those directories.
+Pass one or more absolute directory paths. Claude will only be able to access files within those directories.
 
-```bash
-# Example: grant access to your home projects folder
-claude mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem ~/projects
+```
+FILESYSTEM_ALLOWED_DIRS=/home/user/projects /tmp
 ```
 
 ## Security note

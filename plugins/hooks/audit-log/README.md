@@ -18,30 +18,8 @@ Each line is a newline-delimited JSON object:
 
 ## Installation
 
-```bash
-./scripts/install.sh hooks/audit-log
 ```
-
-## Manual installation
-
-```bash
-mkdir -p ~/.claude/hooks
-cp hook.sh ~/.claude/hooks/audit-log.sh
-chmod +x ~/.claude/hooks/audit-log.sh
-```
-
-Then add to `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "hooks": [{ "type": "command", "command": "~/.claude/hooks/audit-log.sh" }]
-      }
-    ]
-  }
-}
+/plugin install audit-log@agentic-plugins-marketplace
 ```
 
 ## Configuration

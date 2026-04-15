@@ -23,15 +23,11 @@ Gives Claude the ability to interact with GitHub — search code, read files, ma
 
 ## Installation
 
-```bash
-# Quick install via the marketplace installer
-./scripts/install.sh mcp-servers/github
-
-# Or add manually
-claude mcp add github \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -- npx -y @modelcontextprotocol/server-github
 ```
+/plugin install github@agentic-plugins-marketplace
+```
+
+The `/plugin` TUI will prompt for `GITHUB_PERSONAL_ACCESS_TOKEN` and store it in your OS keychain.
 
 ## Configuration
 

@@ -1,6 +1,6 @@
 # Agentic Plugins Marketplace
 
-A community-maintained collection of plugins for [Claude Code](https://claude.ai/code) — Anthropic's AI coding agent. Browse and install MCP servers, skills, hooks, and project templates to extend what Claude can do in your development workflow.
+A community-maintained collection of plugins for [Claude Code](https://claude.ai/code) — Anthropic's AI coding agent. Browse and install MCP servers, skills, hooks, and project templates directly from Claude Code's built-in `/plugin` TUI.
 
 ---
 
@@ -9,23 +9,16 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 - [Plugin types](#plugin-types)
 - [Available plugins](#available-plugins)
   - [MCP Servers](#mcp-servers)
-  - [Skills (slash commands)](#skills-slash-commands)
+  - [Skills](#skills)
   - [Hooks](#hooks)
   - [Templates](#templates)
-- [Installing via /plugin (native TUI)](#installing-via-plugin-native-tui)
-- [Installing from within Claude](#installing-from-within-claude)
-  - [Option A — Marketplace skill (quickest bootstrap)](#option-a--marketplace-skill-quickest-bootstrap)
-  - [Option B — Marketplace MCP server (fully integrated)](#option-b--marketplace-mcp-server-fully-integrated)
-- [Installation (CLI)](#installation-cli)
-  - [Prerequisites](#prerequisites)
-  - [Quick install](#quick-install)
-  - [Install a specific plugin](#install-a-specific-plugin)
-  - [Dry run](#dry-run)
-- [How each type installs](#how-each-type-installs)
-  - [MCP Servers](#mcp-servers-1)
-  - [Skills](#skills)
-  - [Hooks](#hooks-1)
-  - [Templates](#templates-1)
+- [Installation](#installation)
+  - [Step 1 — add this marketplace](#step-1--add-this-marketplace)
+  - [Step 2 — browse and install](#step-2--browse-and-install)
+  - [What gets installed automatically](#what-gets-installed-automatically)
+- [Using Claude to discover plugins](#using-claude-to-discover-plugins)
+  - [Option A — /marketplace skill](#option-a---marketplace-skill)
+  - [Option B — Marketplace MCP server](#option-b--marketplace-mcp-server)
 - [Repository layout](#repository-layout)
 - [Contributing](#contributing)
 - [License](#license)
@@ -34,12 +27,12 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 
 ## Plugin types
 
-| Type | What it does | Installed to |
-|------|-------------|-------------|
-| **MCP Server** | Gives Claude new tools to call external APIs and services | `claude mcp add` |
-| **Skill** | Reusable slash-command prompt that guides Claude through a task | `~/.claude/skills/` |
-| **Hook** | Shell script that runs automatically on Claude lifecycle events | `~/.claude/settings.json` |
-| **Template** | Pre-written `CLAUDE.md` for a specific project type | your project root |
+| Type | What it does |
+|------|-------------|
+| **MCP Server** | Gives Claude new tools to call external APIs and services |
+| **Skill** | Reusable slash-command prompt that guides Claude through a task |
+| **Hook** | Shell script that runs automatically on Claude lifecycle events |
+| **Template** | Pre-written `CLAUDE.md` for a specific project type |
 
 ---
 
@@ -49,13 +42,13 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 
 | Plugin | Description |
 |--------|-------------|
-| [marketplace](plugins/mcp-servers/marketplace/) | Browse, search, and install plugins via Claude tools |
+| [marketplace](plugins/mcp-servers/marketplace/) | Browse and search marketplace plugins via Claude tools |
 | [github](plugins/mcp-servers/github/) | Search repos, read files, manage issues and PRs |
 | [filesystem](plugins/mcp-servers/filesystem/) | Sandboxed read/write access to local directories |
 | [postgres](plugins/mcp-servers/postgres/) | Read-only SQL queries against PostgreSQL |
-| [slack](plugins/mcp-servers/slack/) | Read channels and post messages to Slack |
+| [slack](plugins/mcp-servers/slack/) | Read channel history and post messages to Slack |
 
-### Skills (slash commands)
+### Skills
 
 | Plugin | Trigger | Description |
 |--------|---------|-------------|
@@ -80,11 +73,13 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
 
 ---
 
-## Installing via /plugin (native TUI)
+## Installation
 
-This is the recommended way to install plugins. Claude Code's built-in `/plugin` command opens a terminal UI with four tabs — **Discover**, **Installed**, **Marketplaces**, and **Errors**. This marketplace is a registered source, so you can browse and install everything from that UI.
+Plugins are installed through Claude Code's built-in `/plugin` command, which opens a terminal UI with four tabs: **Discover**, **Installed**, **Marketplaces**, and **Errors**.
 
-### Step 1 — add this marketplace as a source
+### Step 1 — add this marketplace
+
+Open Claude Code and run:
 
 ```
 /plugin
@@ -98,179 +93,66 @@ github@your-org/agentic-plugins-marketplace
 
 ### Step 2 — browse and install
 
-Switch to the **Discover** tab. All plugins from this marketplace appear alongside any others you have registered. Use `Tab`/`Shift+Tab` to navigate between tabs.
-
-To install from the command line without opening the TUI:
+Switch to the **Discover** tab to see all available plugins. To install from the command line without opening the TUI:
 
 ```bash
 # Install a single plugin
-/plugin install github@agentic-plugins-marketplace   # installs the marketplace MCP server
+/plugin install github@agentic-plugins-marketplace
 /plugin install code-review@agentic-plugins-marketplace
 /plugin install audit-log@agentic-plugins-marketplace
 
-# Install all plugins in this marketplace at once
+# Install all plugins at once
 /plugin install --all @agentic-plugins-marketplace
 ```
 
-### What gets installed
+For MCP server plugins, Claude Code will prompt for any required API keys or configuration and store secrets in your OS keychain — no manual JSON editing needed.
 
-When you install a plugin via `/plugin`, Claude Code reads that plugin's directory from this repo and automatically wires up everything inside it:
+### What gets installed automatically
 
-| File in plugin dir | What Claude Code does with it |
-|-------------------|-------------------------------|
-| `.mcp.json` | Registers the MCP server — prompts for required env vars and stores secrets in OS keychain |
+| File in the plugin directory | What Claude Code does |
+|-----------------------------|----------------------|
+| `.mcp.json` | Registers the MCP server; prompts for env vars via `userConfig` |
 | `skills/<trigger>/SKILL.md` | Adds the `/trigger` slash command |
 | `hooks/hooks.json` | Registers the lifecycle hook |
 
-No manual JSON editing, no copying files — it all happens in one step.
-
 ---
 
-## Installing from within Claude
+## Using Claude to discover plugins
 
-By default the marketplace is just a git repository — Claude has no awareness of it. Two plugins change that, making the marketplace self-discoverable from inside any Claude Code session.
+Two plugins make the marketplace searchable from within a Claude conversation.
 
-### Option A — Marketplace skill (quickest bootstrap)
+### Option A — `/marketplace` skill
 
-The `/marketplace` skill is a single Markdown file. Install it with one `curl` command — **no git clone needed**:
+A single slash command. No extra setup beyond installing the skill itself:
 
 ```bash
-mkdir -p ~/.claude/skills && curl -fsSL \
-  https://raw.githubusercontent.com/your-org/agentic-plugins-marketplace/main/plugins/skills/marketplace/skill.md \
-  -o ~/.claude/skills/marketplace.md
+/plugin install marketplace-skill@agentic-plugins-marketplace
 ```
 
-From your next Claude Code session, type `/marketplace` and talk to Claude naturally:
+Then in any session:
 
 ```
 /marketplace
-> what plugins are available?
-> anything for Slack?
-> install the github MCP server
+> what skills are available?
+> anything for databases?
+> tell me about the audit-log hook
 ```
 
-Claude will show a dry-run and ask for confirmation before making any changes.
+### Option B — Marketplace MCP server
 
-### Option B — Marketplace MCP server (fully integrated)
-
-The marketplace MCP server registers four tools (`list_plugins`, `search_plugins`, `get_plugin`, `install_plugin`) that are available in **every** conversation — Claude can proactively suggest plugins without you having to invoke a slash command first.
+Registers `list_plugins`, `search_plugins`, and `get_plugin` tools so Claude can answer plugin questions **in any conversation automatically**, without invoking a slash command:
 
 ```bash
-# 1. Clone the marketplace
-git clone https://github.com/your-org/agentic-plugins-marketplace.git ~/marketplace
-export MARKETPLACE_DIR=~/marketplace
-
-# 2. Register the MCP server
-claude mcp add marketplace \
-  -e MARKETPLACE_DIR=$MARKETPLACE_DIR \
-  -- node $MARKETPLACE_DIR/plugins/mcp-servers/marketplace/server.js
+/plugin install marketplace@agentic-plugins-marketplace
 ```
 
-Restart Claude Code. Claude can now answer questions like:
+The `/plugin` TUI will prompt for `MARKETPLACE_DIR` — the path to your local clone of this repo.
 
-> "Is there a plugin that logs what tools you use?"
-
-> "Install the notify-on-stop hook."
-
-See [plugins/mcp-servers/marketplace/](plugins/mcp-servers/marketplace/) for full documentation.
-
-### Comparison
-
-| | Marketplace skill | Marketplace MCP server |
+| | `/marketplace` skill | Marketplace MCP server |
 |---|---|---|
-| Setup | `curl` one file | Clone repo + `claude mcp add` |
+| Setup | Install one skill | Install MCP server + set `MARKETPLACE_DIR` |
 | Requires Node.js | No | Yes |
-| Invocation | `/marketplace` command | Available in every conversation |
-| Claude proactively suggests plugins | No | Yes |
-
----
-
-## Installation (CLI)
-
-### Prerequisites
-
-- [Claude Code](https://claude.ai/code) CLI installed and authenticated
-- `jq` (`brew install jq` / `apt install jq`)
-- `node` 18+ for MCP servers that use `npx`
-
-### Quick install
-
-Clone the marketplace and run the installer:
-
-```bash
-git clone https://github.com/your-org/agentic-plugins-marketplace.git
-cd agentic-plugins-marketplace
-./scripts/install.sh
-```
-
-The interactive mode lists all available plugins. Type the plugin path to install it.
-
-### Install a specific plugin
-
-```bash
-# MCP server
-./scripts/install.sh mcp-servers/github
-
-# Skill
-./scripts/install.sh skills/code-review
-
-# Hook
-./scripts/install.sh hooks/notify-on-stop
-
-# Template (defaults to current directory)
-./scripts/install.sh templates/python-project
-
-# Template to a specific project
-./scripts/install.sh templates/python-project --target /path/to/my-project
-```
-
-### Dry run
-
-Preview what the installer will do without making any changes:
-
-```bash
-./scripts/install.sh mcp-servers/github --dry-run
-```
-
----
-
-## How each type installs
-
-### MCP Servers
-
-The installer calls `claude mcp add` with the command and environment variables from `plugin.json`. Any `${VAR_NAME}` placeholders are resolved from your current environment.
-
-```bash
-# What the installer runs under the hood:
-claude mcp add github \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -- npx -y @modelcontextprotocol/server-github
-```
-
-After installation, restart Claude Code. The new tools will appear automatically.
-
-### Skills
-
-The installer copies the skill's `.md` file to `~/.claude/skills/<trigger>.md`. The next time you open Claude Code, the slash command is available:
-
-```
-/review     # runs the code-review skill
-/commit     # runs the conventional-commit skill
-/explain    # runs the explain-codebase skill
-```
-
-### Hooks
-
-The installer:
-1. Copies the hook script to `~/.claude/hooks/`
-2. Makes it executable
-3. Merges the hook configuration into `~/.claude/settings.json`
-
-The hook runs automatically on the configured lifecycle event in every subsequent session.
-
-### Templates
-
-The installer copies the `CLAUDE.md` file to your project root (or `--target` directory). Open the file and fill in the placeholders specific to your project.
+| Available in every conversation | No (invoke `/marketplace`) | Yes |
 
 ---
 
@@ -279,14 +161,13 @@ The installer copies the `CLAUDE.md` file to your project root (or `--target` di
 ```
 agentic-plugins-marketplace/
 ├── .claude-plugin/
-│   └── marketplace.json    ← /plugin marketplace catalog (native TUI)
+│   └── marketplace.json        ← /plugin marketplace catalog
 ├── plugins/
 │   ├── mcp-servers/
 │   │   └── <name>/
 │   │       ├── .claude-plugin/
-│   │       │   └── plugin.json ← native plugin metadata + userConfig
-│   │       ├── .mcp.json       ← native MCP server config (read by /plugin)
-│   │       ├── plugin.json     ← installer manifest (read by install.sh)
+│   │       │   └── plugin.json ← metadata + userConfig for required env vars
+│   │       ├── .mcp.json       ← MCP server config
 │   │       └── README.md
 │   ├── skills/
 │   │   └── <name>/
@@ -294,29 +175,22 @@ agentic-plugins-marketplace/
 │   │       │   └── plugin.json
 │   │       ├── skills/
 │   │       │   └── <trigger>/
-│   │       │       └── SKILL.md  ← native skill file (read by /plugin)
-│   │       ├── skill.md          ← installer skill file (read by install.sh)
-│   │       ├── plugin.json
+│   │       │       └── SKILL.md
 │   │       └── README.md
 │   ├── hooks/
 │   │   └── <name>/
 │   │       ├── .claude-plugin/
 │   │       │   └── plugin.json
 │   │       ├── hooks/
-│   │       │   └── hooks.json  ← native hook config (read by /plugin)
-│   │       ├── hook.sh         ← hook script
-│   │       ├── plugin.json
+│   │       │   └── hooks.json
+│   │       ├── hook.sh
 │   │       └── README.md
 │   └── templates/
 │       └── <name>/
-│           ├── plugin.json
+│           ├── .claude-plugin/
+│           │   └── plugin.json
 │           ├── CLAUDE.md
 │           └── README.md
-├── schemas/
-│   └── plugin.schema.json  ← JSON Schema for plugin.json
-├── scripts/
-│   └── install.sh          ← bash installer (alternative to /plugin)
-├── registry.json           ← machine-readable index (used by install.sh + marketplace MCP)
 ├── README.md
 └── CONTRIBUTING.md
 ```
@@ -325,7 +199,7 @@ agentic-plugins-marketplace/
 
 ## Contributing
 
-Want to add a plugin, fix a bug, or improve docs? See [CONTRIBUTING.md](CONTRIBUTING.md).
+Want to add a plugin or improve an existing one? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

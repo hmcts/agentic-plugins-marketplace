@@ -13,9 +13,8 @@ A `CLAUDE.md` starter template for Python projects that use `uv`, `pytest`, `ruf
 
 ## Installation
 
-```bash
-# Copy to the root of your Python project
-./scripts/install.sh templates/python-project --target /path/to/your/project
+```
+/plugin install python-project@agentic-plugins-marketplace
 ```
 
 After installation, edit `CLAUDE.md` to fill in your project description and adjust any conventions that differ from the defaults.

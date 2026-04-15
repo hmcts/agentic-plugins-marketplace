@@ -18,15 +18,11 @@ Gives Claude read-only access to a PostgreSQL database. Claude can explore schem
 
 ## Installation
 
-```bash
-# Quick install via the marketplace installer
-./scripts/install.sh mcp-servers/postgres
-
-# Or add manually
-claude mcp add postgres \
-  -e DATABASE_URL=postgres://user:pass@localhost:5432/mydb \
-  -- npx -y @modelcontextprotocol/server-postgres
 ```
+/plugin install postgres@agentic-plugins-marketplace
+```
+
+The `/plugin` TUI will prompt for `DATABASE_URL` and store it in your OS keychain.
 
 ## Configuration
 

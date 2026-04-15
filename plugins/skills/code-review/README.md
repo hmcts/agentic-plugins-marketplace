@@ -42,6 +42,6 @@ Approve / Request changes / Needs discussion
 
 ## Installation
 
-```bash
-./scripts/install.sh skills/code-review
+```
+/plugin install code-review@agentic-plugins-marketplace
 ```

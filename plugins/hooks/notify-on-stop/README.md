@@ -15,32 +15,8 @@ Sends a desktop notification when Claude finishes a long-running task so you can
 
 ## Installation
 
-```bash
-./scripts/install.sh hooks/notify-on-stop
 ```
-
-The installer:
-1. Copies `hook.sh` to `~/.claude/hooks/notify-on-stop.sh` and makes it executable
-2. Appends the hook entry to `~/.claude/settings.json`
-
-## Manual installation
-
-```bash
-# 1. Copy the script
-mkdir -p ~/.claude/hooks
-cp hook.sh ~/.claude/hooks/notify-on-stop.sh
-chmod +x ~/.claude/hooks/notify-on-stop.sh
-
-# 2. Add to settings.json (merge into existing hooks array if present)
-cat >> ~/.claude/settings.json <<'EOF'
-{
-  "hooks": {
-    "Stop": [
-      { "hooks": [{ "type": "command", "command": "~/.claude/hooks/notify-on-stop.sh" }] }
-    ]
-  }
-}
-EOF
+/plugin install notify-on-stop@agentic-plugins-marketplace
 ```
 
 ## Customisation

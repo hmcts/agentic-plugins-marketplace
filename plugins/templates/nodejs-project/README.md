@@ -14,7 +14,7 @@ A `CLAUDE.md` starter for Node.js projects using TypeScript, Vitest, ESLint, and
 ## Installation
 
 ```bash
-./scripts/install.sh templates/nodejs-project --target /path/to/your/project
+/plugin install nodejs-project@agentic-plugins-marketplace
 ```
 
 Edit `CLAUDE.md` after installation to fill in your project's specific details.

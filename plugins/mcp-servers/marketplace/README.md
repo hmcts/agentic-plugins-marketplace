@@ -1,64 +1,44 @@
 # Marketplace MCP Server
 
-The marketplace's own MCP server. Once installed, Claude gains four tools — `list_plugins`, `search_plugins`, `get_plugin`, and `install_plugin` — so it can browse and install plugins as part of any conversation, not just when `/marketplace` is invoked.
-
-This is the most integrated way to use the marketplace: Claude can proactively suggest plugins, answer "is there a plugin for X?" questions, and install them on request without you leaving your current task.
+Gives Claude three tools — `list_plugins`, `search_plugins`, and `get_plugin` — available in **every** conversation. Claude can proactively suggest relevant plugins and answer "is there a plugin for X?" without you having to open the `/plugin` TUI.
 
 ## Tools provided
 
 | Tool | Description |
 |------|-------------|
-| `list_plugins` | List all plugins, optionally filtered by type |
+| `list_plugins` | List all plugins, optionally filtered by category |
 | `search_plugins` | Full-text search across name, description, and tags |
-| `get_plugin` | Detailed info + README for a single plugin |
-| `install_plugin` | Run the installer (dry-run by default; set `dry_run: false` to install) |
+| `get_plugin` | Full README + install command for a specific plugin |
 
 ## Prerequisites
 
 - Node.js 18+
-- The marketplace repository cloned locally
-- `MARKETPLACE_DIR` set to the clone path
+- This marketplace repository cloned locally
 
 ## Installation
 
-```bash
-# 1. Clone the marketplace (if not already done)
-git clone https://github.com/your-org/agentic-plugins-marketplace.git ~/marketplace
-export MARKETPLACE_DIR=~/marketplace
-
-# 2. Register the MCP server
-claude mcp add marketplace \
-  -e MARKETPLACE_DIR=$MARKETPLACE_DIR \
-  -- node $MARKETPLACE_DIR/plugins/mcp-servers/marketplace/server.js
+```
+/plugin install marketplace@agentic-plugins-marketplace
 ```
 
-Or via the installer:
-
-```bash
-MARKETPLACE_DIR=$(pwd) ./scripts/install.sh mcp-servers/marketplace
-```
-
-Restart Claude Code after installation.
+The `/plugin` TUI will prompt for `MARKETPLACE_DIR` — set it to the absolute path of your local clone of this repo.
 
 ## Usage examples
 
-Once installed, you can ask Claude in natural language:
+Once installed, ask Claude in any conversation:
 
 > "What plugins are available for working with databases?"
 
-> "Is there anything that can send me notifications when you finish a task?"
+> "Is there anything that can notify me when you finish a task?"
 
-> "Show me everything in the hooks category."
+> "Tell me about the audit-log hook."
 
-> "Install the github MCP server." *(Claude will dry-run first and ask for confirmation)*
-
-> "What does the audit-log hook do exactly?"
+Claude responds with plugin details and the exact `/plugin install` command to use.
 
 ## Difference from the `/marketplace` skill
 
-| | Marketplace skill | Marketplace MCP server |
+| | `/marketplace` skill | Marketplace MCP server |
 |---|---|---|
 | How invoked | `/marketplace` slash command | Available in every conversation automatically |
-| Claude's access | Reads files via shell | Structured tool calls |
-| Discoverability | Only when explicitly invoked | Claude can proactively suggest plugins |
-| Setup | Copy one `.md` file | Register MCP server, restart Claude Code |
+| Requires Node.js | No | Yes |
+| Claude proactively suggests plugins | No | Yes |

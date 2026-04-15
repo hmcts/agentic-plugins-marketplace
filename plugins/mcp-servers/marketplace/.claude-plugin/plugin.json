@@ -1,8 +1,15 @@
 {
   "name": "marketplace",
   "version": "1.0.0",
-  "description": "MCP server that lets Claude browse, search, and install marketplace plugins as tools",
+  "description": "MCP server that lets Claude browse and search marketplace plugins as tools",
   "author": "agentic-plugins-marketplace",
   "license": "MIT",
-  "keywords": ["marketplace", "plugins", "install", "discover"]
+  "keywords": ["marketplace", "plugins", "discover"],
+  "userConfig": {
+    "MARKETPLACE_DIR": {
+      "description": "Absolute path to your local clone of agentic-plugins-marketplace",
+      "required": true,
+      "secret": false
+    }
+  }
 }

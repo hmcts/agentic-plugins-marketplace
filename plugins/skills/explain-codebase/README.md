@@ -24,5 +24,5 @@ Open a project in Claude Code and type:
 ## Installation
 
 ```bash
-./scripts/install.sh skills/explain-codebase
+/plugin install explain-codebase@agentic-plugins-marketplace
 ```

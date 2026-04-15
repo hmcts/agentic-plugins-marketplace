@@ -39,5 +39,5 @@ Type `yes` to confirm, or give feedback to refine the message.
 ## Installation
 
 ```bash
-./scripts/install.sh skills/conventional-commit
+/plugin install conventional-commit@agentic-plugins-marketplace
 ```

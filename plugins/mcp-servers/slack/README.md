@@ -30,16 +30,11 @@ chat:write
 
 ## Installation
 
-```bash
-# Quick install via the marketplace installer
-./scripts/install.sh mcp-servers/slack
-
-# Or add manually
-claude mcp add slack \
-  -e SLACK_BOT_TOKEN=xoxb-... \
-  -e SLACK_TEAM_ID=T0123456789 \
-  -- npx -y @modelcontextprotocol/server-slack
 ```
+/plugin install slack@agentic-plugins-marketplace
+```
+
+The `/plugin` TUI will prompt for `SLACK_BOT_TOKEN` (stored in OS keychain) and `SLACK_TEAM_ID`.
 
 ## Configuration
 
