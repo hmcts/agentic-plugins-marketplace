@@ -6,6 +6,7 @@ Thank you for contributing! This guide covers how to add new plugins, what files
 
 ## Table of contents
 
+- [Local development setup](#local-development-setup)
 - [Before you start](#before-you-start)
 - [Plugin types overview](#plugin-types-overview)
 - [General rules](#general-rules)
@@ -17,6 +18,41 @@ Thank you for contributing! This guide covers how to add new plugins, what files
 - [Security — porting from external sources](#security--porting-from-external-sources)
 - [Submitting a pull request](#submitting-a-pull-request)
 - [Code of conduct](#code-of-conduct)
+
+---
+
+## Local development setup
+
+When building or testing a plugin you want Claude Code to load from your local clone rather than from the published GitHub repo. Register the marketplace as a local directory source so changes take effect immediately on `/reload-plugins` — no push or publish step required.
+
+Add this to `~/.claude/settings.json` (global, affects all projects) or to `.claude/settings.json` in the project where you are testing (project-scoped):
+
+```jsonc
+{
+  "extraKnownMarketplaces": {
+    "agentic-plugins-marketplace": {
+      "source": {
+        "source": "directory",
+        "path": "/absolute/path/to/your/clone"
+      }
+    }
+  }
+}
+```
+
+Then enable the plugin you are working on:
+
+```jsonc
+{
+  "enabledPlugins": {
+    "my-new-plugin@agentic-plugins-marketplace": true
+  }
+}
+```
+
+Run `/reload-plugins` inside Claude Code to pick up changes. You do not need to install the plugin — enabling it from a directory source loads the files directly from disk.
+
+> **Scope tip** — use project scope (`.claude/settings.json`) while developing so your test config is isolated to the clone directory and does not affect other projects.
 
 ---
 
@@ -105,13 +141,11 @@ plugins/mcp-servers/<name>/
 
 ```jsonc
 {
-  "mcpServers": {
-    "<server-name>": {
-      "command": "npx",
-      "args": ["-y", "@scope/mcp-server-package"],
-      "env": {
-        "API_KEY": "${API_KEY}"   // ${VAR} = user must supply
-      }
+  "<server-name>": {
+    "command": "npx",
+    "args": ["-y", "@scope/mcp-server-package"],
+    "env": {
+      "API_KEY": "${API_KEY}"   // ${VAR} = resolved from the user's environment
     }
   }
 }
