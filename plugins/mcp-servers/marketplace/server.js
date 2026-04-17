@@ -180,6 +180,9 @@ rl.on("line", (line) => {
 
   const { id, method, params } = msg;
 
+  // notifications have no id — do not respond
+  if (id === undefined) return;
+
   if (method === "initialize") {
     send({
       jsonrpc: "2.0",
