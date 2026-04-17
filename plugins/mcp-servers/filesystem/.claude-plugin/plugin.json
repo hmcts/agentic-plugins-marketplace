@@ -7,12 +7,5 @@
   },
   "license": "MIT",
   "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
-  "keywords": ["filesystem", "files", "local", "read", "write"],
-  "userConfig": {
-    "FILESYSTEM_ALLOWED_DIRS": {
-      "description": "Space-separated list of absolute directory paths Claude is allowed to access (e.g. /home/user/projects /tmp)",
-      "required": true,
-      "secret": false
-    }
-  }
+  "keywords": ["filesystem", "files", "local", "read", "write"]
 }

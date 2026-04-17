@@ -1,9 +1,6 @@
 {
   "filesystem": {
-    "command": "sh",
-    "args": ["-c", "npx -y @modelcontextprotocol/server-filesystem $FILESYSTEM_ALLOWED_DIRS"],
-    "env": {
-      "FILESYSTEM_ALLOWED_DIRS": "${FILESYSTEM_ALLOWED_DIRS}"
-    }
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "${CLAUDE_PROJECT_DIR}"]
   }
 }

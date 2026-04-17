@@ -18,9 +18,11 @@ import { readFileSync, existsSync } from "fs";
 import { join, resolve } from "path";
 import { createInterface } from "readline";
 
+const _rawDir = process.env.MARKETPLACE_DIR;
 const MARKETPLACE_DIR = resolve(
-  process.env.MARKETPLACE_DIR ||
-    new URL("../../..", import.meta.url).pathname
+  (_rawDir && !_rawDir.startsWith("${"))
+    ? _rawDir
+    : new URL("../../..", import.meta.url).pathname
 );
 
 const CATALOG_PATH = join(MARKETPLACE_DIR, ".claude-plugin", "marketplace.json");
