@@ -22,6 +22,7 @@ A community-maintained collection of plugins for [Claude Code](https://claude.ai
   - [Team setup — commit .claude/settings.json](#team-setup--commit-claudesettingsjson)
   - [Step 1 — add this marketplace](#step-1--add-this-marketplace)
   - [Step 2 — browse and install](#step-2--browse-and-install)
+  - [Plugin scopes](#plugin-scopes)
   - [What gets installed automatically](#what-gets-installed-automatically)
 - [Using Claude to discover plugins](#using-claude-to-discover-plugins)
   - [Option A — /marketplace skill](#option-a---marketplace-skill)
@@ -246,16 +247,57 @@ After cloning, run:
 Switch to the **Discover** tab to see all available plugins. To install from the command line without opening the TUI:
 
 ```bash
-# Install a single plugin
-/plugin install github@agentic-plugins-marketplace
+# Install a single plugin (project scope — only active in the current directory)
 /plugin install code-review@agentic-plugins-marketplace
-/plugin install audit-log@agentic-plugins-marketplace
 
-# Install all plugins at once
-/plugin install --all @agentic-plugins-marketplace
+# Install globally — active in every project you open
+/plugin install audit-log@agentic-plugins-marketplace --global
 ```
 
 For MCP server plugins, Claude Code will prompt for any required API keys or configuration and store secrets in your OS keychain — no manual JSON editing needed.
+
+### Plugin scopes
+
+Every plugin is installed with a **scope** that controls where it activates:
+
+| Scope | Activates in | How to install |
+|-------|-------------|----------------|
+| **Project** | The current directory only | `/plugin install <name>@agentic-plugins-marketplace` |
+| **Global** | Every project you open | `/plugin install <name>@agentic-plugins-marketplace --global` |
+
+**Project scope** is the default and the safer choice — it keeps plugins contained to the repo that needs them and lets teams commit `.claude/settings.json` to share the same setup with everyone who clones the repo.
+
+**Global scope** is useful for personal productivity plugins (e.g. `notify-on-stop`, `audit-log`) that you want active everywhere regardless of project.
+
+#### Installing from a local clone vs GitHub
+
+If you have cloned this repo locally, register it as a local marketplace source so Claude Code reads plugins directly from disk (no network, always up to date with your working branch):
+
+```bash
+# In .claude/settings.json (project) or ~/.claude/settings.json (global)
+{
+  "extraKnownMarketplaces": {
+    "agentic-plugins-marketplace": {
+      "source": { "source": "directory", "path": "/path/to/your/clone" }
+    }
+  }
+}
+```
+
+If you have not cloned the repo, register it from GitHub instead:
+
+```bash
+# Pulls plugins from the published GitHub repo
+{
+  "extraKnownMarketplaces": {
+    "agentic-plugins-marketplace": {
+      "source": { "source": "github", "repo": "hmcts/agentic-plugins-marketplace" }
+    }
+  }
+}
+```
+
+Both sources use the same `/plugin install` commands once registered.
 
 ### What gets installed automatically
 
