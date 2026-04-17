@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "agentic-plugins-marketplace": {
+      "source": {
+        "source": "directory",
+        "path": "/absolute/path/to/your/clone"
+      }
+    }
+  }
+}

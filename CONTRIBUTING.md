@@ -25,7 +25,13 @@ Thank you for contributing! This guide covers how to add new plugins, what files
 
 When building or testing a plugin you want Claude Code to load from your local clone rather than from the published GitHub repo. Register the marketplace as a local directory source so changes take effect immediately on `/reload-plugins` — no push or publish step required.
 
-Add this to `~/.claude/settings.json` (global, affects all projects) or to `.claude/settings.json` in the project where you are testing (project-scoped):
+This repo ships a `.claude/settings.local.example.json` with the required config. Copy it and set your local path:
+
+```bash
+cp .claude/settings.local.example.json .claude/settings.local.json
+```
+
+Then edit `.claude/settings.local.json` and replace the placeholder with the absolute path to your clone:
 
 ```jsonc
 {
@@ -33,14 +39,16 @@ Add this to `~/.claude/settings.json` (global, affects all projects) or to `.cla
     "agentic-plugins-marketplace": {
       "source": {
         "source": "directory",
-        "path": "/absolute/path/to/your/clone"
+        "path": "/absolute/path/to/your/clone"   // ← replace this
       }
     }
   }
 }
 ```
 
-Then enable the plugin you are working on:
+`settings.local.json` is gitignored — it is safe to add personal permissions or machine-specific paths there without affecting teammates.
+
+Then enable the plugin you are working on. Add to `.claude/settings.json` (or your `settings.local.json`):
 
 ```jsonc
 {
