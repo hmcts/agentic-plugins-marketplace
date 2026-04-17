@@ -1,11 +1,9 @@
 {
-  "mcpServers": {
-    "marketplace": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/server.js"],
-      "env": {
-        "MARKETPLACE_DIR": "${MARKETPLACE_DIR}"
-      }
+  "marketplace": {
+    "command": "node",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/server.js"],
+    "env": {
+      "MARKETPLACE_DIR": "${MARKETPLACE_DIR}"
     }
   }
 }
