@@ -2,7 +2,9 @@
   "name": "postgres",
   "version": "1.0.0",
   "description": "Let Claude inspect schemas and run read-only SQL queries against a PostgreSQL database",
-  "author": "Anthropic",
+  "author": {
+    "name": "Anthropic"
+  },
   "license": "MIT",
   "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
   "keywords": ["database", "postgres", "sql", "analytics"],

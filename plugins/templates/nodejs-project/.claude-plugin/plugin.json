@@ -1,0 +1,11 @@
+{
+  "name": "nodejs-project",
+  "version": "1.0.0",
+  "description": "CLAUDE.md template for Node.js/TypeScript projects using Vitest, ESLint, and Prettier",
+  "author": {
+    "name": "Agentic Plugins Marketplace",
+    "email": "oleg.efrem@scrumconnect.com"
+  },
+  "license": "MIT",
+  "keywords": ["nodejs", "typescript", "vitest", "eslint", "prettier"]
+}

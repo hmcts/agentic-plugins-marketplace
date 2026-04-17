@@ -2,7 +2,10 @@
   "name": "marketplace-skill",
   "version": "1.0.0",
   "description": "Browse and install marketplace plugins conversationally from within Claude Code",
-  "author": "agentic-plugins-marketplace",
+  "author": {
+    "name": "Agentic Plugins Marketplace",
+    "email": "oleg.efrem@scrumconnect.com"
+  },
   "license": "MIT",
   "keywords": ["marketplace", "plugins", "install", "discover"]
 }

@@ -1,12 +1,15 @@
 {
-  "Stop": [
-    {
-      "hooks": [
-        {
-          "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/hook.sh"
-        }
-      ]
-    }
-  ]
+  "description": "Send a desktop notification (macOS / Linux) when Claude finishes a task",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hook.sh"
+          }
+        ]
+      }
+    ]
+  }
 }

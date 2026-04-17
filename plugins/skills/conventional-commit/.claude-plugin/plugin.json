@@ -2,7 +2,10 @@
   "name": "conventional-commit",
   "version": "1.0.0",
   "description": "Generate a Conventional Commits-compliant git commit message from staged changes",
-  "author": "agentic-plugins-marketplace",
+  "author": {
+    "name": "Agentic Plugins Marketplace",
+    "email": "oleg.efrem@scrumconnect.com"
+  },
   "license": "MIT",
   "keywords": ["git", "commit", "conventional-commits", "workflow"]
 }

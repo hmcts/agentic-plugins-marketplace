@@ -2,7 +2,10 @@
   "name": "code-review",
   "version": "1.0.0",
   "description": "Structured code review of the current branch — security, correctness, performance, and readability",
-  "author": "agentic-plugins-marketplace",
+  "author": {
+    "name": "Agentic Plugins Marketplace",
+    "email": "oleg.efrem@scrumconnect.com"
+  },
   "license": "MIT",
   "keywords": ["code-review", "quality", "security", "pr"]
 }

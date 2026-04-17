@@ -1,0 +1,11 @@
+{
+  "name": "python-project",
+  "version": "1.0.0",
+  "description": "CLAUDE.md template for Python projects using uv, pytest, ruff, and mypy",
+  "author": {
+    "name": "Agentic Plugins Marketplace",
+    "email": "oleg.efrem@scrumconnect.com"
+  },
+  "license": "MIT",
+  "keywords": ["python", "uv", "pytest", "ruff", "mypy"]
+}
