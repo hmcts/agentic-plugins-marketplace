@@ -1,0 +1,6 @@
+{
+  "filesystem": {
+    "command": "sh",
+    "args": ["-c", "npx -y @modelcontextprotocol/server-filesystem \"$HOME\""]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "filesystem",
+  "version": "1.0.0",
+  "description": "Give Claude sandboxed read/write access to directories on your local filesystem",
+  "author": {
+    "name": "Anthropic"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+  "keywords": ["filesystem", "files", "local", "read", "write"]
+}

@@ -1,0 +1,15 @@
+{
+  "description": "Append a JSON audit trail of every tool Claude calls to ~/.claude/audit.log",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

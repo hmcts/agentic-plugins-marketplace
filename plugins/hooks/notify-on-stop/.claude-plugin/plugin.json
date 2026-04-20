@@ -1,0 +1,11 @@
+{
+  "name": "notify-on-stop",
+  "version": "1.0.0",
+  "description": "Send a desktop notification (macOS / Linux) when Claude finishes a task",
+  "author": {
+    "name": "Agentic Plugins Marketplace",
+    "email": "oleg.efrem@scrumconnect.com"
+  },
+  "license": "MIT",
+  "keywords": ["notifications", "productivity", "desktop", "macos", "linux"]
+}

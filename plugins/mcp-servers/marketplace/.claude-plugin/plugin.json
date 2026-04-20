@@ -1,0 +1,11 @@
+{
+  "name": "marketplace",
+  "version": "1.0.0",
+  "description": "MCP server that lets Claude browse and search marketplace plugins as tools",
+  "author": {
+    "name": "Agentic Plugins Marketplace",
+    "email": "oleg.efrem@scrumconnect.com"
+  },
+  "license": "MIT",
+  "keywords": ["marketplace", "plugins", "discover"]
+}

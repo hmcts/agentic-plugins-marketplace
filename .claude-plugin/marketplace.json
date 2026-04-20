@@ -1,0 +1,97 @@
+{
+  "name": "agentic-plugins-marketplace",
+  "owner": {
+    "name": "Agentic Plugins Marketplace",
+    "email": "oleg.efrem@scrumconnect.com"
+  },
+  "plugins": [
+    {
+      "name": "filesystem",
+      "source": "./plugins/mcp-servers/filesystem",
+      "description": "Give Claude sandboxed read/write access to directories on your local filesystem",
+      "version": "1.0.0",
+      "category": "mcp-server",
+      "tags": ["filesystem", "files", "local", "read", "write"]
+    },
+    {
+      "name": "postgres",
+      "source": "./plugins/mcp-servers/postgres",
+      "description": "Let Claude inspect schemas and run read-only SQL queries against a PostgreSQL database",
+      "version": "1.0.0",
+      "category": "mcp-server",
+      "tags": ["database", "postgres", "sql", "analytics"]
+    },
+    {
+      "name": "marketplace",
+      "source": "./plugins/mcp-servers/marketplace",
+      "description": "MCP server that lets Claude browse, search, and install marketplace plugins as tools",
+      "version": "1.0.0",
+      "category": "mcp-server",
+      "tags": ["marketplace", "plugins", "install", "discover"]
+    },
+    {
+      "name": "code-review",
+      "source": "./plugins/skills/code-review",
+      "description": "Structured code review of the current branch — security, correctness, performance, and readability",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["code-review", "quality", "security", "pr"]
+    },
+    {
+      "name": "conventional-commit",
+      "source": "./plugins/skills/conventional-commit",
+      "description": "Generate a Conventional Commits-compliant git commit message from staged changes",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["git", "commit", "conventional-commits", "workflow"]
+    },
+    {
+      "name": "explain-codebase",
+      "source": "./plugins/skills/explain-codebase",
+      "description": "Generate a layered onboarding explanation of the current codebase for new developers",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["onboarding", "documentation", "architecture", "developer-experience"]
+    },
+    {
+      "name": "marketplace-skill",
+      "source": "./plugins/skills/marketplace",
+      "description": "Browse and install marketplace plugins conversationally from within Claude Code",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["marketplace", "plugins", "install", "discover"]
+    },
+    {
+      "name": "notify-on-stop",
+      "source": "./plugins/hooks/notify-on-stop",
+      "description": "Send a desktop notification (macOS / Linux) when Claude finishes a task",
+      "version": "1.0.0",
+      "category": "hook",
+      "tags": ["notifications", "productivity", "desktop", "macos", "linux"]
+    },
+    {
+      "name": "audit-log",
+      "source": "./plugins/hooks/audit-log",
+      "description": "Append a JSON audit trail of every tool Claude calls to ~/.claude/audit.log",
+      "version": "1.0.0",
+      "category": "hook",
+      "tags": ["audit", "logging", "security", "compliance", "observability"]
+    },
+    {
+      "name": "python-project",
+      "source": "./plugins/templates/python-project",
+      "description": "CLAUDE.md template for Python projects using uv, pytest, ruff, and mypy",
+      "version": "1.0.0",
+      "category": "template",
+      "tags": ["python", "uv", "pytest", "ruff", "mypy"]
+    },
+    {
+      "name": "nodejs-project",
+      "source": "./plugins/templates/nodejs-project",
+      "description": "CLAUDE.md template for Node.js/TypeScript projects using Vitest, ESLint, and Prettier",
+      "version": "1.0.0",
+      "category": "template",
+      "tags": ["nodejs", "typescript", "vitest", "eslint", "prettier"]
+    }
+  ]
+}
