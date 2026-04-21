@@ -1,3 +1,8 @@
+---
+name: review
+description: Use when the user asks to review the current branch, check code quality, or run a code review. Performs a structured review against main covering correctness, security, performance, readability, and test coverage.
+---
+
 Review the code changes on the current branch against the main branch. Follow these steps:
 
 1. Run `git diff main...HEAD` to see all changes.

@@ -2,10 +2,15 @@
 # notify-on-stop hook
 # Sends a macOS / Linux desktop notification when Claude finishes a task.
 # Triggered by the Stop lifecycle event in Claude Code.
+# Claude Code passes hook data via JSON on stdin.
 
 set -euo pipefail
 
-MESSAGE="${CLAUDE_STOP_MESSAGE:-Claude has finished working.}"
+PAYLOAD="$(cat)"
+MESSAGE="$(jq -r '.stop_reason // empty' <<<"${PAYLOAD}" 2>/dev/null)"
+if [ -z "${MESSAGE}" ]; then
+  MESSAGE="Claude has finished working."
+fi
 
 if command -v osascript &>/dev/null; then
   # macOS

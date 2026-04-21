@@ -1,3 +1,8 @@
+---
+name: commit
+description: Use when the user asks to commit staged changes, create a conventional commit, or format a commit message. Follows the Conventional Commits specification.
+---
+
 Create a git commit following the Conventional Commits specification.
 
 Steps:
