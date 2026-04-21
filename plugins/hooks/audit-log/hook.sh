@@ -7,20 +7,16 @@ set -euo pipefail
 
 LOG_FILE="${CLAUDE_AUDIT_LOG:-${HOME}/.claude/audit.log}"
 
-# Claude Code passes tool details as environment variables:
-#   CLAUDE_TOOL_NAME      — name of the tool that was called
-#   CLAUDE_TOOL_INPUT     — JSON string of the tool's input arguments
-#   CLAUDE_TOOL_RESULT    — JSON string of the tool's result (may be large)
-#   CLAUDE_SESSION_ID     — unique ID for the current Claude Code session
+PAYLOAD="$(cat)"
 
 TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-TOOL="${CLAUDE_TOOL_NAME:-unknown}"
-SESSION="${CLAUDE_SESSION_ID:-unknown}"
+TOOL="$(echo "$PAYLOAD" | jq -r '.tool_name // "unknown"')"
+SESSION="$(echo "$PAYLOAD" | jq -r '.session_id // "unknown"')"
+INPUT="$(echo "$PAYLOAD" | jq -c '.tool_input // null')"
 
-# Write a compact JSON log line (omit TOOL_RESULT to keep log size manageable)
 printf '{"timestamp":"%s","session":"%s","tool":"%s","input":%s}\n' \
   "${TIMESTAMP}" \
   "${SESSION}" \
   "${TOOL}" \
-  "${CLAUDE_TOOL_INPUT:-null}" \
+  "${INPUT}" \
   >> "${LOG_FILE}"

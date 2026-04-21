@@ -7,5 +7,13 @@
   },
   "license": "MIT",
   "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
-  "keywords": ["filesystem", "files", "local", "read", "write"]
+  "keywords": ["filesystem", "files", "local", "read", "write"],
+  "userConfig": {
+    "FILESYSTEM_ALLOWED_DIRS": {
+      "type": "string",
+      "title": "Allowed directories",
+      "description": "Absolute path(s) Claude can read and write. Separate multiple paths with a space (e.g. /home/user/projects /tmp).",
+      "required": true
+    }
+  }
 }

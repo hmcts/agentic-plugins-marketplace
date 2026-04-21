@@ -1,3 +1,8 @@
+---
+name: explain-codebase
+description: Use when the user asks to explain the codebase, onboard a new developer, give an overview of the project, or describe the architecture and structure.
+---
+
 Give a clear, layered explanation of this codebase suitable for a developer who is new to the project.
 
 Steps:
