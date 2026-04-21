@@ -7,5 +7,13 @@
     "email": "oleg.efrem@scrumconnect.com"
   },
   "license": "MIT",
-  "keywords": ["marketplace", "plugins", "discover"]
+  "keywords": ["marketplace", "plugins", "discover"],
+  "userConfig": {
+    "MARKETPLACE_DIR": {
+      "type": "directory",
+      "title": "Marketplace directory",
+      "description": "Absolute path to your local agentic-plugins-marketplace clone. Leave blank if installing from GitHub.",
+      "required": false
+    }
+  }
 }

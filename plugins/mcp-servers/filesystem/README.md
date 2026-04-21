@@ -1,6 +1,6 @@
 # Filesystem MCP Server
 
-Exposes a sandboxed set of directories to Claude, allowing it to read, write, and navigate your local files without needing shell access.
+Exposes a sandboxed directory to Claude, allowing it to read, write, and navigate your local files without needing shell access.
 
 ## Tools provided
 
@@ -28,16 +28,14 @@ Exposes a sandboxed set of directories to Claude, allowing it to read, write, an
 /plugin install filesystem@agentic-plugins-marketplace
 ```
 
-The `/plugin` TUI will prompt for `FILESYSTEM_ALLOWED_DIRS` — enter a space-separated list of absolute paths Claude is allowed to access.
+The `/plugin` TUI will prompt for `ALLOWED_DIRECTORY` — enter the absolute path to the single directory Claude is allowed to access (e.g. `/Users/you/projects/my-app`).
 
 ## Configuration
 
-Pass one or more absolute directory paths. Claude will only be able to access files within those directories.
-
-```
-FILESYSTEM_ALLOWED_DIRS=/home/user/projects /tmp
-```
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ALLOWED_DIRECTORY` | Yes | Absolute path to the directory Claude may read and write |
 
 ## Security note
 
-Only allow directories that Claude should be permitted to modify. Avoid exposing system directories such as `/`, `/etc`, or `~/.ssh`.
+Set `ALLOWED_DIRECTORY` to the specific project directory you want Claude to work in. **Do not set it to your home directory (`~`)** — doing so would expose ssh keys, browser profiles, credentials files, and every other project on your machine.

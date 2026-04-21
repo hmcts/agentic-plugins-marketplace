@@ -1,11 +1,20 @@
 {
   "name": "filesystem",
   "version": "1.0.0",
-  "description": "Give Claude sandboxed read/write access to directories on your local filesystem",
+  "description": "Give Claude sandboxed read/write access to a directory on your local filesystem",
   "author": {
-    "name": "Anthropic"
+    "name": "Anthropic",
+    "note": "Packaged from @modelcontextprotocol/server-filesystem"
   },
   "license": "MIT",
   "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
-  "keywords": ["filesystem", "files", "local", "read", "write"]
+  "keywords": ["filesystem", "files", "local", "read", "write"],
+  "userConfig": {
+    "ALLOWED_DIRECTORY": {
+      "type": "directory",
+      "title": "Allowed directory",
+      "description": "Absolute path to the directory Claude is allowed to read and write. Do not set to your home directory.",
+      "required": true
+    }
+  }
 }

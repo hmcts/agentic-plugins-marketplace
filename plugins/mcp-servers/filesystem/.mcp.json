@@ -1,6 +1,6 @@
 {
   "filesystem": {
     "command": "sh",
-    "args": ["-c", "npx -y @modelcontextprotocol/server-filesystem \"$HOME\""]
+    "args": ["-c", "npx -y @modelcontextprotocol/server-filesystem \"${ALLOWED_DIRECTORY}\""]
   }
 }
