@@ -24,7 +24,7 @@
     {
       "name": "marketplace",
       "source": "./plugins/mcp-servers/marketplace",
-      "description": "MCP server that lets Claude browse, search, and install marketplace plugins as tools",
+      "description": "MCP server that lets Claude browse and search marketplace plugins as tools",
       "version": "1.0.0",
       "category": "mcp-server",
       "tags": ["marketplace", "plugins", "install", "discover"]

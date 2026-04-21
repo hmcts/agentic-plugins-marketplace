@@ -1,3 +1,8 @@
+---
+name: review
+description: Use when the user asks to review the current branch, check code quality, run a code review, or assess changes before merging.
+---
+
 Review the code changes on the current branch against the main branch. Follow these steps:
 
 1. Run `git diff main...HEAD` to see all changes.

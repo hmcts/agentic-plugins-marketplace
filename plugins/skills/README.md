@@ -1,15 +1,15 @@
 # Skill Plugins
 
-Skills are prompt templates that give Claude a structured playbook for a task, triggered by a `/slash-command`.
+Skills are prompt templates that give Claude a structured playbook for a task. They are **auto-triggered** — Claude detects from each skill's description when to invoke it, rather than the user typing a slash command.
 
 ## Available skills
 
-| Plugin | Trigger | Description |
-|--------|---------|-------------|
-| [marketplace](./marketplace/) | `/marketplace` | Browse and install plugins conversationally |
-| [code-review](./code-review/) | `/review` | Structured PR review — security, correctness, performance |
-| [conventional-commit](./conventional-commit/) | `/commit` | Conventional Commits message from staged changes |
-| [explain-codebase](./explain-codebase/) | `/explain` | Onboarding guide for new developers |
+| Plugin | Description |
+|--------|-------------|
+| [marketplace-skill](./marketplace-skill/) | Browse and install plugins conversationally |
+| [code-review](./code-review/) | Structured PR review — security, correctness, performance |
+| [conventional-commit](./conventional-commit/) | Conventional Commits message from staged changes |
+| [explain-codebase](./explain-codebase/) | Onboarding guide for new developers |
 
 ## Installation
 

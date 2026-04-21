@@ -5,7 +5,11 @@
 
 set -euo pipefail
 
-MESSAGE="${CLAUDE_STOP_MESSAGE:-Claude has finished working.}"
+# Consume stdin — Stop event payload contains stop_reason and session_id
+PAYLOAD="$(cat)"
+STOP_REASON="$(echo "$PAYLOAD" | jq -r '.stop_reason // "end_turn"')"
+
+MESSAGE="Claude has finished (${STOP_REASON})."
 
 if command -v osascript &>/dev/null; then
   # macOS

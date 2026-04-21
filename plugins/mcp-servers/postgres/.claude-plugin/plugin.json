@@ -10,6 +10,8 @@
   "keywords": ["database", "postgres", "sql", "analytics"],
   "userConfig": {
     "DATABASE_URL": {
+      "type": "string",
+      "title": "Database URL",
       "description": "PostgreSQL connection string (e.g. postgres://user:pass@localhost:5432/mydb)",
       "required": true,
       "secret": true
