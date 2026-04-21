@@ -159,6 +159,8 @@ plugins/mcp-servers/<name>/
 }
 ```
 
+> **Note**: Plugin `.mcp.json` files use the server name as the top-level key. This is different from native MCP config in `settings.json`, which uses a `mcpServers` wrapper.
+
 ### userConfig in .claude-plugin/plugin.json
 
 Declare every `${VAR}` placeholder so the `/plugin` TUI can prompt the user and store secrets in the OS keychain:
@@ -168,9 +170,10 @@ Declare every `${VAR}` placeholder so the `/plugin` TUI can prompt the user and 
   "name": "my-server",
   "userConfig": {
     "API_KEY": {
+      "type": "string",           // "string" | "number" | "boolean" | "directory" | "file"
+      "title": "API key",         // label shown in the TUI prompt
       "description": "API key for the service (found at example.com/settings)",
-      "required": true,
-      "secret": true    // stored in OS keychain, not settings.json
+      "required": true
     }
   }
 }
@@ -200,17 +203,29 @@ plugins/skills/<name>/
 └── README.md
 ```
 
-The trigger name (directory under `skills/`) becomes the slash command: `skills/review/SKILL.md` → `/review`.
-
 ### Writing SKILL.md
 
-Write it as instructions to a capable engineer:
+Skills are **auto-triggered** — Claude detects from the `description` field in the YAML frontmatter when to invoke the skill, rather than the user typing a slash command. Every `SKILL.md` must start with YAML frontmatter:
+
+```yaml
+---
+name: review
+description: Use when the user asks to review the current branch, check code quality, or run a code review.
+---
+```
+
+- `name` — identifier for the skill (must be unique across installed skills)
+- `description` — the trigger signal Claude uses to decide when to invoke this skill; be specific about user intent patterns
+
+Write the body as instructions to a capable engineer:
 
 - Use imperative mood ("Analyse the diff and…", "Generate a…")
 - Be explicit about the steps Claude should follow
 - Specify the expected output format
 - One skill, one job — keep it focused
 - Never include secrets or credentials
+
+> **Skills vs commands**: if you want a user-invoked slash command rather than auto-triggered behaviour, create a `commands/<name>.md` file instead.
 
 ### Checklist
 
@@ -240,16 +255,19 @@ plugins/hooks/<name>/
 
 ```jsonc
 {
-  "Stop": [                         // lifecycle event (see table below)
-    {
-      "hooks": [
-        {
-          "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/hook.sh"
-        }
-      ]
-    }
-  ]
+  "description": "One sentence describing what this hook does.",
+  "hooks": {
+    "Stop": [                       // lifecycle event (see table below)
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hook.sh"
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -293,9 +311,13 @@ Templates are `CLAUDE.md` files for specific project stacks. Claude Code reads `
 plugins/templates/<name>/
 ├── .claude-plugin/
 │   └── plugin.json
-├── CLAUDE.md           ← the template
+├── commands/
+│   └── use-<name>-template.md  ← slash command that copies CLAUDE.md to the project
+├── CLAUDE.md                   ← the template content
 └── README.md
 ```
+
+Claude Code reads `CLAUDE.md` from the **project root**, not from inside the installed plugin directory. Templates must therefore ship a command that copies the file into place. The command reads `${CLAUDE_PLUGIN_ROOT}/CLAUDE.md` and writes it to the user's working directory.
 
 ### Writing CLAUDE.md
 
@@ -318,8 +340,9 @@ Use `<!-- comment -->` to mark sections the user must fill in after installation
 - [ ] Placeholder comments mark every section requiring user input
 - [ ] "What Claude should NOT do" section present
 - [ ] All commands are correct for the stated toolchain
+- [ ] `commands/use-<name>-template.md` present and copies `${CLAUDE_PLUGIN_ROOT}/CLAUDE.md` to the project root
 - [ ] `.claude-plugin/plugin.json` present
-- [ ] README explains what to customise after installation
+- [ ] README explains what to customise after installation and shows the slash command to use
 - [ ] `.claude-plugin/marketplace.json` entry added
 
 ---

@@ -15,7 +15,6 @@
     "notify-on-stop@agentic-plugins-marketplace": true,
     "audit-log@agentic-plugins-marketplace": true,
     "python-project@agentic-plugins-marketplace": true,
-    "nodejs-project@agentic-plugins-marketplace": true,
-    "security-guidance@claude-plugins-official": true
+    "nodejs-project@agentic-plugins-marketplace": true
   }
 }

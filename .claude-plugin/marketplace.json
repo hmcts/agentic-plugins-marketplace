@@ -55,7 +55,7 @@
     },
     {
       "name": "marketplace-skill",
-      "source": "./plugins/skills/marketplace",
+      "source": "./plugins/skills/marketplace-skill",
       "description": "Browse and install marketplace plugins conversationally from within Claude Code",
       "version": "1.0.0",
       "category": "skill",

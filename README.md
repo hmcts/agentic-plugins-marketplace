@@ -225,22 +225,14 @@ Open Claude Code and run:
 Navigate to the **Marketplaces** tab and add:
 
 ```
-github@hmcts/agentic-plugins-marketplace
+hmcts/agentic-plugins-marketplace
 ```
 
 ### Team setup — commit `.claude/settings.json`
 
 This repo ships a `.claude/settings.json` that pre-registers the marketplace and auto-enables all skills, hooks, and templates. MCP servers are intentionally excluded from auto-install — they run as persistent subprocesses and require credentials, so team members should opt in individually based on the services they use.
 
-The settings file also enables [Security Guidance](https://claude.com/plugins/security-guidance) from the official marketplace, which intercepts Write/Edit operations and warns on common vulnerabilities before changes land.
-
-After cloning, run:
-
-```
-/plugin install --all @agentic-plugins-marketplace
-```
-
-`enabledPlugins` keeps the activated plugins live for the project without further configuration.
+Cloning the repo and opening it in Claude Code is enough — `enabledPlugins` in `.claude/settings.json` activates the bundled plugins automatically. No additional install step is required.
 
 ### Step 2 — browse and install
 
