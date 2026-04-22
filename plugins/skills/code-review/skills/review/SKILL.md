@@ -5,6 +5,32 @@ description: Use when the user asks to review the current branch, check code qua
 
 Run a comprehensive review of the current branch by orchestrating three review passes in parallel, then aggregating their findings.
 
+## Step 0 — check optional reviewers are installed
+
+Run the following to check which plugins are available:
+
+```bash
+claude plugin list --json 2>/dev/null | python3 -c "
+import json,sys
+installed = {p['id'] for p in json.loads(sys.stdin.read()).get('installed', [])}
+for pid in ['pr-review-toolkit@claude-plugins-official','code-review@claude-plugins-official']:
+    print('ok' if pid in installed else 'missing', pid)
+"
+```
+
+For any plugin reported as **missing**, tell the user:
+
+> To get the full 3-reviewer report, install the missing plugin(s) and reload:
+>
+> ```
+> /plugin install <name>@claude-plugins-official
+> /reload-plugins
+> ```
+>
+> Continuing with the reviewer(s) that are available.
+
+Do not block the review — proceed with whichever reviewers are present. The diff review always runs regardless.
+
 ## Step 1 — run all three reviews in parallel
 
 Invoke all three of the following simultaneously using the Agent tool (one agent per review), passing the same PR or branch context to each:
@@ -16,9 +42,9 @@ Invoke all three of the following simultaneously using the Agent tool (one agent
    - **Readability** — confusing names, missing context, overly complex logic?
    - **Tests** — are changes covered? Are existing tests likely to break?
 
-2. **PR Review Toolkit** — invoke the `pr-review-toolkit:review-pr` skill using the Skill tool.
+2. **PR Review Toolkit** — invoke the `pr-review-toolkit:review-pr` skill using the Skill tool. Skip if not installed (noted in Step 0).
 
-3. **Official code-review** — invoke the `code-review:code-review` skill using the Skill tool.
+3. **Official code-review** — invoke the `code-review:code-review` skill using the Skill tool. Skip if not installed (noted in Step 0).
 
 ## Step 2 — aggregate findings
 
