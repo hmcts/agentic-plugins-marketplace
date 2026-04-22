@@ -185,7 +185,7 @@ Before reloading, invoke the `code-review:review` skill on the current branch:
 review the current branch
 ```
 
-Fix any **Must fix** findings before proceeding. **Should fix** and **Nit** findings can be addressed before or after the reload at your discretion.
+Fix all findings — **Must fix**, **Should fix**, and **Nit** — before proceeding to reload.
 
 ### Step 2 — register the local marketplace source
 
@@ -279,7 +279,7 @@ Confirm `CLAUDE.md` appears in the current directory with the correct content.
 
 The plugin is ready to commit when all of the following are true:
 
-- [ ] `code-review:review` reports no Must fix findings
+- [ ] `code-review:review` reports no findings (all Must fix, Should fix, and Nits resolved)
 - [ ] `/reload-plugins` summary line counts include the new plugin
 - [ ] `/doctor` returns clean
 - [ ] Type-specific smoke test passes
