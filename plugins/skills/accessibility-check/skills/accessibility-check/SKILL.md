@@ -33,7 +33,7 @@ await checkA11y(page, null, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2a
 # Python / Playwright example
 from axe_playwright_python.sync_playwright import Axe
 results = Axe().run(page)
-assert results.violations_count == 0
+assert len(results.violations) == 0
 ```
 
 ## Manual checks (required for these scenarios)

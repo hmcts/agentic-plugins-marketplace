@@ -1,9 +1,9 @@
 ---
 name: openspec-archive-change
-description: Archive a completed change in the experimental workflow. Use when the user wants to finalize and archive a change after implementation is complete.
+description: Archive a completed change. Use when the user wants to finalize and archive a change after implementation is complete.
 ---
 
-Archive a completed change in the experimental workflow.
+Archive a completed change.
 
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
 
