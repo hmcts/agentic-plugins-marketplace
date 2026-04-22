@@ -14,7 +14,7 @@ Capture why we're adopting feature flags.
 
 ## What it produces
 
-A Markdown ADR file at `docs/adrs/NNN-short-title.md` using the template:
+A Markdown ADR file at `docs/adrs/NNN-short-title-in-kebab-case.md` using the template:
 
 - **Status** — Proposed / Accepted / Deprecated / Superseded
 - **Date** — when the decision was made
@@ -29,6 +29,11 @@ A Markdown ADR file at `docs/adrs/NNN-short-title.md` using the template:
 1. Draft the ADR before implementing the decision
 2. Commit it alongside the feature branch it describes
 3. Reference the ADR number in the PR description
+4. If the decision is significant, surface the ADR for review before merge
+
+## Prerequisites
+
+None — no external tools required.
 
 ## Installation
 

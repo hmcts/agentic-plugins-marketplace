@@ -20,6 +20,18 @@ What manual accessibility checks do I need to do here?
 - **Failure classification** — Critical / Serious block deployment; Moderate / Minor log as issues.
 - **Evidence requirements** — what to attach to a PR so reviewers can verify.
 
+## Prerequisites
+
+The automated check examples each require a test dependency — install the one that matches your stack:
+
+| Stack | Package |
+|-------|---------|
+| Java / Selenium | `com.deque.html.axe-core:selenium` (Maven/Gradle) |
+| Node / Playwright | `npm install --save-dev axe-playwright` |
+| Python / Playwright | `pip install axe-playwright-python` |
+
+No prerequisites for the manual checks table.
+
 ## Installation
 
 ```

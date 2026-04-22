@@ -23,15 +23,15 @@ Install any plugin with:
 
 | Plugin | Description |
 |--------|-------------|
-| [marketplace-skill](plugins/skills/marketplace/) | Browse and install plugins conversationally |
+| [accessibility-check](plugins/skills/accessibility-check/) | WCAG 2.1 AA checks — axe-core automation plus manual test requirements |
+| [adr-template](plugins/skills/adr-template/) | Architecture Decision Records in a consistent format |
+| [bdd-workflow](plugins/skills/bdd-workflow/) | Write acceptance criteria and turn them into Gherkin feature files |
 | [code-review](plugins/skills/code-review/) | Structured PR review — security, correctness, performance |
 | [conventional-commit](plugins/skills/conventional-commit/) | Conventional Commits message from staged changes |
 | [explain-codebase](plugins/skills/explain-codebase/) | Onboarding guide for new developers |
-| [adr-template](plugins/skills/adr-template/) | Architecture Decision Records in a consistent format |
-| [bdd-workflow](plugins/skills/bdd-workflow/) | Write acceptance criteria and turn them into Gherkin feature files |
-| [accessibility-check](plugins/skills/accessibility-check/) | WCAG 2.1 AA checks — axe-core automation plus manual test requirements |
-| [review-checklist](plugins/skills/review-checklist/) | Structured pass/fail PR checklist — correctness, tests, security, quality, deps, docs |
+| [marketplace-skill](plugins/skills/marketplace/) | Browse and install plugins conversationally |
 | [openspec](plugins/skills/openspec/) | OpenSpec workflow — explore, propose, apply, archive (bundles 4 skills, requires openspec CLI) |
+| [review-checklist](plugins/skills/review-checklist/) | Structured pass/fail PR checklist — correctness, tests, security, quality, deps, docs |
 
 ### Agents
 

@@ -31,6 +31,10 @@ Give me a pass/fail review of the current branch.
 - [`adr-template`](../adr-template/) — referenced from the Documentation section for architectural decisions.
 - [`accessibility-check`](../accessibility-check/) — invoked separately for UI changes rather than duplicated here.
 
+## Prerequisites
+
+None — no external tools required.
+
 ## Installation
 
 ```

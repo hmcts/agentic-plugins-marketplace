@@ -34,6 +34,10 @@ Given/When/Then statements, one observable outcome per AC, covering happy path, 
 2. Invoke `generate-bdd-specs` on those ACs → get a ready-to-run `.feature` file.
 3. Hand the `.feature` file to Cucumber / Serenity / SpecFlow / behave for execution.
 
+## Prerequisites
+
+None — no external tools required. To execute the generated `.feature` files you will need a Cucumber-compatible runner (Cucumber JVM, Serenity BDD, SpecFlow, or behave), but those are not required to use this skill.
+
 ## Installation
 
 ```

@@ -30,6 +30,30 @@
       "tags": ["marketplace", "plugins", "install", "discover"]
     },
     {
+      "name": "accessibility-check",
+      "source": "./plugins/skills/accessibility-check",
+      "description": "Check UI output for WCAG 2.1 AA compliance using axe-core plus required manual checks",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["accessibility", "a11y", "wcag", "axe-core"]
+    },
+    {
+      "name": "adr-template",
+      "source": "./plugins/skills/adr-template",
+      "description": "Record architecture decisions in a consistent ADR format with context, options, consequences, and compliance notes",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["adr", "documentation", "architecture", "decision-record"]
+    },
+    {
+      "name": "bdd-workflow",
+      "source": "./plugins/skills/bdd-workflow",
+      "description": "Derive testable Given/When/Then acceptance criteria and convert them to Cucumber/Gherkin feature files",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["bdd", "gherkin", "cucumber", "acceptance-criteria", "testing"]
+    },
+    {
       "name": "code-review",
       "source": "./plugins/skills/code-review",
       "description": "Structured code review of the current branch — security, correctness, performance, and readability",
@@ -62,28 +86,12 @@
       "tags": ["marketplace", "plugins", "install", "discover"]
     },
     {
-      "name": "adr-template",
-      "source": "./plugins/skills/adr-template",
-      "description": "Record architecture decisions in a consistent ADR format with context, options, consequences, and compliance notes",
+      "name": "openspec",
+      "source": "./plugins/skills/openspec",
+      "description": "OpenSpec workflow skills — explore ideas, propose changes, apply tasks, archive completed changes. Requires the openspec CLI.",
       "version": "1.0.0",
       "category": "skill",
-      "tags": ["adr", "documentation", "architecture", "decision-record"]
-    },
-    {
-      "name": "bdd-workflow",
-      "source": "./plugins/skills/bdd-workflow",
-      "description": "Derive testable Given/When/Then acceptance criteria and convert them to Cucumber/Gherkin feature files",
-      "version": "1.0.0",
-      "category": "skill",
-      "tags": ["bdd", "gherkin", "cucumber", "acceptance-criteria", "testing"]
-    },
-    {
-      "name": "accessibility-check",
-      "source": "./plugins/skills/accessibility-check",
-      "description": "Check UI output for WCAG 2.1 AA compliance using axe-core plus required manual checks",
-      "version": "1.0.0",
-      "category": "skill",
-      "tags": ["accessibility", "a11y", "wcag", "axe-core"]
+      "tags": ["openspec", "spec-driven", "workflow", "change-management", "artifacts"]
     },
     {
       "name": "review-checklist",
@@ -92,14 +100,6 @@
       "version": "1.0.0",
       "category": "skill",
       "tags": ["code-review", "checklist", "quality", "security"]
-    },
-    {
-      "name": "openspec",
-      "source": "./plugins/skills/openspec",
-      "description": "OpenSpec workflow skills bundle — explore, propose, apply, and archive spec-driven changes. Requires the openspec CLI.",
-      "version": "1.0.0",
-      "category": "skill",
-      "tags": ["openspec", "spec-driven", "workflow", "change-management", "artifacts"]
     },
     {
       "name": "notify-on-stop",
