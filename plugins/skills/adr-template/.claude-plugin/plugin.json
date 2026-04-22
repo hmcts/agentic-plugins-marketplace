@@ -1,0 +1,10 @@
+{
+  "name": "adr-template",
+  "version": "1.0.0",
+  "description": "Record architecture decisions in a consistent ADR format with context, options, consequences, and compliance notes",
+  "author": {
+    "name": "HMCTS"
+  },
+  "license": "MIT",
+  "keywords": ["adr", "documentation", "architecture", "decision-record"]
+}

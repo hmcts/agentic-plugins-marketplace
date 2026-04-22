@@ -62,6 +62,46 @@
       "tags": ["marketplace", "plugins", "install", "discover"]
     },
     {
+      "name": "adr-template",
+      "source": "./plugins/skills/adr-template",
+      "description": "Record architecture decisions in a consistent ADR format with context, options, consequences, and compliance notes",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["adr", "documentation", "architecture", "decision-record"]
+    },
+    {
+      "name": "bdd-workflow",
+      "source": "./plugins/skills/bdd-workflow",
+      "description": "Derive testable Given/When/Then acceptance criteria and convert them to Cucumber/Gherkin feature files",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["bdd", "gherkin", "cucumber", "acceptance-criteria", "testing"]
+    },
+    {
+      "name": "accessibility-check",
+      "source": "./plugins/skills/accessibility-check",
+      "description": "Check UI output for WCAG 2.1 AA compliance using axe-core plus required manual checks",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["accessibility", "a11y", "wcag", "axe-core"]
+    },
+    {
+      "name": "review-checklist",
+      "source": "./plugins/skills/review-checklist",
+      "description": "Structured pass/fail checklist for code review: correctness, tests, security, quality, dependencies, docs",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["code-review", "checklist", "quality", "security"]
+    },
+    {
+      "name": "openspec",
+      "source": "./plugins/skills/openspec",
+      "description": "OpenSpec workflow skills bundle — explore, propose, apply, and archive spec-driven changes. Requires the openspec CLI.",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["openspec", "spec-driven", "workflow", "change-management", "artifacts"]
+    },
+    {
       "name": "notify-on-stop",
       "source": "./plugins/hooks/notify-on-stop",
       "description": "Send a desktop notification (macOS / Linux) when Claude finishes a task",

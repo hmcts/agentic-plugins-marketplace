@@ -1,0 +1,10 @@
+{
+  "name": "review-checklist",
+  "version": "1.0.0",
+  "description": "Structured pass/fail checklist for code review: correctness, tests, security, quality, dependencies, docs",
+  "author": {
+    "name": "HMCTS"
+  },
+  "license": "MIT",
+  "keywords": ["code-review", "checklist", "quality", "security"]
+}
