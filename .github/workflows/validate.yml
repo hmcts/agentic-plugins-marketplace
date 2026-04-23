@@ -1,9 +1,9 @@
 name: Validate
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -12,13 +12,13 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # version-bump check needs PR history
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install dependencies
         run: pip install pyyaml
