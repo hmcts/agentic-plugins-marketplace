@@ -1,5 +1,18 @@
 {
   "enabledPlugins": {
-    "security-guidance@claude-plugins-official": true
+    "security-guidance@claude-plugins-official": true,
+    "code-review@agentic-plugins-marketplace": true,
+    "conventional-commit@agentic-plugins-marketplace": true,
+    "explain-codebase@agentic-plugins-marketplace": true,
+    "marketplace-skill@agentic-plugins-marketplace": true,
+    "adr-template@agentic-plugins-marketplace": true,
+    "bdd-workflow@agentic-plugins-marketplace": true,
+    "accessibility-check@agentic-plugins-marketplace": true,
+    "review-checklist@agentic-plugins-marketplace": true,
+    "openspec@agentic-plugins-marketplace": true,
+    "notify-on-stop@agentic-plugins-marketplace": true,
+    "audit-log@agentic-plugins-marketplace": true,
+    "python-project@agentic-plugins-marketplace": true,
+    "nodejs-project@agentic-plugins-marketplace": true
   }
 }
