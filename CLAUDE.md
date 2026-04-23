@@ -170,12 +170,24 @@ After creating or migrating a plugin, run through the iteration loop below until
 ### Iteration loop
 
 ```
-create/edit files → reload → read errors → fix → repeat
+create/edit files → review → reload → read errors → fix → repeat
 ```
+
+Run the code review skill before reloading to catch issues in the files themselves. Only reload once the review is clean — this avoids wasting a reload cycle on a plugin that still has known problems.
 
 **Never stop at the first reload.** Fix every error reported, reload again, and continue until the output is clean.
 
-### Step 1 — register the local marketplace source
+### Step 1 — run a code review
+
+Before reloading, invoke the `code-review:review` skill on the current branch:
+
+```
+review the current branch
+```
+
+Fix all findings — **Must fix**, **Should fix**, and **Nit** — before proceeding to reload.
+
+### Step 2 — register the local marketplace source
 
 If the local directory source is not already registered, add it to `.claude/settings.local.json`:
 
@@ -199,7 +211,7 @@ Then enable the plugin under test:
 }
 ```
 
-### Step 2 — reload and read the result
+### Step 3 — reload and read the result
 
 Run `/reload-plugins` in Claude Code. Read the summary line carefully:
 
@@ -209,7 +221,7 @@ Reloaded: 3 plugins · 2 skills · 1 agent · 1 hook · 0 plugin MCP servers
 
 If the counts do not include the new plugin, there is a load error — check the **Errors** tab in `/plugin`.
 
-### Step 3 — diagnose and fix errors
+### Step 4 — diagnose and fix errors
 
 Common errors and fixes:
 
@@ -224,7 +236,7 @@ Common errors and fixes:
 | Hook firing but erroring | Script reads env vars instead of stdin | Rewrite to `PAYLOAD="$(cat)"` and parse with `jq` |
 | `/doctor` reports issues | JSON syntax error in any config file | Run `jq . <file>` to find the syntax error |
 
-### Step 4 — run /doctor
+### Step 5 — run /doctor
 
 ```
 /doctor
@@ -232,7 +244,7 @@ Common errors and fixes:
 
 Expected output: `"Claude Code diagnostics dismissed"`. Any other output means there is still a problem — read the report, fix the flagged file, and reload again.
 
-### Step 5 — type-specific smoke tests
+### Step 6 — type-specific smoke tests
 
 Run the appropriate test for the plugin type before marking the task complete:
 
@@ -263,10 +275,11 @@ Run the slash command that copies `CLAUDE.md` into place:
 ```
 Confirm `CLAUDE.md` appears in the current directory with the correct content.
 
-### Step 6 — done criteria
+### Step 7 — done criteria
 
 The plugin is ready to commit when all of the following are true:
 
+- [ ] `code-review:review` reports no findings (all Must fix, Should fix, and Nits resolved)
 - [ ] `/reload-plugins` summary line counts include the new plugin
 - [ ] `/doctor` returns clean
 - [ ] Type-specific smoke test passes

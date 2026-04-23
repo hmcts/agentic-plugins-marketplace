@@ -1,0 +1,10 @@
+{
+  "name": "accessibility-check",
+  "version": "1.0.0",
+  "description": "Check UI output for WCAG 2.1 AA compliance using axe-core plus required manual checks",
+  "author": {
+    "name": "HMCTS"
+  },
+  "license": "MIT",
+  "keywords": ["accessibility", "a11y", "wcag", "axe-core"]
+}
