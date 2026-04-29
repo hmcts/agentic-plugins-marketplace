@@ -30,7 +30,6 @@ Install any plugin with:
 | [conventional-commit](plugins/skills/conventional-commit/) | Conventional Commits message from staged changes |
 | [explain-codebase](plugins/skills/explain-codebase/) | Onboarding guide for new developers |
 | [marketplace-skill](plugins/skills/marketplace/) | Browse and install plugins conversationally |
-| [openspec](plugins/skills/openspec/) | OpenSpec workflow — explore, propose, apply, archive (bundles 4 skills, requires openspec CLI) |
 | [review-checklist](plugins/skills/review-checklist/) | Structured pass/fail PR checklist — correctness, tests, security, quality, deps, docs |
 
 ### Agents

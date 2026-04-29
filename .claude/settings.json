@@ -9,7 +9,6 @@
     "bdd-workflow@agentic-plugins-marketplace": true,
     "accessibility-check@agentic-plugins-marketplace": true,
     "review-checklist@agentic-plugins-marketplace": true,
-    "openspec@agentic-plugins-marketplace": true,
     "notify-on-stop@agentic-plugins-marketplace": true,
     "audit-log@agentic-plugins-marketplace": true,
     "python-project@agentic-plugins-marketplace": true,
