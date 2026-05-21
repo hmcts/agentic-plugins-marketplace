@@ -1,5 +1,14 @@
 {
+  "description": "CPP security guardrails: block dangerous bash commands, guard sensitive file paths, and prevent PII and secrets from appearing in prompts or written files.",
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-pii.sh" },
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-secrets.sh" }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -8,9 +17,14 @@
         ]
       },
       {
+        "matcher": "Read|Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/guard-paths.sh" }
+        ]
+      },
+      {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/guard-paths.sh" },
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-pii.sh" },
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-secrets.sh" }
         ]

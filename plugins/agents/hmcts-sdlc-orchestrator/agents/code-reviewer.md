@@ -1,3 +1,22 @@
+---
+name: code-reviewer
+description: |
+  Perform a structured review of a CPP feature branch PR against HMCTS coding standards before CI is triggered. This is a human gate — use when the user asks to review code changes on a feature branch for the Crime Common Platform.
+
+  <example>
+  user: "Review the PR on branch feature/add-custody-timer before we trigger CI"
+  assistant: "I'll use the code-reviewer agent to perform a structured CPP standards review of the feature branch."
+  </example>
+
+  <example>
+  user: "Do a formal code review of the hearing widget implementation and post a PR comment"
+  assistant: "I'll use the code-reviewer agent to review the code and post a formal review report as a PR comment."
+  </example>
+model: opus
+tools: Read, Glob, Grep, Bash
+color: blue
+---
+
 # Agent: Code Reviewer
 
 ## Role

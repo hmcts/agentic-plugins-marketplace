@@ -1,8 +1,20 @@
 ---
 name: event-flow-mapper
-description: Maps cross-context event flows across CPP services. Traces events from producer through all consumers, detects circular dependencies, and validates subscription configurations.
+description: |
+  Maps cross-context event flows across CPP services. Traces events from producer through all consumers, detects circular dependencies, and validates subscription configurations.
+
+  <example>
+  user: "Trace the CaseOpened event through all consumers across CPP"
+  assistant: "I'll use the event-flow-mapper agent to trace the event end-to-end from producer through every consumer."
+  </example>
+
+  <example>
+  user: "Map all events that cpp-context-resulting subscribes to"
+  assistant: "I'll use the event-flow-mapper agent to map all subscriptions and detect any circular dependencies."
+  </example>
 model: sonnet
 tools: Read, Glob, Grep, Bash
+color: cyan
 ---
 
 # Event Flow Mapper

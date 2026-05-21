@@ -74,7 +74,7 @@ Each context repo contains:
 - Platform: `uk.gov.moj.cpp.*`
 
 ---
-using 
+
 ## 2. Modern by Default (MbD) stack (`cp-*`, `cpp-mbd-*`)
 
 **Default for all new services.** Spring Boot, Gradle, cloud-native, OpenTelemetry-first.

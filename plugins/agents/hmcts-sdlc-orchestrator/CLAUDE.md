@@ -35,7 +35,7 @@ Run stages in order. Do not skip or reorder. Halt at every human gate before pro
 
 ## Shared skills (available to all agents)
 
-Skills split across the marketplace and this repo. Install the marketplace plugins once (see the repo README "Prerequisite" section) — the file paths below resolve to pointer stubs or HMCTS overlays that reference the installed plugins.
+Skills split across the marketplace and this repo. Install the marketplace plugins once (see the plugin README Prerequisites section) — the file paths below resolve to pointer stubs or HMCTS overlays that reference the installed plugins.
 
 | Skill file                              | Source                            | Use when                                      |
 |-----------------------------------------|-----------------------------------|-----------------------------------------------|

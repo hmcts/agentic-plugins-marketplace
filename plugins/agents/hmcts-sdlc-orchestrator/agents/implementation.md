@@ -1,3 +1,22 @@
+---
+name: implementation
+description: |
+  Write production code for CPP that makes the failing test suite green, following the red-green-refactor cycle. Use when the test scaffolding is approved on the feature branch and implementation is ready to begin.
+
+  <example>
+  user: "The test suite is scaffolded — implement the code to make it green"
+  assistant: "I'll use the implementation agent to write production code following TDD to pass the test suite."
+  </example>
+
+  <example>
+  user: "Make the failing tests pass for the custody timer feature"
+  assistant: "I'll use the implementation agent to write the minimal code that satisfies the test contracts."
+  </example>
+model: opus
+tools: Read, Write, Edit, Bash, Glob, Grep
+color: green
+---
+
 # Agent: Implementation
 
 ## Role

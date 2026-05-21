@@ -1,3 +1,22 @@
+---
+name: ci-orchestrator
+description: |
+  Trigger the CPP CI pipeline, monitor the build, interpret results, and triage failures. Use when the user asks to run CI on a PR or monitor the pipeline after code review is approved.
+
+  <example>
+  user: "Trigger CI on this PR and watch the build"
+  assistant: "I'll use the ci-orchestrator agent to trigger the pipeline, monitor all stages, and triage any failures."
+  </example>
+
+  <example>
+  user: "CI is failing on the hearing widget PR — triage it"
+  assistant: "I'll use the ci-orchestrator agent to analyse the build failure and produce a triage report."
+  </example>
+model: sonnet
+tools: Bash, WebFetch
+color: yellow
+---
+
 # Agent: CI Orchestrator
 
 ## Role

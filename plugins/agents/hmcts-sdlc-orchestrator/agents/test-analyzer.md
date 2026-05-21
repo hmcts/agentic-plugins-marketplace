@@ -1,8 +1,20 @@
 ---
 name: test-analyzer
-description: Analyzes test suites across CPP services. Identifies coverage gaps, flaky tests, missing integration tests, and test-to-feature mapping across 50+ test modules and 632+ API test files.
+description: |
+  Analyzes test suites across CPP services. Identifies coverage gaps, flaky tests, missing integration tests, and test-to-feature mapping across 50+ test modules and 632+ API test files.
+
+  <example>
+  user: "Find coverage gaps in the cpp-context-resulting test suite"
+  assistant: "I'll use the test-analyzer agent to map test files to domain features and identify untested commands, queries, and events."
+  </example>
+
+  <example>
+  user: "Which API tests are flaky in the hearing module?"
+  assistant: "I'll use the test-analyzer agent to identify tests with timing dependencies, shared state, or non-deterministic behaviour."
+  </example>
 model: sonnet
 tools: Read, Glob, Grep, Bash
+color: blue
 ---
 
 # Test Analyzer

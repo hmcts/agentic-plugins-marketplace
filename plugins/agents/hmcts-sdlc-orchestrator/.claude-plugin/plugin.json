@@ -1,8 +1,8 @@
 {
   "name": "hmcts-sdlc-orchestrator",
-  "version": "0.1.0",
-  "description": "HMCTS SDLC pipeline orchestrator for Crime Common Platform — bundles the 8-stage pipeline sub-agents, HMCTS-specific skills (Spring Boot service/API templates, CPP test authoring), context docs (tech-stack, HMCTS standards, Azure cloud-native, logging, Azure SDK), guard hooks (PII, secrets, bash, paths), and the opsx commands. Loads as a single CLAUDE.md orchestration overlay in every consuming repo.",
-  "author": { "name": "HMCTS Crime Common Platform" },
+  "version": "1.0.0",
+  "description": "HMCTS SDLC pipeline orchestrator for Crime Common Platform — bundles the 8-stage pipeline sub-agents, HMCTS-specific skills (Spring Boot service/API templates, CPP test authoring), context docs (tech-stack, HMCTS standards, Azure cloud-native, logging, Azure SDK), guard hooks (PII, secrets, bash, paths), and the opsx commands.",
+  "author": "HMCTS Crime Common Platform",
   "license": "MIT",
   "keywords": [
     "hmcts",

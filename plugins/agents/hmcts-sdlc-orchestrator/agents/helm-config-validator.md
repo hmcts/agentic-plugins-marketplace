@@ -1,8 +1,20 @@
 ---
 name: helm-config-validator
-description: Validates Helm chart configurations across CPP environments. Detects secrets in values, missing environment overrides, configuration drift, and misconfigured resources.
+description: |
+  Validates Helm chart configurations across CPP environments. Detects secrets in values, missing environment overrides, configuration drift, and misconfigured resources.
+
+  <example>
+  user: "Validate the Helm chart config for cpp-hearing across all environments"
+  assistant: "I'll use the helm-config-validator agent to check for secrets in values, missing overrides, and configuration drift."
+  </example>
+
+  <example>
+  user: "Are the dev and prod Helm values consistent for the API chart?"
+  assistant: "I'll use the helm-config-validator agent to compare environment values and flag any inconsistencies."
+  </example>
 model: sonnet
 tools: Read, Glob, Grep, Bash
+color: yellow
 ---
 
 # Helm Config Validator

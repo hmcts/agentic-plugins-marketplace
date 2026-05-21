@@ -13,14 +13,36 @@ Bundled Claude Code plugin that ships the **HMCTS SDLC pipeline** for the Crime 
 | **Context** (`context/`) | tech-stack, hmcts-standards, azure-cloud-native, azure-sdk-guide, cloud-adoption-rationale, coding-standards, logging-standards |
 | **Orchestration** | `CLAUDE.md` — the 8-stage pipeline definition |
 
+## Prerequisites
+
+- Claude Code with the [agentic-plugins-marketplace](https://github.com/hmcts/agentic-plugins-marketplace) registered
+- For `openspec-*` commands: the `openspec` CLI on your `PATH` (see `commands/opsx/` for details)
+- GitHub MCP or Jenkins MCP configured if using the CI/CD pipeline agents
+
 ## Installation
 
 ```
-/plugin marketplace add hmcts/agentic-plugins-marketplace
-/plugin install hmcts-sdlc-orchestrator
+/plugin install hmcts-sdlc-orchestrator@agentic-plugins-marketplace
 ```
 
-Every repo where this is enabled inherits the SDLC orchestrator CLAUDE.md, all sub-agents, all HMCTS-specific skills, and the guard hooks.
+To enable the SDLC orchestrator in a repo, copy `CLAUDE.md` from the plugin into your project root after installation:
+```bash
+cp ~/.claude/plugins/hmcts-sdlc-orchestrator/CLAUDE.md ./CLAUDE.md
+```
+This loads the 8-stage pipeline definition, context file references, and hard rules into every Claude session for that project.
+
+## Usage example
+
+After copying `CLAUDE.md` into your project root, start the pipeline by describing what you need:
+
+> "Here's the brief for the new custody hearing widget — turn it into requirements, stories, tests, and implementation."
+
+Claude will invoke the `requirements-analyst`, `story-writer`, `test-engineer`, and `implementation` agents in sequence, pausing at each human gate for review.
+
+For standalone skills:
+> "Review this PR against CPP standards" — triggers `review-pr`
+> "Validate the Helm chart for cpp-hearing" — triggers `helm-config-validator`
+> "Trace the CaseOpened event" — triggers `event-flow-mapper`
 
 ## Source
 

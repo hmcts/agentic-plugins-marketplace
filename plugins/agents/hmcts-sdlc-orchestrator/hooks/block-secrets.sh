@@ -5,6 +5,8 @@
 
 set -euo pipefail
 
+[[ "${CPP_HOOKS_DISABLE:-0}" == "1" ]] && exit 0
+
 input="$(cat)"
 event="$(jq -r '.hook_event_name // empty' <<<"$input")"
 

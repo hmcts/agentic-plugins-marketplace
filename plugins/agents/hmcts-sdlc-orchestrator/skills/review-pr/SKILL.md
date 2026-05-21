@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Review a pull request for a CP repository. Use when asked to review a PR, check code changes, or provide feedback on a pull request.
+description: Review a pull request for a CPP or HMCTS Crime Common Platform repository against CPP coding standards. Use when asked to review a PR or code changes specifically in a CP or HMCTS context service.
 ---
 
 # PR Review for Common Platform

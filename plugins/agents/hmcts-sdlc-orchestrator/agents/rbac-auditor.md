@@ -1,8 +1,20 @@
 ---
 name: rbac-auditor
-description: Audits role-based access control (RBAC) rules across CPP context services. Checks Drools rule consistency, permission gaps, and cross-service access control alignment.
+description: |
+  Audits role-based access control (RBAC) rules across CPP context services. Checks Drools rule consistency, permission gaps, and cross-service access control alignment.
+
+  <example>
+  user: "Audit the RBAC Drools rules for the resulting service"
+  assistant: "I'll use the rbac-auditor agent to review the rules for completeness, correctness, and permission gaps."
+  </example>
+
+  <example>
+  user: "Check if the PROFESSIONAL role has consistent permissions across all CPP context services"
+  assistant: "I'll use the rbac-auditor agent to run a cross-service consistency check for that role."
+  </example>
 model: sonnet
 tools: Read, Glob, Grep
+color: red
 ---
 
 # RBAC Auditor

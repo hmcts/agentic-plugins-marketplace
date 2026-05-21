@@ -36,7 +36,7 @@ Install any plugin with:
 
 | Plugin | Description |
 |--------|-------------|
-| [hmcts-sdlc-orchestrator](plugins/agents/hmcts-sdlc-orchestrator/) | SDLC orchestration with security guardrails for bash, paths, and deployment operations |
+| [hmcts-sdlc-orchestrator](plugins/agents/hmcts-sdlc-orchestrator/) | HMCTS SDLC pipeline orchestrator: 15 agents covering all 8 pipeline stages, CPP-specific skills (Spring Boot, test authoring, API contracts), guard hooks (PII/secrets/bash/paths), opsx commands, and 7 context documents for HMCTS standards, Azure cloud-native, and CPP tech stack. |
 
 ### Hooks
 

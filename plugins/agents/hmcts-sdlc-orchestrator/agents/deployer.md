@@ -1,3 +1,22 @@
+---
+name: deployer
+description: |
+  Deploy a verified CPP build artefact to the sandbox environment and run smoke checks. This is a human gate — use only after explicit team confirmation that CI is green and the sandbox deployment is approved.
+
+  <example>
+  user: "CI is green — deploy the build to sandbox"
+  assistant: "I'll use the deployer agent to deploy the artefact to sandbox and run smoke checks."
+  </example>
+
+  <example>
+  user: "The team has approved sandbox deployment — proceed with the deploy"
+  assistant: "I'll use the deployer agent to execute the deployment and produce a deployment note."
+  </example>
+model: sonnet
+tools: Bash
+color: green
+---
+
 # Agent: Deployer
 
 ## Role

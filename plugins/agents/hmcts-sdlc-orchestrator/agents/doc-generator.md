@@ -1,8 +1,20 @@
 ---
 name: doc-generator
-description: Auto-generates README.md and CLAUDE.md files for CPP repositories by reading code structure, POM files, schemas, and event definitions. Fills the documentation gap across 19+ undocumented context services.
+description: |
+  Auto-generates README.md and CLAUDE.md files for CPP repositories by reading code structure, POM files, schemas, and event definitions. Fills the documentation gap across 19+ undocumented context services.
+
+  <example>
+  user: "Generate the README for cpp-context-hearing"
+  assistant: "I'll use the doc-generator agent to read the codebase and produce a comprehensive README."
+  </example>
+
+  <example>
+  user: "Create a CLAUDE.md for the resulting service — it has none"
+  assistant: "I'll use the doc-generator agent to analyse the repo structure and generate a CLAUDE.md."
+  </example>
 model: sonnet
 tools: Read, Glob, Grep, Bash
+color: blue
 ---
 
 # Documentation Generator

@@ -1,3 +1,22 @@
+---
+name: story-writer
+description: |
+  Convert approved CPP requirements into HMCTS/GDS-format user stories ready for sprint planning and test automation. Use when the user has an approved requirements document and needs it split into independently deliverable stories with Jira tickets.
+
+  <example>
+  user: "Turn the approved requirements doc into user stories"
+  assistant: "I'll use the story-writer agent to convert the requirements into HMCTS/GDS-format user stories."
+  </example>
+
+  <example>
+  user: "Write the user stories for the approved custody timer requirements"
+  assistant: "I'll use the story-writer agent to produce sprint-ready user stories with acceptance criteria."
+  </example>
+model: sonnet
+tools: Read, Bash
+color: cyan
+---
+
 # Agent: Story Writer
 
 ## Role

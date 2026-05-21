@@ -1,8 +1,20 @@
 ---
 name: research
-description: Deep research agent for CPP platform — explores codebases, traces integrations, and investigates cross-context dependencies.
+description: |
+  Deep research agent for CPP — traces events across services, investigates cross-context integrations, and maps dependencies across the platform's 42 context services. Use when asked to trace an event flow, understand how a service integrates with another, find all usages of a library, or investigate a cross-service dependency.
+
+  <example>
+  user: "Trace how the CaseOpened event flows from custody through to the resulting service"
+  assistant: "I'll use the research agent to trace the event end-to-end, reading both the producer and all consumer implementations."
+  </example>
+
+  <example>
+  user: "How does cpp-context-hearing integrate with the court calendar service?"
+  assistant: "I'll use the research agent to investigate the integration points and document the cross-context dependencies."
+  </example>
 model: sonnet
 tools: Read, Glob, Grep, WebSearch, WebFetch, Bash
+color: cyan
 ---
 
 # Research Agent

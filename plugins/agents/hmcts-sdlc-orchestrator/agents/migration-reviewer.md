@@ -1,8 +1,20 @@
 ---
 name: migration-reviewer
-description: Reviews Liquibase database migrations across CPP context services. Validates changesets for backwards compatibility, rollback safety, naming conventions, and cross-service schema conflicts.
+description: |
+  Reviews Liquibase database migrations across CPP context services. Validates changesets for backwards compatibility, rollback safety, naming conventions, and cross-service schema conflicts.
+
+  <example>
+  user: "Review the new Liquibase migration for cpp-context-hearing"
+  assistant: "I'll use the migration-reviewer agent to validate the changeset for backwards compatibility and rollback safety."
+  </example>
+
+  <example>
+  user: "Is this database changeset safe to deploy — can it be rolled back?"
+  assistant: "I'll use the migration-reviewer agent to assess the migration and verify rollback paths."
+  </example>
 model: sonnet
 tools: Read, Glob, Grep
+color: yellow
 ---
 
 # Migration Reviewer

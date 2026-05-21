@@ -12,7 +12,7 @@ Produces a design proposal for a new CPP capability that fits the platform's CQR
 Triggers: "design a service for…", "how should we architect…", "what's the right pattern for…", "plan a new context/MbD service", "model this bounded context", "design the event flow for…", "cross-context design for…".
 
 **Do not use** for:
-- Implementing an already-agreed design → use `mbd-bootstrap` or `context-scaffold`.
+- Implementing an already-agreed design → use `springboot-service-from-template` or `context-scaffold`.
 - Reviewing an existing design/PR → use `review-pr` or `code-reviewer`.
 - Writing a formal OpenSpec change → use `openspec-propose` (this skill can feed into it).
 
@@ -75,7 +75,7 @@ Invite the user to push back before implementation begins.
 ### Step 6 — Hand off
 Once the user approves, recommend the next skill:
 
-- **MbD service** → `mbd-bootstrap`
+- **MbD service** → `springboot-service-from-template`
 - **Extending a context** → `context-scaffold`
 - **Formal change proposal** → `openspec-propose` (wrap this design as the design artifact)
 - **C4 model update** → edit `cp-c4-architecture` LikeC4 sources
@@ -111,4 +111,4 @@ User: *"We need to let defence solicitors subscribe to hearing updates for their
 2. Survey: check `cpp-context-subscriptions`, `cpp-context-hearing`, `cpp-ui-subscriptions`, `cpp-mbd-*` for existing notification plumbing.
 3. Pattern: likely **extend `cpp-context-subscriptions`** for subscription state + **new `cpp-mbd-hearing-notifications`** for the notification dispatch pipeline.
 4. Delegate to `architecture-designer` for the full design with events (`HearingUpdated` consumed, `HearingNotificationDispatched` emitted), APIs, diagrams, risks.
-5. Hand off: `context-scaffold` for the subscription changes; `mbd-bootstrap` for the notification service.
+5. Hand off: `context-scaffold` for the subscription changes; `springboot-service-from-template` for the notification service.
