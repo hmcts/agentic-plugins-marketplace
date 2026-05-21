@@ -34,7 +34,9 @@ Install any plugin with:
 
 ### Agents
 
-No agents yet — want to contribute the first one? See [Adding an agent](CONTRIBUTING.md#adding-an-agent).
+| Plugin | Description |
+|--------|-------------|
+| [hmcts-sdlc-orchestrator](plugins/agents/hmcts-sdlc-orchestrator/) | SDLC orchestration with security guardrails for bash, paths, and deployment operations |
 
 ### Hooks
 

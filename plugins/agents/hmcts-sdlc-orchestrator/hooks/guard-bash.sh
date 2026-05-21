@@ -46,6 +46,6 @@ grep -E -iq 'az[[:space:]]+aks[[:space:]].*\b(prod|live|production)\b'          
 grep -E -iq '(psql|mysql|jdbc:(postgresql|mysql))[^[:space:]]*\b(prod|live)\b'           <<<"$cmd" && block "DB connection to prod/live" "Do not connect Claude to production databases."
 
 # rm -rf on workspace roots
-grep -E -q 'rm[[:space:]]+(-[rRfF]+[[:space:]]+)+(/|/Users/[^/]+(/cpp)?/?[[:space:]]*$|\$HOME/?[[:space:]]*$)' <<<"$cmd" && block "rm -rf on workspace root" "Refusing destructive recursive delete on a top-level path."
+grep -E -q "rm[[:space:]]+(-[rRfF]+[[:space:]]+)+(/|/Users/[^/]+(/cpp)?/?[[:space:]]*$|\$HOME/?[[:space:]]*$)" <<<"$cmd" && block "rm -rf on workspace root" "Refusing destructive recursive delete [...]"
 
 exit 0

@@ -52,9 +52,9 @@ esac
 # Prod Helm values — read is fine, writes/edits are blocked
 if [[ "$tool" != "Read" ]]; then
   case "$path" in
-    *cpp-helm-chart/*values-live*.yaml|*cpp-helm-chart/*values-prod*.yaml|*cpp-helm-chart/*values-production*.yaml)
-      block "edit to prod Helm values (use a PR via human-driven flow)"
-      ;;
+*cpp-helm-chart/*values-{live,prod,production}*.yaml)
+    block "edit to prod Helm values (use a PR via human-driven flow)"
+    ;;
     *cpp-flux-config/clusters/*prod*/*|*cpp-flux-config/clusters/*live*/*)
       block "edit to prod Flux cluster config"
       ;;
