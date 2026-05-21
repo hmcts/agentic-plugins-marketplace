@@ -54,26 +54,26 @@ auditable review record on every PR.
 ### Accessibility (for UI changes)
 If the PR touches UI, run the `accessibility-check` skill in addition to this checklist. The axe-core assertion and manual check table live there to avoid duplication.
 
-### CP Service Patterns
-_Apply only when the diff touches a `service-cp-*` repo. Skip for `api-cp-*`, `cpp-context-*`, or `cpp-apitests`._
+### Layer Architecture & Patterns
+_Apply to any layered service (HTTP or message-driven). Skip for library/spec-only repos with no runtime logic._
 
 | # | Check | Pass / Fail |
 |---|-------|-------------|
-| T1 | `@Value` toggle fields declared only in orchestrating services — not in controllers, persist services, or domain services | |
-| T2 | Toggle check references the `@Value` boolean field directly at call-site — not delegated to a private method returning a sentinel value | |
-| T3 | Switch state not inferred from data state — no null/sentinel return used to encode toggle-off; each toggle-guarded branch references the boolean field explicitly | |
-| T4 | Persist/domain services are toggle-blind — no `@Value` toggle field in any class that owns a `Repository` | |
-| T5 | No `@Value` toggle field declared in a class that never reads it (dead toggle field) | |
-| M1 | Mapper owns ALL object construction between layers — no inline `.builder()` calls in service methods | |
-| M2 | Each mapper has its own unit test covering field-by-field construction; service tests mock the mapper (no `ArgumentCaptor`) | |
-| M3 | Each `Repository` has a `@DataJpaTest` test proving Flyway schema matches JPA entity | |
-| V1 | Input validation at entry point (controller or `ServiceBusHandlers`) — not in downstream services | |
-| I1 | Idempotency skips (`existsBy…` → return) have an INFO log at the skip site | |
-| N1 | All test methods follow `subject_should_doOutcome[_whenCondition]` naming — no mixed styles within a class | |
+| T1 | Feature toggle fields declared only in the orchestrating/decision layer — not in controllers, persistence services, or domain services | |
+| T2 | Toggle check is explicit at call-site — references the toggle field directly, not delegated to a method that returns a sentinel value | |
+| T3 | Toggle state not encoded in data state — no null or sentinel value used to represent toggle-off; downstream code checks the toggle field directly | |
+| T4 | Persistence and domain services are toggle-blind — no feature toggle field in any class that owns a repository or performs data access | |
+| T5 | No feature toggle field declared in a class that never reads it | |
+| M1 | Object construction between layers is owned by a dedicated factory or mapper — no inline builder calls in service or business logic methods | |
+| M2 | Each factory/mapper has its own unit test covering field-by-field construction — service tests mock the factory, not its internals | |
+| M3 | Each repository or data-access component has an integration test proving the schema matches the entity/model definition | |
+| V1 | Input validation happens at the earliest processing boundary (controller, message handler) — not in domain or business services | |
+| I1 | Idempotency skips (duplicate detection → early return) are visible — each skip site includes a log statement | |
+| N1 | Test method names follow a consistent `subject_should_outcome[_when_condition]` convention — no mixed naming styles within a class | |
 
 ## Scoring
 - Any FAIL in **Security** → **block merge, must fix**
-- Any FAIL in **T3 or T4** (CP Service Patterns) → **block merge** — toggle removal safety and domain purity are non-negotiable
+- Any FAIL in **T3 or T4** (Layer Architecture & Patterns) → **block merge** — toggle removal safety and domain purity are non-negotiable
 - 3+ FAILs in other categories → **changes requested**
 - 1–2 FAILs in other categories → **minor changes requested, can merge after fix**
 - All PASS → **approved** (a human reviewer is still required for final approval)
