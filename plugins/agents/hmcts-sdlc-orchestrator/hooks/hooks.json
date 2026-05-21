@@ -1,0 +1,20 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/guard-bash.sh" }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/guard-paths.sh" },
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-pii.sh" },
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-secrets.sh" }
+        ]
+      }
+    ]
+  }
+}
