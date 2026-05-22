@@ -94,6 +94,14 @@
       "tags": ["code-review", "checklist", "quality", "security"]
     },
     {
+      "name": "hmcts-sdlc-orchestrator",
+      "source": "./plugins/agents/hmcts-sdlc-orchestrator",
+      "description": "HMCTS SDLC pipeline orchestrator: 8-stage agents, HMCTS Spring Boot/API/test skills, guard hooks (PII/secrets/bash/paths), opsx commands, and context docs (HMCTS standards, Azure cloud-native, logging, Azure SDK).",
+      "version": "1.0.0",
+      "category": "agent",
+      "tags": ["hmcts", "cpp", "sdlc", "orchestrator", "pipeline", "spring-boot", "azure"]
+    },
+    {
       "name": "notify-on-stop",
       "source": "./plugins/hooks/notify-on-stop",
       "description": "Send a desktop notification (macOS / Linux) when Claude finishes a task",
