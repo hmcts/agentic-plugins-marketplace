@@ -37,6 +37,7 @@ Install any plugin with:
 | Plugin | Description |
 |--------|-------------|
 | [hmcts-sdlc-orchestrator](plugins/agents/hmcts-sdlc-orchestrator/) | HMCTS SDLC pipeline orchestrator: 15 agents covering all 8 pipeline stages, CPP-specific skills (Spring Boot, test authoring, API contracts), guard hooks (PII/secrets/bash/paths), opsx commands, and 7 context documents for HMCTS standards, Azure cloud-native, and CPP tech stack. |
+| [hmcts-apim-sdlc-orchestrator](plugins/agents/hmcts-apim-sdlc-orchestrator/) | HMCTS API-Marketplace SDLC orchestrator: contract-first dual-path pipeline for OpenAPI-first `api-cp-*` specs and `service-cp-*` Spring Boot services. Bundles `apim-architect` + `contract-test-engineer` agents, the `openapi-spec-reviewer` skill (4 policy lenses), APIM context docs, and guard hooks. Reuses `hmcts-sdlc-orchestrator` generic agents by reference. |
 
 ### Hooks
 

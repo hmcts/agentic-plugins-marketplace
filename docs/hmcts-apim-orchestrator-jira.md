@@ -97,6 +97,18 @@ migrated shared context, **so that** the API-Marketplace standards load automati
 - [ ] Maps which `service-cp-*` consume which `api-cp-*` spec versions.
 - [ ] Detects breaking changes between published spec versions.
 
+## Story 9 (future, TBD) — `authentication-auditor`
+
+Replaces the dropped CQRS `rbac-auditor` (Drools). Scope to be defined once the APIM
+authorization/authentication design lands.
+
+**Tasks/AC (provisional)**
+- [ ] Audit `securitySchemes` coverage and per-operation `security` in `api-cp-*` specs.
+- [ ] Audit Spring Security config / OAuth2-OIDC scopes in `service-cp-*` services.
+- [ ] Flag unauthenticated operations and scope gaps.
+
+> Blocked on the in-flight authZ/authN discussions — not scheduled yet.
+
 ---
 
 ## Suggested delivery order

@@ -102,6 +102,14 @@
       "tags": ["hmcts", "cpp", "sdlc", "orchestrator", "pipeline", "spring-boot", "azure"]
     },
     {
+      "name": "hmcts-apim-sdlc-orchestrator",
+      "source": "./plugins/agents/hmcts-apim-sdlc-orchestrator",
+      "description": "HMCTS API-Marketplace SDLC orchestrator: contract-first dual-path pipeline for OpenAPI-first api-cp-* spec libraries and service-cp-* Spring Boot services. Bundles apim-architect and contract-test-engineer agents, the openapi-spec-reviewer skill (4 policy lenses), APIM context docs, and guard hooks. Reuses hmcts-sdlc-orchestrator generic agents by reference.",
+      "version": "1.0.0",
+      "category": "agent",
+      "tags": ["hmcts", "apim", "api-marketplace", "sdlc", "orchestrator", "openapi", "spring-boot", "contract-first"]
+    },
+    {
       "name": "notify-on-stop",
       "source": "./plugins/hooks/notify-on-stop",
       "description": "Send a desktop notification (macOS / Linux) when Claude finishes a task",

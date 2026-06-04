@@ -50,7 +50,7 @@ and the standalone marketplace skills. Headline: **~72% reuse-as-is, ~19% adapt,
 | `doc-generator` | **ADAPT (optional)** | Reads Maven/CQRS modules; needs Gradle/OpenAPI variant |
 | `research` | **DROP / replace** | Designed for CQRS event-flow tracing; replace with `api-dependency-analyzer` (optional) |
 | `event-flow-mapper` | **DROP** | Zero domain events in API Marketplace |
-| `rbac-auditor` | **DROP** | Drools-specific; APIM uses Spring Security |
+| `rbac-auditor` | **REPLACE (future)** | Drools-specific, so not reused; the APIM authorization/authentication capability becomes a new **`authentication-auditor`** agent — **TBD**, pending the in-flight authZ/authN design |
 | `migration-reviewer` | **DROP** | Liquibase-specific; `service-cp-*` uses Flyway (future `flyway-validator` if needed) |
 
 ### 3.2 Hooks, context, skills
@@ -84,6 +84,9 @@ and the standalone marketplace skills. Headline: **~72% reuse-as-is, ~19% adapt,
    Spring Boot Test + WireMock/TestContainers; no Serenity/UI/viewstore.
 3. *(Phase 6, optional)* **`api-dependency-analyzer`** — which `service-cp-*` consume which
    `api-cp-*` spec versions; breaking-change detection.
+4. *(Future, TBD)* **`authentication-auditor`** — APIM authentication/authorization audit
+   (Spring Security config, OAuth2/OIDC scopes, `securitySchemes` coverage). Replaces the
+   dropped CQRS `rbac-auditor`; scope pending the in-flight authZ/authN design.
 
 ## 5. Target structure
 
@@ -95,7 +98,8 @@ plugins/agents/hmcts-apim-orchestrator/
 ├── agents/
 │   ├── apim-architect.md           ← NEW (adapt architecture-designer)
 │   ├── contract-test-engineer.md   ← NEW (adapt test-engineer)
-│   └── api-dependency-analyzer.md  ← NEW, phase 6 (optional)
+│   ├── api-dependency-analyzer.md  ← NEW, phase 6 (optional)
+│   └── authentication-auditor.md   ← FUTURE (TBD — replaces CQRS rbac-auditor)
 ├── skills/
 │   └── openapi-spec-reviewer/      ← MIGRATED (AMP-428 + 4 knowledge files)
 ├── context/
