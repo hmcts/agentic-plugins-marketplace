@@ -4,7 +4,7 @@
 - **Status:** Implemented
 - **Author:** srivani.muddineni (with Claude Code)
 - **Location:** `plugins/agents/hmcts-apim-sdlc-orchestrator/`
-- **Related:** AMP-428 (`openapi-spec-reviewer`) — TBD, pending discussion with Samir
+- **Related:** AMP-428 (`openapi-spec-reviewer`) — TBD, pending discussion with @Samir.garg
 
 ---
 
