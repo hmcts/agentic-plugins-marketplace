@@ -1,122 +1,151 @@
-# Design: `hmcts-apim-orchestrator` — API-Marketplace SDLC plugin
+# Design: `hmcts-apim-sdlc-orchestrator` — API-Marketplace SDLC plugin
 
-- **Date:** 2026-06-04
-- **Status:** Proposed (design approved in brainstorming; build not started)
+- **Date:** 2026-06-04 (updated 2026-06-09)
+- **Status:** Implemented
 - **Author:** srivani.muddineni (with Claude Code)
-- **Location:** new plugin at `plugins/agents/hmcts-apim-orchestrator/`
+- **Location:** `plugins/agents/hmcts-apim-sdlc-orchestrator/`
 - **Related:** AMP-428 (`openapi-spec-reviewer` — already built in `apim-claude-template`, migrated here)
 
 ---
 
 ## 1. Goal
 
-Create a **standalone marketplace plugin**, `hmcts-apim-orchestrator`, that drives the
-**API-Marketplace SDLC** (OpenAPI-first `api-cp-*` spec libraries + `service-cp-*` Spring Boot
-services). It consolidates API-Marketplace Claude tooling by:
+Create a **fully self-contained** standalone marketplace plugin, `hmcts-apim-sdlc-orchestrator`,
+that drives the **API-Marketplace SDLC** (OpenAPI-first `api-cp-*` spec libraries +
+`service-cp-*` Spring Boot services). It consolidates all API-Marketplace Claude tooling by:
 
-- **referencing** the delivery-model-agnostic agents in the CPP-owned `hmcts-sdlc-orchestrator`
-  (never modifying it),
-- **migrating** the genuinely API-Marketplace-unique assets out of `apim-claude-template`, and
-- **building** only the two agents that are genuinely missing.
+- **building** all pipeline agents natively (no dependency on `hmcts-sdlc-orchestrator`),
+- **migrating** the API-Marketplace-unique assets out of `apim-claude-template`, and
+- **decommissioning** `apim-claude-template` once repos are re-pointed.
+
+> **Design decision (revised):** The original design planned to reference
+> `hmcts-sdlc-orchestrator` agents by `subagent_type`. This was reversed — the CPP/CQRS
+> orchestrator targets a different stack (WildFly, Jenkins, SonarQube, Snyk, Drools) and its
+> agents carry incompatible guidance. All pipeline agents are now owned natively by this plugin.
+> Do **not** use `hmcts-sdlc-orchestrator` agents for `api-cp-*`/`service-cp-*` work.
 
 `apim-claude-template` is **decommissioned** once repos are re-pointed.
 
-## 2. The three sources and how each is reused
+---
+
+## 2. Sources
 
 | Source | Owner | Reuse mode |
 |---|---|---|
-| `agentic-plugins-marketplace` | marketplace | **Host** the new plugin; reference standalone skills by co-install |
-| `hmcts-sdlc-orchestrator` (`plugins/agents/…`) | CPP team (other) | **Reference, never modify** — invoke agnostic agents by `subagent_type` |
+| `agentic-plugins-marketplace` | marketplace | **Host** the plugin |
 | `apim-claude-template` | this team | **Migrate then decommission** |
+| `hmcts-sdlc-orchestrator` | CPP team | **Not referenced** — different stack (CQRS/WildFly/Jenkins) |
 
-## 3. Reuse matrix (evidence-based)
+---
 
-Built from a full read of all 15 `hmcts-sdlc-orchestrator` agents, its hooks/context/skills,
-and the standalone marketplace skills. Headline: **~72% reuse-as-is, ~19% adapt, ~9% drop.**
+## 3. What was built
 
-### 3.1 Agents
+### 3.1 Agents (all owned by this plugin)
 
-| Agent | Verdict | Reason |
+| Agent | Origin | Purpose |
 |---|---|---|
-| `requirements-analyst` | **REUSE (ref)** | Delivery-model-agnostic requirements taxonomy |
-| `story-writer` | **REUSE (ref)** | Universal story/AC format |
-| `implementation` | **REUSE (ref)** | TDD discipline is universal; stack specifics come from context |
-| `code-reviewer` | **REUSE (ref) + overlay** | Generic review; add OpenAPI/service overlay |
-| `ci-orchestrator` | **REUSE (ref)** | Build/test/scan/publish stages identical |
-| `deployer` | **REUSE (ref)** | Flux/Helm rollout generic (service path only) |
-| `helm-config-validator` | **REUSE (ref)** | Infra-agnostic |
-| `architecture-designer` | **ADAPT → `apim-architect`** | CQRS-vs-MbD rubric, RAML refs unusable as-is |
-| `test-engineer` | **ADAPT → `contract-test-engineer`** | CQRS test pyramid, Serenity/UI, viewstore tests must go |
-| `doc-generator` | **ADAPT (optional)** | Reads Maven/CQRS modules; needs Gradle/OpenAPI variant |
-| `research` | **DROP / replace** | Designed for CQRS event-flow tracing; replace with `api-dependency-analyzer` (optional) |
-| `event-flow-mapper` | **DROP** | Zero domain events in API Marketplace |
-| `rbac-auditor` | **REPLACE (future)** | Drools-specific, so not reused; the APIM authorization/authentication capability becomes a new **`authentication-auditor`** agent — **TBD**, pending the in-flight authZ/authN design |
-| `migration-reviewer` | **DROP** | Liquibase-specific; `service-cp-*` uses Flyway (future `flyway-validator` if needed) |
+| `apim-architect` | New | OpenAPI-first design; authors spec per `api-spec-shared.md`; hands to `openapi-spec-reviewer` |
+| `contract-test-engineer` | New | Pact + Spring Boot Test + WireMock/TestContainers; no Serenity/UI/CQRS content |
+| `requirements-analyst` | New (APIM-specific) | Path A vs Path B detection; no accessibility NFRs; blocks service work until spec published |
+| `story-writer` | New (APIM-specific) | Stories reference specific OpenAPI endpoints; DoD: PMD, CodeQL; no SonarQube/Snyk |
+| `implementation` | New (APIM-specific) | Mapper-first order; generated interface compliance; CJSCPPUID; Jakarta EE; T1–T5 toggle rules |
+| `code-reviewer` | New (APIM-specific) | 11-category checklist: generated interface, layer model, toggle rules, security, idempotency, PMD |
+| `ci-orchestrator` | New (APIM-specific) | GHA + ADO hybrid; PMD not SonarQube; CodeQL+DAST; exact workflow file knowledge |
+| `deployer` | New (APIM-specific) | Monitors ADO 460/434; smoke-checks; SIT via GitHub Release; does not trigger deployments |
 
-### 3.2 Hooks, context, skills
+**Dropped from original scope (not applicable to APIM stack):**
+- `helm-config-validator` — not yet needed
+- `research` / `event-flow-mapper` — no domain events in API Marketplace
+- `rbac-auditor` → future `authentication-auditor` (TBD, pending authZ/authN design)
+- `migration-reviewer` — Liquibase-specific; API Marketplace uses Flyway (future `flyway-validator` if needed)
 
-| Item | Verdict |
+### 3.2 Context files
+
+| File | Load timing | Purpose |
+|---|---|---|
+| `shared-code-rules.md` | Always | Team-wide code rules and naming conventions |
+| `hmcts-standards.md` | Always | Security classification, Coding in the Open, Conventional Commits, PR hygiene, data protection, test pyramid |
+| `api-spec-shared.md` | `api-cp-*` repos | OpenAPI generation pipeline, spec standards, CI/CD for spec libs |
+| `service-shared.md` | `service-cp-*` repos | Layer model, feature toggle rules T1–T5, CI/CD (GHA+ADO), deploy pipeline |
+| `claude-md-standards.md` | On demand (`/init`) | Standards for generating repo `CLAUDE.md` |
+| `logging-standards.md` | On demand | JSON logging mandate, MDC fields, "never log" list |
+| `azure-sdk-guide.md` | On demand | DefaultAzureCredential, Service Bus idempotency, Key Vault, observability, Kubernetes hygiene |
+
+### 3.3 Hooks
+
+| Hook | Event | Purpose |
+|---|---|---|
+| `bootstrap-context.sh` | `SessionStart` | Auto-creates `.claude/CLAUDE.md` in `api-cp-*`/`service-cp-*` repos; idempotent |
+| `block-pii` | `UserPromptSubmit` | Blocks prompts containing PII/case data |
+| `block-secrets` | `PreToolUse` | Blocks writes containing secrets/tokens |
+| `guard-bash` | `PreToolUse` | Guards destructive bash commands |
+| `guard-paths` | `PreToolUse` | Prevents writes to protected paths |
+
+### 3.4 Skills
+
+| Skill | Purpose |
 |---|---|
-| Guard hooks (`block-pii`, `block-secrets`, `guard-bash`, `guard-paths`) | **COPY** — universal, can't be referenced cross-plugin |
-| CPP context docs (`hmcts-standards`, `coding`, `logging`, `azure-*`, `tech-stack`) | **NOT copied** — they travel with the referenced agents when invoked |
-| Standalone marketplace skills (`adr-template`, `bdd-workflow`, `review-checklist`, `conventional-commit`, `code-review`, `explain-codebase`) | **REFERENCE** by co-install |
-| `accessibility-check` | **DROP** — no UI in API/spec scope |
+| `openapi-spec-reviewer` | Migrated from `apim-claude-template`; 4 lenses; scored /100 |
+| `bootstrap-context` | Manual trigger; also runs automatically via `SessionStart` hook |
 
-### 3.3 Migrated from `apim-claude-template`
+### 3.5 Migrated from `apim-claude-template`
 
-| Asset | Becomes | Note |
-|---|---|---|
-| `templates/api-spec-shared.md` | `context/api-spec-shared.md` | The `api-cp-*` substitute for CQRS context docs |
-| `templates/service-shared.md` | `context/service-shared.md` | Full `service-cp-*` layer model + toggle rules |
-| `templates/shared-code-rules.md` | `context/shared-code-rules.md` | Team-wide code rules |
-| `templates/claude-md-standards.md` | `context/claude-md-standards.md` | `/init` authoring standards |
-| `skills/openapi-spec-reviewer/` | `skills/openapi-spec-reviewer/` | AMP-428 — rebase knowledge paths to plugin-local |
-| `skills/create-pr/` | **NOT migrated** | Use existing PR tooling (`gh` + marketplace `conventional-commit` / `code-review` skills) |
-| `skills/release/` | **NOT migrated** | Release workflow out of scope |
-| `skills/wire-claude-context/` | **RETIRED** | `@import` mechanism superseded; `/init` role folds into `claude-md-standards.md` |
+| Asset | Destination |
+|---|---|
+| `templates/api-spec-shared.md` | `context/api-spec-shared.md` |
+| `templates/service-shared.md` | `context/service-shared.md` (CI/CD section fully rewritten for GHA+ADO) |
+| `templates/shared-code-rules.md` | `context/shared-code-rules.md` |
+| `templates/claude-md-standards.md` | `context/claude-md-standards.md` |
+| `skills/openapi-spec-reviewer/` | `skills/openapi-spec-reviewer/` |
+| `skills/wire-claude-context/` | **Retired** — superseded by `SessionStart` hook automation |
+| `skills/create-pr/` | **Not migrated** — use `gh` + `conventional-commit` marketplace skill |
+| `skills/release/` | **Not migrated** — out of scope |
 
-## 4. Net-new build (the only real work)
+---
 
-1. **`apim-architect`** *(adapt `architecture-designer`)* — OpenAPI-first / Modern-by-Default
-   design rubric (no CQRS), authors the spec per `api-spec-shared.md`, hands to
-   `openapi-spec-reviewer`.
-2. **`contract-test-engineer`** *(adapt `test-engineer`)* — Pact consumer-driven contracts +
-   Spring Boot Test + WireMock/TestContainers; no Serenity/UI/viewstore.
-3. *(Phase 6, optional)* **`api-dependency-analyzer`** — which `service-cp-*` consume which
-   `api-cp-*` spec versions; breaking-change detection.
-4. *(Future, TBD)* **`authentication-auditor`** — APIM authentication/authorization audit
-   (Spring Security config, OAuth2/OIDC scopes, `securitySchemes` coverage). Replaces the
-   dropped CQRS `rbac-auditor`; scope pending the in-flight authZ/authN design.
-
-## 5. Target structure
+## 4. Actual structure
 
 ```
-plugins/agents/hmcts-apim-orchestrator/
+plugins/agents/hmcts-apim-sdlc-orchestrator/
 ├── .claude-plugin/plugin.json
-├── CLAUDE.md                       ← NEW: dual-path API-first pipeline + gates
+├── CLAUDE.md                         dual-path API-first pipeline + gates
 ├── README.md
 ├── agents/
-│   ├── apim-architect.md           ← NEW (adapt architecture-designer)
-│   ├── contract-test-engineer.md   ← NEW (adapt test-engineer)
-│   ├── api-dependency-analyzer.md  ← NEW, phase 6 (optional)
-│   └── authentication-auditor.md   ← FUTURE (TBD — replaces CQRS rbac-auditor)
+│   ├── apim-architect.md
+│   ├── contract-test-engineer.md
+│   ├── requirements-analyst.md
+│   ├── story-writer.md
+│   ├── implementation.md
+│   ├── code-reviewer.md
+│   ├── ci-orchestrator.md
+│   └── deployer.md
 ├── skills/
-│   └── openapi-spec-reviewer/      ← MIGRATED (AMP-428 + 4 knowledge files)
+│   ├── openapi-spec-reviewer/        migrated from apim-claude-template
+│   └── bootstrap-context/            new; also runs automatically on SessionStart
 ├── context/
-│   ├── api-spec-shared.md          ← MIGRATED
-│   ├── service-shared.md           ← MIGRATED
-│   ├── shared-code-rules.md        ← MIGRATED
-│   └── claude-md-standards.md      ← MIGRATED
-└── hooks/                          ← COPIED (4 guard scripts + hooks.json)
+│   ├── api-spec-shared.md
+│   ├── service-shared.md
+│   ├── shared-code-rules.md
+│   ├── hmcts-standards.md            new
+│   ├── logging-standards.md          new (on-demand)
+│   ├── azure-sdk-guide.md            new (on-demand)
+│   └── claude-md-standards.md
+└── hooks/
+    ├── hooks.json
+    ├── bootstrap-context.sh          new — SessionStart automation
+    ├── block-pii.sh
+    ├── block-secrets.sh
+    ├── guard-bash.sh
+    └── guard-paths.sh
 
-references (co-install, not copied):
-  ▶ hmcts-sdlc-orchestrator:{requirements-analyst, story-writer, implementation,
-    code-reviewer, ci-orchestrator, deployer, helm-config-validator}
-  ▶ marketplace skills:{adr-template, bdd-workflow, review-checklist,
-    conventional-commit, code-review, explain-codebase}   ← PR raised via these + `gh`
+roadmap (not yet built):
+  api-dependency-analyzer.md          optional — breaking-change detection across api-cp-*
+  authentication-auditor.md           future — TBD, pending authZ/authN design
 ```
 
-## 6. Pipeline (contract-first dual path)
+---
+
+## 5. Pipeline (contract-first dual path)
 
 `CLAUDE.md` auto-detects repo type (`api-cp-*` vs `service-cp-*`) and runs the matching path.
 **Contract-first is enforced: a `service-cp-*` build cannot start until its `api-cp-*` artefact
@@ -126,71 +155,99 @@ is published.**
 flowchart TD
   D{repo type?}
   D -->|api-cp-*| A0[bootstrap: springboot-api-from-template]
-  A0 --> A1["requirements-analyst (ref)"] --> A2[apim-architect: design + author OpenAPI]
+  A0 --> A1[requirements-analyst] --> A2[apim-architect: design + author OpenAPI]
   A2 --> A3[contract review: Spectral + openapi-spec-reviewer · 4 lenses]
-  A3 -->|HUMAN GATE: readiness /100| A4[publish spec artefact: ci-draft.yml CI]
+  A3 -->|HUMAN GATE| A4[publish spec artefact via ci-draft.yml]
 
   D -->|service-cp-*| S0{api-cp-* published?}
   S0 -->|no| STOP[BLOCK — publish the spec first]
-  S0 -->|yes| S1["requirements-analyst (ref)"] --> S2[apim-architect: service design MbD]
-  S2 --> S3["story-writer (ref)"] --> S4[contract-test-engineer: Pact + Spring Boot Test]
-  S4 -->|HUMAN GATE| S5["implementation (ref) · service-shared layer model"]
-  S5 --> S6["code-reviewer (ref) + service/code overlay"]
-  S6 -->|HUMAN GATE| S7["ci-orchestrator (ref): build/test/publish"]
-  S7 --> S8["deployer (ref) + helm-config-validator (ref)"]
-  S8 -->|HUMAN GATE| S9[raise PR — existing tooling: gh + conventional-commit]
+  S0 -->|yes| S1[requirements-analyst] --> S2[apim-architect: service design]
+  S2 --> S3[story-writer] --> S4[contract-test-engineer: Pact + Spring Boot Test]
+  S4 -->|HUMAN GATE| S5[implementation]
+  S5 --> S6[code-reviewer]
+  S6 -->|HUMAN GATE| S7[ci-orchestrator: GHA + ADO pipeline]
+  S7 --> S8[deployer: monitor ADO 460/434 · smoke-check dev]
+  S8 -->|SIT HUMAN GATE| S9["raise PR - gh + conventional-commit"]
 ```
 
 | Path | Stages |
 |---|---|
-| `api-cp-*` | bootstrap → requirements *(ref)* → **apim-architect** → **contract review [gate]** → publish *(auto)* |
-| `service-cp-*` | requirements *(ref)* → apim-architect → stories *(ref)* → **contract-test-engineer [gate]** → implementation *(ref, auto)* → code review *(ref, [gate])* → CI *(ref, auto)* → deploy *(ref, [gate])* → raise PR *(existing tooling)* |
+| `api-cp-*` | bootstrap → **requirements-analyst** → **apim-architect** → **contract review [gate]** → publish *(auto CI)* |
+| `service-cp-*` | **requirements-analyst** → **apim-architect** → **story-writer** → **contract-test-engineer [gate]** → **implementation** *(auto)* → **code-reviewer [gate]** → **ci-orchestrator** *(auto)* → **deployer** (dev: pipeline; SIT: **[gate]**) → raise PR |
+
+---
+
+## 6. CI/CD pipeline (accurate)
+
+```
+push to main
+  → GHA ci-draft.yml → ci-build-publish.yml
+      composeUp → ./gradlew build → composeDown
+      → publish JAR → GitHub Packages + Azure Artifacts
+      → push Docker image → GHCR
+      → trigger ADO pipeline 460 (ACR copy: GHCR → crmdvrepo01.azurecr.io)
+      → ADO pipeline 434 → commits image tag to hmcts/cp-vp-aks-deploy
+          env/dev branch → K8-DEV-CS01-CL02  (automatic on every merge)
+
+GitHub Release published
+  → GHA ci-released.yml → same chain
+      → env/sit branch → K8-SIT-CS01-CL02  (human gate required)
+```
+
+**Scans:** PMD (`pmd/pmd-github-action@v2`, not SonarQube); CodeQL (`security-extended`) + OWASP ZAP DAST (not Snyk); gitleaks (`secrets-scanner.yml`). No Jenkins. No accessibility (no UI).
+
+---
 
 ## 7. Requirements
 
 **Functional**
 
-- **FR1** Standalone marketplace plugin driving the dual-path API-first SDLC with human gates.
-- **FR2** Reuse `hmcts-sdlc-orchestrator` agnostic agents by reference; never modify it.
-- **FR3** Migrate `apim-claude-template`'s 4 templates (→`context/`) and **1 skill** (`openapi-spec-reviewer` →`skills/`); retire `wire-claude-context`. **Do not** migrate `create-pr`/`release` — PRs use existing tooling (`gh` + `conventional-commit`/`code-review`); release is out of scope.
+- **FR1** Fully self-contained marketplace plugin driving the dual-path API-first SDLC with human gates; no dependency on `hmcts-sdlc-orchestrator`.
+- **FR2** All pipeline agents built natively and APIM-specific (correct CI, deploy, standards).
+- **FR3** Migrate `apim-claude-template`'s 4 templates → `context/` and `openapi-spec-reviewer` → `skills/`; retire `wire-claude-context`.
 - **FR4** New agents `apim-architect` + `contract-test-engineer`; OpenAPI-first, Pact-based, zero CQRS.
 - **FR5** Stage-3 contract review wired to `openapi-spec-reviewer` (4 lenses) + Spectral; gate on readiness score.
 - **FR6** Enforce contract-first (no service build before a published spec).
-- **FR7** Decommission `apim-claude-template` once repos are re-pointed.
+- **FR7** `SessionStart` hook auto-bootstraps `.claude/CLAUDE.md` in `api-cp-*`/`service-cp-*` repos; idempotent.
+- **FR8** Decommission `apim-claude-template` once repos are re-pointed.
 
 **Non-functional**
 
-- **NFR1** No duplication of agents/context already in sibling plugins (reference, don't copy).
+- **NFR1** No cross-plugin runtime dependency — plugin is fully self-contained.
 - **NFR2** Self-sufficient guard hooks (PII/secrets/bash/paths).
-- **NFR3** Graceful degradation if `hmcts-sdlc-orchestrator` is not co-installed (fall back to inline prompts).
-- **NFR4** Keep the APIM lightweight philosophy — thin agents leaning on context, not a heavy agent farm.
-- **NFR5** Accessibility/WCAG out of scope (no UI).
+- **NFR3** Accessibility/WCAG out of scope (no UI).
+- **NFR4** Keep agents thin and context-driven.
 
-## 8. Plan (phased)
+---
 
-| Phase | Work |
-|---|---|
-| **P0 Foundation** | Scaffold plugin (`plugin.json`, `README`, `CLAUDE.md` skeleton); copy guard hooks; register in `marketplace.json` + `CATALOG.md` |
-| **P1 Migrate APIM assets** | 4 templates → `context/`; migrate `openapi-spec-reviewer` → `skills/` (rebase knowledge paths to plugin-local); no `create-pr`/`release` migration |
-| **P2 Net-new agents** | Author `apim-architect` + `contract-test-engineer` (adapt from CPP originals; strip CQRS) |
-| **P3 Pipeline wiring** | Write dual-path `CLAUDE.md`: gates, `subagent_type` references, fallbacks, contract-first guard |
-| **P4 Validate** | End-to-end on a real `api-cp-*` + `service-cp-*` pair (clean spec + deliberately violating spec) |
-| **P5 Decommission** | Re-point repos off `apim-claude-template`; archive it; update READMEs/CATALOG |
-| **P6 (optional)** | `api-dependency-analyzer` |
+## 8. Delivery status
+
+| Phase | Work | Status |
+|---|---|---|
+| **P0 Foundation** | Scaffold plugin; copy guard hooks; register in `marketplace.json` + `CATALOG.md` | Done |
+| **P1 Migrate APIM assets** | 4 templates → `context/`; migrate `openapi-spec-reviewer` → `skills/` | Done |
+| **P2 Net-new agents** | `apim-architect` + `contract-test-engineer` | Done |
+| **P3 Pipeline agents** | `requirements-analyst`, `story-writer`, `implementation`, `code-reviewer`, `ci-orchestrator`, `deployer` (all APIM-specific, not referenced from CPP) | Done |
+| **P3b Context expansion** | `hmcts-standards.md`, `logging-standards.md`, `azure-sdk-guide.md` | Done |
+| **P3c Automation** | `SessionStart` hook (`bootstrap-context.sh`) + `bootstrap-context` skill | Done |
+| **P4 Validate** | End-to-end on a real `service-cp-*` pair | In progress |
+| **P5 Decommission** | Re-point repos off `apim-claude-template`; archive it | Pending |
+| **P6 (optional)** | `api-dependency-analyzer` | Deferred |
+
+---
 
 ## 9. Risks & trade-offs
 
-1. **Cross-plugin reference coupling** — pipeline needs `hmcts-sdlc-orchestrator` installed.
-   *Mitigation:* document the dependency; degrade to inline prompts (NFR3).
-2. **Referenced CPP agents may drift / carry CQRS phrasing** — reference only the genuinely
-   generic ones; keep the list short; APIM-specific stages run from migrated context.
-3. **Decommissioning `apim-claude-template`** breaks repos still using `@import` paths.
+1. **APIM-specific agents may drift from CPP agents over time** — mitigated by owning them
+   natively; no coupling to `hmcts-sdlc-orchestrator` release cycle.
+2. **Decommissioning `apim-claude-template`** breaks repos still using `@import` paths.
    *Mitigation:* P5 re-points every repo before archiving; communicate the cut-over.
-4. **Over-engineering** — keep agents thin and context-driven, true to the APIM philosophy.
-5. **AMP-428 already delivered** — migrate `openapi-spec-reviewer`, don't rebuild it.
+3. **Over-engineering** — keep agents thin and context-driven.
+4. **AMP-428 already delivered** — migrated, not rebuilt.
+
+---
 
 ## 10. Open questions
 
 - Is `api-dependency-analyzer` in-scope for v1 or deferred to P6? (Default: deferred.)
-- Confirm the exact referenced-agent set is acceptable to the CPP team (no modification, only
-  invocation).
+- `authentication-auditor` scope — pending authZ/authN design decisions.

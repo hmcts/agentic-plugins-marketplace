@@ -1,108 +1,169 @@
-# JIRA — `hmcts-apim-orchestrator` epic & stories
+# JIRA — `hmcts-apim-sdlc-orchestrator` epic & stories
 
 > Companion to `hmcts-apim-orchestrator-design.md`. Format mirrors AMP-428.
-> Replace `AMP-XXX` with real ticket numbers when raised.
 
 ---
 
-## Epic — AMP-569: Build the `hmcts-apim-orchestrator` marketplace plugin (API-first SDLC)
+## Epic — AMP-569: Build the `hmcts-apim-sdlc-orchestrator` marketplace plugin (API-first SDLC)
 
 **Summary**
-Consolidate API-Marketplace Claude tooling into one standalone plugin in
-`agentic-plugins-marketplace`: **reuse** `hmcts-sdlc-orchestrator` by reference, **migrate**
-the API-Marketplace-unique assets out of `apim-claude-template`, **build** only the two
-missing agents, and **decommission** `apim-claude-template`.
+Consolidate API-Marketplace Claude tooling into one **fully self-contained** standalone plugin in
+`agentic-plugins-marketplace`: build all pipeline agents natively for the APIM stack, migrate the
+API-Marketplace-unique assets out of `apim-claude-template`, and decommission `apim-claude-template`.
 
 **Why**
-Two tooling assets exist with different philosophies: the heavyweight CPP/CQRS
-`hmcts-sdlc-orchestrator` (other team — reuse, don't modify) and the lightweight
-`apim-claude-template` (this team — to be retired). API-Marketplace work
-(`api-cp-*` + `service-cp-*`) needs its own gated, contract-first pipeline that reuses ~72% of
-the CPP orchestrator rather than duplicating it.
+The original design planned to reference `hmcts-sdlc-orchestrator` agents by `subagent_type`.
+This was revised — the CPP/CQRS orchestrator targets a different stack (WildFly, Jenkins,
+SonarQube, Snyk, Drools) and produces incorrect guidance for `api-cp-*`/`service-cp-*` work.
+All pipeline agents are now owned natively by this plugin with APIM-correct CI, deploy, and
+standards knowledge.
 
 **Out of scope**
-- Modifying `hmcts-sdlc-orchestrator` (referenced only).
+- `hmcts-sdlc-orchestrator` modifications (different team, different stack).
 - CQRS / `cpp-context-*` work (RAML, Drools, Liquibase, events).
-- UI / accessibility.
-- Automated PR-time CI orchestration (future).
+- UI / accessibility (no UI in API Marketplace scope).
 
 **Dependencies**
-- `hmcts-sdlc-orchestrator` installed (provides referenced agents).
-- AMP-428 (`openapi-spec-reviewer`) — already delivered, migrated by Story 2.
+- AMP-428 (`openapi-spec-reviewer`) — already delivered, migrated in Story 2.
 
 ---
 
-## Story 1 — Scaffold plugin & migrate APIM context  *(P0 + P1)*
+## Story 1 — Scaffold plugin & migrate APIM context  *(P0 + P1)* ✅
 
-**As** an APIM engineer, **I want** the `hmcts-apim-orchestrator` plugin scaffolded with the
+**As** an APIM engineer, **I want** the `hmcts-apim-sdlc-orchestrator` plugin scaffolded with the
 migrated shared context, **so that** the API-Marketplace standards load automatically.
 
-**Tasks/AC**
-- [ ] Create `plugins/agents/hmcts-apim-orchestrator/` with `.claude-plugin/plugin.json`, `README.md`, `CLAUDE.md` skeleton.
-- [ ] Migrate the 4 `apim-claude-template` templates into `context/` (`api-spec-shared`, `service-shared`, `shared-code-rules`, `claude-md-standards`).
-- [ ] Copy the 4 guard hooks + `hooks.json`.
-- [ ] Register the plugin in `marketplace.json` and `CATALOG.md`.
-- [ ] Plugin installs cleanly; context auto-loads; no `../../apim-claude-template/...` paths remain.
+**AC**
+- [x] Create `plugins/agents/hmcts-apim-sdlc-orchestrator/` with `.claude-plugin/plugin.json`, `README.md`, `CLAUDE.md`.
+- [x] Migrate the 4 `apim-claude-template` templates into `context/` (`api-spec-shared`, `service-shared`, `shared-code-rules`, `claude-md-standards`).
+- [x] Copy the 4 guard hooks + `hooks.json`.
+- [x] Register the plugin in `marketplace.json` and `CATALOG.md`.
+- [x] Plugin installs cleanly; context auto-loads; no `../../apim-claude-template/...` paths remain.
 
-## Story 2 — Migrate `openapi-spec-reviewer` (AMP-428) into the plugin
+---
 
-**Tasks/AC**
-- [ ] Move `skills/openapi-spec-reviewer/` (SKILL + 4 knowledge files) into the plugin.
-- [ ] Rebase knowledge-file paths from `../../apim-claude-template/...` to plugin-local.
-- [ ] `/openapi-spec-reviewer` runs from the plugin; 4 lenses + readiness score intact; OAS2 rejected; parse errors handled.
+## Story 2 — Migrate `openapi-spec-reviewer` (AMP-428) into the plugin  ✅
 
-## Story 3 — Author `apim-architect` agent  *(adapt `architecture-designer`)*
+**AC**
+- [x] Move `skills/openapi-spec-reviewer/` (SKILL + 4 knowledge files) into the plugin.
+- [x] Rebase knowledge-file paths from `../../apim-claude-template/...` to plugin-local.
+- [x] `/openapi-spec-reviewer` runs from the plugin; 4 lenses + readiness score intact; OAS2 rejected; parse errors handled.
 
-**Tasks/AC**
-- [ ] OpenAPI-first / Modern-by-Default rubric; **zero** CQRS/RAML/Drools terms.
-- [ ] Drafts the OpenAPI spec per `context/api-spec-shared.md`.
-- [ ] Hands off to `openapi-spec-reviewer` for the contract-review gate.
-- [ ] Produces container + sequence (Mermaid) diagrams and an implementation outline.
+---
 
-## Story 4 — Author `contract-test-engineer` agent  *(adapt `test-engineer`)*
+## Story 3 — Author `apim-architect` agent  ✅
 
-**Tasks/AC**
-- [ ] Pact consumer-driven contracts + Spring Boot Test + WireMock/TestContainers.
-- [ ] No Serenity/UI/viewstore/embedded-Artemis content.
-- [ ] Test paths and naming follow `context/service-shared.md`.
+**AC**
+- [x] OpenAPI-first / Modern-by-Default rubric; zero CQRS/RAML/Drools terms.
+- [x] Drafts the OpenAPI spec per `context/api-spec-shared.md`.
+- [x] Hands off to `openapi-spec-reviewer` for the contract-review gate.
+- [x] Produces container + sequence (Mermaid) diagrams and an implementation outline.
 
-## Story 5 — Author the dual-path pipeline `CLAUDE.md`
+---
 
-**Tasks/AC**
-- [ ] Auto-detects `api-cp-*` vs `service-cp-*` and runs the matching path.
-- [ ] References CPP agents by `subagent_type` (`requirements-analyst`, `story-writer`, `implementation`, `code-reviewer`, `ci-orchestrator`, `deployer`, `helm-config-validator`).
-- [ ] Enforces contract-first: blocks `service-cp-*` work without a published `api-cp-*` artefact.
-- [ ] Halts at every human gate (contract review, test specs, code review, deploy).
-- [ ] PR step uses existing tooling (`gh` + `conventional-commit`/`code-review`) — no bundled PR/release skill.
-- [ ] Graceful fallback to inline prompts if `hmcts-sdlc-orchestrator` is not installed.
+## Story 4 — Author `contract-test-engineer` agent  ✅
 
-## Story 6 — Decommission `apim-claude-template`
+**AC**
+- [x] Pact consumer-driven contracts + Spring Boot Test + WireMock/TestContainers.
+- [x] No Serenity/UI/viewstore/embedded-Artemis content.
+- [x] Test paths and naming follow `context/service-shared.md`.
 
-**Tasks/AC**
-- [ ] Re-point every `api-cp-*` / `service-cp-*` repo off `apim-claude-template` (`@import` removed; plugin context used instead).
-- [ ] Archive `apim-claude-template`; update its README to point at the new plugin.
+---
+
+## Story 5 — Author the dual-path pipeline `CLAUDE.md`  ✅
+
+**AC**
+- [x] Auto-detects `api-cp-*` vs `service-cp-*` and runs the matching path.
+- [x] All pipeline stages use natively-owned APIM agents (no `hmcts-sdlc-orchestrator` references).
+- [x] Enforces contract-first: blocks `service-cp-*` work without a published `api-cp-*` artefact.
+- [x] Halts at every human gate (contract review, test specs, code review, SIT deploy).
+- [x] PR step uses existing tooling (`gh` + `conventional-commit`) — no bundled PR/release skill.
+
+---
+
+## Story 6 — Build APIM-specific pipeline agents  ✅
+
+**As** an APIM engineer, **I want** pipeline agents that know the APIM stack exactly, **so that**
+Claude produces correct CI, deploy, and standards guidance for `api-cp-*`/`service-cp-*` repos.
+
+**Background:** Original design planned to reference `hmcts-sdlc-orchestrator` agents. Reversed
+because the CPP orchestrator carries CQRS-specific guidance (SonarQube, Snyk, Jenkins) incompatible
+with the APIM pipeline (PMD, CodeQL, GHA+ADO).
+
+**AC**
+- [x] `requirements-analyst` — Path A vs Path B detection; no accessibility NFRs; blocks service work if spec not published.
+- [x] `story-writer` — stories reference specific OpenAPI endpoints; DoD uses PMD/CodeQL not SonarQube/Snyk.
+- [x] `implementation` — mapper-first order; generated interface compliance; CJSCPPUID on all CP backend calls; Jakarta EE; T1–T5 feature toggle rules.
+- [x] `code-reviewer` — 11-category checklist covering generated interface, layer model, toggle rules, idempotency, TracingFilter, security, PMD compliance.
+- [x] `ci-orchestrator` — knows exact workflow files; GHA+ADO hybrid; PMD not SonarQube; CodeQL+DAST not Snyk; no Jenkins; no accessibility.
+- [x] `deployer` — monitors ADO pipeline 460 (ACR copy) + 434 (deploy); smoke-checks `/actuator/health/readiness`; SIT via GitHub Release; explicitly does not trigger deployments.
+
+---
+
+## Story 7 — Expand context: HMCTS standards + logging + Azure SDK  ✅
+
+**As** an APIM engineer, **I want** Claude to carry HMCTS cross-cutting standards in every
+session, **so that** security, logging, and Azure integration guidance is always accurate.
+
+**AC**
+- [x] `hmcts-standards.md` — OFFICIAL-SENSITIVE classification, Coding in the Open, repo ownership validation, ADR triggers, DPA 2018/UK GDPR, Conventional Commits, PR hygiene, test pyramid.
+- [x] `logging-standards.md` — JSON stdout mandate, MDC fields (`correlationId`, `requestId`, `CLIENT_ID`), "never log" list (passwords, JWTs, full bodies, PII), log-level guidance, PR validation checklist.
+- [x] `azure-sdk-guide.md` — `DefaultAzureCredential`, Service Bus at-least-once + idempotency + DLQ, Key Vault caching, App Insights agent, Kubernetes resource limits/probes/graceful shutdown, forbidden patterns.
+- [x] `hmcts-standards.md` loaded always; `logging-standards.md` and `azure-sdk-guide.md` loaded on demand.
+
+---
+
+## Story 8 — SessionStart automation (`bootstrap-context.sh`)  ✅
+
+**As** an APIM engineer, **I want** Claude to automatically load the right context when I open any
+`api-cp-*` or `service-cp-*` repo, **so that** I never need to run a manual setup step.
+
+**AC**
+- [x] `hooks/bootstrap-context.sh` fires on `SessionStart`; detects repo type from directory name.
+- [x] Creates `.claude/CLAUDE.md` with 4 `@import` lines pointing to plugin context files.
+- [x] Appends `.claude/CLAUDE.md` to `.gitignore`.
+- [x] Idempotent — skips if file already contains correct imports.
+- [x] Exits cleanly (no-op) for non-APIM repos.
+- [x] `bootstrap-context` skill available for manual trigger or force-update.
+
+---
+
+## Story 9 — Decommission `apim-claude-template`
+
+**As** an APIM engineer, **I want** all repos pointing at the plugin context instead of
+`apim-claude-template`, **so that** the template can be archived and the team uses one canonical
+tooling location.
+
+**AC**
+- [ ] Re-point every `api-cp-*` / `service-cp-*` repo: `.claude/CLAUDE.md` imports from `hmcts-apim-sdlc-orchestrator/context/` not `apim-claude-template/templates/`.
+- [ ] Archive `apim-claude-template`; update its README to point at the plugin.
 - [ ] No repo depends on `apim-claude-template`.
 
-## Story 7 — End-to-end validation & docs  *(P4)*
+---
 
-**Tasks/AC**
+## Story 10 — End-to-end validation & docs
+
+**AC**
 - [ ] Run both paths on a real `api-cp-*` + `service-cp-*` pair.
-- [ ] One clean spec scores well; one deliberately violating spec fails the right lenses.
+- [ ] One clean spec scores well on `openapi-spec-reviewer`; one deliberately violating spec fails the right lenses.
 - [ ] Service path correctly blocks without a published spec.
-- [ ] `README.md` + `CATALOG.md` updated; co-install dependency documented.
+- [ ] `README.md` + `CATALOG.md` updated; plugin described as fully self-contained.
 
-## Story 8 (optional) — `api-dependency-analyzer`  *(P6)*
+---
 
-**Tasks/AC**
+## Story 11 (optional) — `api-dependency-analyzer`  *(P6)*
+
+**AC**
 - [ ] Maps which `service-cp-*` consume which `api-cp-*` spec versions.
 - [ ] Detects breaking changes between published spec versions.
 
-## Story 9 (future, TBD) — `authentication-auditor`
+---
 
-Replaces the dropped CQRS `rbac-auditor` (Drools). Scope to be defined once the APIM
-authorization/authentication design lands.
+## Story 12 (future, TBD) — `authentication-auditor`
 
-**Tasks/AC (provisional)**
+Replaces the CQRS `rbac-auditor` (Drools). Scope defined once the APIM authZ/authN design lands.
+
+**AC (provisional)**
 - [ ] Audit `securitySchemes` coverage and per-operation `security` in `api-cp-*` specs.
 - [ ] Audit Spring Security config / OAuth2-OIDC scopes in `service-cp-*` services.
 - [ ] Flag unauthenticated operations and scope gaps.
@@ -111,7 +172,8 @@ authorization/authentication design lands.
 
 ---
 
-## Suggested delivery order
+## Delivery order
 
-`Story 1 → 2` (foundation + migration) → `3 → 4` (agents) → `5` (pipeline) →
-`7` (validate) → `6` (decommission) → `8` (optional).
+`1 → 2` (foundation + migration) → `3 → 4` (new agents) → `5` (pipeline) →
+`6` (APIM pipeline agents) → `7` (context expansion) → `8` (automation) →
+`10` (validate) → `9` (decommission) → `11` (optional)
