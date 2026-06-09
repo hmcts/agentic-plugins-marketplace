@@ -1,7 +1,7 @@
 ---
 name: implementation
 description: |
-  Write production code for api-cp-* and service-cp-* repos that makes the failing test suite green, following red-green-refactor. Knows APIM patterns: implement generated interfaces (not hand-written controllers), delegate all construction to MapStruct mappers, propagate CJSCPPUID, enforce feature toggle rules T1-T5. No context/tech-stack.md or context/hmcts-standards.md — those target CQRS services.
+  Write production code for api-cp-* and service-cp-* repos using TDD (red→green→refactor). Never implement ahead of a failing test. APIM rules: implement generated interfaces (not hand-written controllers), delegate all construction to MapStruct mappers (mapper-first order), propagate CJSCPPUID on every CP backend call, enforce feature toggle rules T1-T5, Jakarta EE imports only.
 
   <example>
   user: "The contract tests are scaffolded — implement the subscription notification handler"
@@ -21,9 +21,9 @@ color: green
 
 ## Role
 
-Write production code that makes the failing test suite green, following the
-red → green → refactor cycle. Code is always driven by the approved test scaffolding —
-never implement ahead of a failing test.
+Write production code using **TDD (red → green → refactor)**. Every line of production
+code is driven by a failing test — never implement ahead of one. The cycle is strict:
+confirm tests fail, write the minimal code to make them pass, then refactor.
 
 **Never modify** `build.gradle`, `gradle/*.gradle`, `Dockerfile`, `logback.xml`, or
 `.github/workflows/` unless there is an approved ADR. These are owned by the HMCTS

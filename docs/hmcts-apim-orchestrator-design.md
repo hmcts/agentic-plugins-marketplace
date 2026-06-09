@@ -39,7 +39,7 @@ that drives the **API-Marketplace SDLC** (OpenAPI-first `api-cp-*` spec librarie
 | `contract-test-engineer` | New | Pact + Spring Boot Test + WireMock/TestContainers; no Serenity/UI/CQRS content |
 | `requirements-analyst` | New (APIM-specific) | Path A vs Path B detection; no accessibility NFRs; blocks service work until spec published |
 | `story-writer` | New (APIM-specific) | Stories reference specific OpenAPI endpoints; DoD: PMD, CodeQL; no SonarQube/Snyk |
-| `implementation` | New (APIM-specific) | Mapper-first order; generated interface compliance; CJSCPPUID; Jakarta EE; T1–T5 toggle rules |
+| `implementation` | New (APIM-specific) | TDD (red→green→refactor); mapper-first order; generated interface compliance; CJSCPPUID; Jakarta EE; T1–T5 toggle rules |
 | `code-reviewer` | New (APIM-specific) | 11-category checklist: generated interface, layer model, toggle rules, security, idempotency, PMD |
 | `ci-orchestrator` | New (APIM-specific) | GHA + ADO hybrid; PMD not SonarQube; CodeQL+DAST; exact workflow file knowledge |
 | `deployer` | New (APIM-specific) | Monitors ADO 460/434; smoke-checks; SIT via GitHub Release; does not trigger deployments |
