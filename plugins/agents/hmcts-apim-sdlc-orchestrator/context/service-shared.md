@@ -10,27 +10,37 @@ Two patterns exist:
 
 ```bash
 # Build
-./gradlew clean build                   # full build with tests
-./gradlew build -x test                 # skip tests
+./gradlew build                         # full build + unit/integration tests
+./gradlew build -x test                 # skip all tests
+./gradlew build -x apiTest              # skip API tests only (API tests need Docker; use this for faster local builds)
 
 # Test
-./gradlew test                          # unit + integration (Testcontainers starts DB automatically if needed)
-./gradlew test --tests '<ClassName>'    # single class
+./gradlew test                          # unit + integration tests
+./gradlew test --tests '<ClassName>'                    # single class
+./gradlew test --tests '<ClassName.methodName>'         # single method
 ./gradlew check                         # tests + JaCoCo coverage
 
-# API tests (needs Docker)
-./gradlew dockerTest                    # full docker-compose stack (WireMock + app, or Service Bus emulator + DB + app)
-
-# Run locally
-./gradlew bootRun                       # requires any infrastructure (DB, Service Bus) running locally
+# Run locally (requires any needed infrastructure — DB, Service Bus — already running)
+./gradlew bootRun
 
 # Code quality
 ./gradlew pmdMain                       # PMD static analysis
+./gradlew spotlessCheck                 # format check
+./gradlew spotlessApply                 # auto-fix formatting
 ./gradlew jacocoTestReport              # coverage report → build/reports/jacoco/
 
-# Code generation (if repo depends on local api-cp-* changes)
+# Code generation (only if this service depends on a local api-cp-* change)
 ./gradlew openApiGenerate               # regenerate from OpenAPI spec — never edit build/generated/ manually
 ```
+
+### API tests
+
+API tests run against a live Docker stack. The mechanism differs by service pattern:
+
+- **Stateless proxy services** — `./gradlew dockerTest` (docker-compose: WireMock + app)
+- **DB-backed services** — separate `apiTest/` Gradle project; run via `cd apiTest && ./build-and-run-apitest.sh` (docker-compose: PostgreSQL + Service Bus emulator + app)
+
+Each service's `CLAUDE.md` documents which applies and the exact docker-compose commands needed to start the required infrastructure.
 
 ## Standard Source Layout
 
@@ -154,15 +164,50 @@ All services implement `TracingFilter extends OncePerRequestFilter`:
 
 ## CI/CD Workflows
 
+### Workflow files
+
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| `ci-draft.yml` | PR / push to main | Build, version, publish draft to ACR |
-| `ci-released.yml` | GitHub Release published | Publish release image |
-| `code-analysis.yml` | PR | PMD static analysis |
-| `codeql.yml` | PR + weekly | GitHub CodeQL security scan |
-| `secrets-scanner.yml` / `secret-scanning.yml` | PR + push | Secret detection |
+| `ci-draft.yml` | PR + push to main | Calls `ci-build-publish.yml`; on PR: build + tests + API tests; on push: also publish JAR + Docker + deploy to dev |
+| `ci-released.yml` | GitHub Release published | Same reusable workflow; `is_release: true`; deploys to SIT (not dev) |
+| `ci-build-publish.yml` | Called by draft/released | Reusable: version → build (with `composeUp`/`composeDown`) → publish JAR → push to GHCR → ACR copy (ADO 460) → deploy (ADO 434) |
+| `code-analysis.yml` | PR | PMD via `pmd/pmd-github-action@v2` against `.github/pmd-ruleset.xml`; fails on any violation |
+| `codeql.yml` | PR + weekly (Thu) | GitHub CodeQL (`security-extended`, Java) + OWASP ZAP DAST scan + CycloneDX SBOM |
+| `secrets-scanner.yml` | PR + push + weekly (Thu) | `hmcts/secrets-scanner@main` (gitleaks + custom regex) |
+| `auto-merge-dependabot.yml` | Any PR | Auto-approves and merges Dependabot PRs on minor/patch bumps |
 
-ACR target: `crmdvrepo01.azurecr.io`
+### Build mechanics in CI
+
+The build job wraps all tests with docker-compose:
+```
+./gradlew composeUp
+./gradlew build -DARTEFACT_VERSION=<version>   # runs unit + integration tests against live compose stack
+./gradlew composeDown
+```
+API tests (`apiTest/build-and-run-apitest.sh`) run as a separate job after the build passes.
+
+### Deployment pipeline (push to main / release)
+
+```
+GitHub Actions (GHA)
+  ├─ Build + test (Gradle + docker-compose)
+  ├─ Publish JAR → GitHub Packages + Azure Artifacts
+  ├─ Build + push Docker image → GHCR (ghcr.io/<repo>:<version>)
+  └─ Trigger ADO pipeline 460 (hmcts/trigger-ado-pipeline@v2)
+       └─ Copies GHCR image → ACR (crmdvrepo01.azurecr.io)
+            └─ ADO pipeline 434 (hmcts/action-ado-deploy@v1)
+                 └─ Commits image tag to hmcts/cp-vp-aks-deploy
+                      ├─ push to main  → env/dev branch  → K8-DEV-CS01-CL02
+                      └─ release       → env/sit branch  → K8-SIT-CS01-CL02
+```
+
+Deployment target repo: `hmcts/cp-vp-aks-deploy`, values file: `vp-config/services_values.yml`.
+Dev deployment is automatic on every push to main. SIT deployment triggers only on GitHub Release publish.
+
+### Required secrets
+
+`AZURE_DEVOPS_ARTIFACT_USERNAME`, `AZURE_DEVOPS_ARTIFACT_TOKEN`, `HMCTS_ADO_PAT`,
+`DEPLOYMENT_APP_ID`, `DEPLOYMENT_APP_PRIVATE_KEY`, `GITLEAKS_LICENSE`, `HMCTS_CP_GITLEAKS_REGEX_INTERNAL_URL`
 
 ## Key Constraints
 

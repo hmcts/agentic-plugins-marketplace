@@ -13,33 +13,39 @@ Drools, no WildFly. If a request needs an event-sourced context service, redirec
 
 ## Context loading
 
+The `SessionStart` hook (`hooks/bootstrap-context.sh`) automatically creates `.claude/CLAUDE.md`
+in any `api-cp-*` or `service-cp-*` repo when the developer opens Claude Code — no manual step
+needed. That file contains the three `@import` lines below.
+
 Always load:
-- `context/shared-code-rules.md` — team-wide code rules.
+- `context/shared-code-rules.md` — team-wide code rules and naming conventions.
+- `context/hmcts-standards.md` — security classification, Coding in the Open, repo ownership, Conventional Commits, PR hygiene, ADR triggers, data protection, test pyramid.
 
 Load by repo type (detect from the directory name):
 - `api-cp-*` → `context/api-spec-shared.md`
 - `service-cp-*` → `context/service-shared.md`
 
 Load on demand:
+- `context/logging-standards.md` — when reviewing or writing logging code, or checking PR compliance.
+- `context/azure-sdk-guide.md` — when the work touches any Azure integration (Service Bus, Key Vault, App Configuration, Blob, observability wiring, Helm/Kubernetes hygiene).
 - `context/claude-md-standards.md` — when generating or refreshing a repo's `CLAUDE.md` (`/init`).
 
-## Reused agents (referenced, not duplicated)
+## Agents (all owned by this plugin)
 
-Generic, delivery-model-agnostic stages are driven by the **CPP-owned
-`hmcts-sdlc-orchestrator`** plugin — invoke them by `subagent_type`, never modify them:
+All pipeline stages are handled by agents in this plugin. Do **not** use
+`hmcts-sdlc-orchestrator` agents for `api-cp-*` or `service-cp-*` work — they target
+a different stack (CQRS/WildFly/Jenkins/SonarQube/Snyk) and will produce incorrect guidance.
 
-| Need | Referenced agent |
+| Need | Agent |
 |---|---|
-| Requirements | `hmcts-sdlc-orchestrator:requirements-analyst` |
-| User stories | `hmcts-sdlc-orchestrator:story-writer` |
-| Service implementation | `hmcts-sdlc-orchestrator:implementation` |
-| Code review | `hmcts-sdlc-orchestrator:code-reviewer` |
-| CI build/test/publish | `hmcts-sdlc-orchestrator:ci-orchestrator` |
-| Deploy to sandbox | `hmcts-sdlc-orchestrator:deployer` |
-| Helm validation | `hmcts-sdlc-orchestrator:helm-config-validator` |
-
-**Fallback:** if `hmcts-sdlc-orchestrator` is not installed, run that stage from an inline
-prompt using the loaded context docs — do not block the pipeline.
+| Requirements analysis | `requirements-analyst` |
+| API design + OpenAPI authoring | `apim-architect` |
+| User stories (Path B only) | `story-writer` |
+| Contract tests (A-TDD) | `contract-test-engineer` |
+| Implementation | `implementation` |
+| Code review | `code-reviewer` |
+| CI build/test/publish/deploy | `ci-orchestrator` |
+| Deploy monitoring + SIT release | `deployer` |
 
 Standalone marketplace skills used as-is: `adr-template`, `bdd-workflow`, `review-checklist`,
 `conventional-commit`, `code-review`, `explain-codebase`. PRs are raised with `gh` +
@@ -55,11 +61,11 @@ artefact is published.**
 
 | # | Stage | Driver | Gate |
 |---|---|---|---|
-| 0 | Bootstrap repo (if new) | `springboot-api-from-template` (hmcts-sdlc-orchestrator) | — |
-| 1 | Requirements | `requirements-analyst` *(ref)* | Human |
-| 2 | API design + OpenAPI authoring | **`apim-architect`** + `context/api-spec-shared.md` | Human |
-| 3 | **Contract review** — Spectral lint + **`openapi-spec-reviewer`** (4 lenses, score /100) | `spectral lint` + skill | **Human** |
-| 4 | Publish spec artefact (SemVer + media type) | `ci-draft.yml` CI | Auto |
+| 0 | Bootstrap repo (if new) | `springboot-api-from-template` skill | — |
+| 1 | Requirements | **`requirements-analyst`** | Human |
+| 2 | API design + OpenAPI authoring | **`apim-architect`** | Human |
+| 3 | Contract review — Spectral lint + **`openapi-spec-reviewer`** (4 lenses, /100) | skill | **Human** |
+| 4 | Publish spec artefact (SemVer + media type) | `ci-draft.yml` → **`ci-orchestrator`** | Auto |
 
 No code, no deploy. Output of Path A is a published `api-cp-*` artefact.
 
@@ -67,16 +73,16 @@ No code, no deploy. Output of Path A is a published `api-cp-*` artefact.
 
 | # | Stage | Driver | Gate |
 |---|---|---|---|
-| 0 | Verify the `api-cp-*` artefact is published | orchestrator check | **Blocks if missing** |
-| 1 | Requirements | `requirements-analyst` *(ref)* | Human |
-| 2 | Service design | **`apim-architect`** + `context/service-shared.md` | Human |
-| 3 | User stories | `story-writer` *(ref)* | Human |
+| 0 | Verify the `api-cp-*` artefact is published | **`requirements-analyst`** check | **Blocks if missing** |
+| 1 | Requirements | **`requirements-analyst`** | Human |
+| 2 | Service design | **`apim-architect`** | Human |
+| 3 | User stories | **`story-writer`** | Human |
 | 4 | Contract & test specs | **`contract-test-engineer`** (Pact + Spring Boot Test) | **Human** |
-| 5 | Implementation | `implementation` *(ref)*, per `context/service-shared.md` | Auto |
-| 6 | Code review | `code-reviewer` *(ref)* + `review-checklist` + service/code overlay | **Human** |
-| 7 | Build, test & publish | `ci-orchestrator` *(ref)* | Auto |
-| 8 | Deploy → sandbox | `deployer` *(ref)* + `helm-config-validator` *(ref)* | **Human** |
-| 9 | Raise PR | `gh` + `conventional-commit` | Human |
+| 5 | Implementation | **`implementation`** | Auto |
+| 6 | Code review | **`code-reviewer`** | **Human** |
+| 7 | Build, test & publish | **`ci-orchestrator`** (GHA + ADO) | Auto |
+| 8 | Monitor deploy → dev (pipeline-triggered) / SIT (release) | **`deployer`** | Dev: pipeline; SIT: **Human** |
+| 9 | Raise PR | `gh` + `conventional-commit` skill | Human |
 
 ## Artefact output convention
 

@@ -10,25 +10,17 @@ reference** rather than duplicating them.
 
 | Component | Items |
 |---|---|
-| **Agents** (`agents/`) | `apim-architect` (OpenAPI-first design + spec authoring), `contract-test-engineer` (Pact + Spring Boot Test, A-TDD) |
-| **Skills** (`skills/`) | `openapi-spec-reviewer` — reviews a spec against 4 lenses (data-sharing/UK-GDPR, infrastructure-SLA/Azure, API standards, security); scored /100 |
-| **Context** (`context/`) | `api-spec-shared`, `service-shared`, `shared-code-rules`, `claude-md-standards` |
-| **Hooks** (`hooks/`) | `block-pii`, `block-secrets`, `guard-bash`, `guard-paths` |
+| **Agents** (`agents/`) | `requirements-analyst`, `apim-architect`, `story-writer`, `contract-test-engineer`, `implementation`, `code-reviewer`, `ci-orchestrator`, `deployer` — full self-contained pipeline; do not use `hmcts-sdlc-orchestrator` agents for `api-cp-*`/`service-cp-*` work |
+| **Skills** (`skills/`) | `openapi-spec-reviewer` — reviews a spec against 4 lenses (data-sharing/UK-GDPR, infrastructure-SLA/Azure, API standards, security); scored /100; `bootstrap-context` — writes `.claude/CLAUDE.md` with correct context imports (also runs automatically on session start) |
+| **Context** (`context/`) | `api-spec-shared`, `service-shared`, `shared-code-rules`, `hmcts-standards`, `logging-standards`, `azure-sdk-guide`, `claude-md-standards` |
+| **Hooks** (`hooks/`) | `block-pii`, `block-secrets`, `guard-bash`, `guard-paths`, `bootstrap-context` (SessionStart — auto-creates `.claude/CLAUDE.md` in `api-cp-*`/`service-cp-*` repos) |
 | **Orchestration** | `CLAUDE.md` — the dual-path, contract-first pipeline |
-
-## Reused by reference (not bundled)
-
-The generic stages are driven by the co-installed **`hmcts-sdlc-orchestrator`** plugin:
-`requirements-analyst`, `story-writer`, `implementation`, `code-reviewer`, `ci-orchestrator`,
-`deployer`, `helm-config-validator`, plus the `springboot-api-from-template` /
-`springboot-service-from-template` skills. PRs use `gh` + the `conventional-commit` skill.
 
 ## Prerequisites
 
 - Claude Code with the [agentic-plugins-marketplace](https://github.com/hmcts/agentic-plugins-marketplace) registered.
-- **`hmcts-sdlc-orchestrator` installed** — provides the referenced generic agents. If it is
-  absent, referenced stages fall back to inline prompts (the pipeline does not block).
-- `gh` CLI for PR creation; Docker for `./gradlew dockerTest` API tests.
+- `gh` CLI authenticated (`gh auth status`) — used for PR creation, CI monitoring, and release management.
+- Docker — required for `./gradlew dockerTest` (Service Bus emulator + Postgres).
 
 ## Installation
 
@@ -36,10 +28,13 @@ The generic stages are driven by the co-installed **`hmcts-sdlc-orchestrator`** 
 /plugin install hmcts-apim-sdlc-orchestrator@agentic-plugins-marketplace
 ```
 
-To enable the pipeline in a repo, copy `CLAUDE.md` into the project root:
-```bash
-cp ~/.claude/plugins/hmcts-apim-sdlc-orchestrator/CLAUDE.md ./CLAUDE.md
+Then bootstrap context in each repo:
 ```
+/bootstrap-context
+```
+This creates the gitignored `.claude/CLAUDE.md` with `@import` lines pointing to this
+plugin's `context/` files. Run `/init` afterwards to generate or refresh the committed
+`CLAUDE.md`.
 
 ## Usage
 
@@ -48,7 +43,7 @@ api-cp-*  →  requirements → apim-architect (design + author OpenAPI)
           →  contract review (Spectral + openapi-spec-reviewer) [gate] → publish
 service-cp-* (needs published spec)
           →  requirements → apim-architect → stories → contract-test-engineer [gate]
-          →  implementation → code review [gate] → CI → deploy [gate] → PR
+          →  implementation → code review [gate] → CI → PR → (dev deploys via existing pipeline on merge; SIT via GitHub Release [gate])
 ```
 
 > "Design the courthouses reference-data API and draft its spec" — invokes `apim-architect`.
@@ -63,8 +58,14 @@ service-cp-* (needs published spec)
   (`securitySchemes` coverage, OAuth2/OIDC scopes, Spring Security config). Replaces the
   CQRS `rbac-auditor`; scope pending the in-flight authZ/authN design.
 
-## Relationship to `apim-claude-template`
+## Context bootstrap
 
-This plugin supersedes `apim-claude-template`: the four shared templates moved to `context/`
-and the `openapi-spec-reviewer` skill moved to `skills/`. Once consumer repos are re-pointed,
-`apim-claude-template` is decommissioned.
+The `SessionStart` hook (`hooks/bootstrap-context.sh`) runs automatically every time Claude Code
+starts in an `api-cp-*` or `service-cp-*` repo. It creates (or verifies) the gitignored
+`.claude/CLAUDE.md` with three `@import` lines pointing to this plugin's `context/` files — no
+manual step required.
+
+Run `/bootstrap-context` only when you need to force an update (e.g. after migrating from the old
+`apim-claude-template` paths) or in a repo that hasn't been opened in Claude Code yet.
+This replaces the old `wire-claude-context` / `apim-claude-template` approach — all shared
+standards now live here.

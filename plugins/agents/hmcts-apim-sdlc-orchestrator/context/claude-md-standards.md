@@ -149,6 +149,6 @@ docs(claude): generate repo context for <repo-name>
 
 Captures repo-specific architecture, endpoints, env vars, and debugging
 patterns for Claude Code context. Shared team standards are live-imported
-from apim-claude-template via .claude/CLAUDE.md — only repo-unique content
+from hmcts-apim-sdlc-orchestrator via .claude/CLAUDE.md — only repo-unique content
 lives here.
 ```

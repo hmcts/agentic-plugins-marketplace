@@ -75,13 +75,14 @@ spectral lint "src/main/resources/openapi/*.{yml,yaml}"
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| `ci-draft.yml` | PR / push to main | Generates artefact version, updates spec version, builds, publishes draft to GitHub Packages + Azure Artifacts + SwaggerHub |
-| `ci-released.yml` | GitHub Release published | Publishes release-tagged artefact |
-| `lint-openapi.yml` | PR | Spectral lint; JSON schema lint (`jsonlint`); AJV schema-vs-example validation; rejects internal HMCTS domain URLs in the spec |
-| `code-analysis.yml` | PR | PMD static analysis; SonarCloud |
-| `codeql.yml` | PR + weekly | GitHub CodeQL security scan + CycloneDX SBOM |
-| `secrets-scanner.yml` | PR + push | Secret scanning |
+| `ci-draft.yml` | PR + push to main | Artefact version → inject spec version (`hmcts/update-openapi-version`) → build + test; on push: also publish JAR to GitHub Packages + Azure Artifacts + draft spec to SwaggerHub/APIHub |
+| `ci-released.yml` | GitHub Release published | Publishes release-tagged JAR + spec to SwaggerHub/APIHub |
+| `lint-openapi.yml` | PR | Spectral lint + `jsonlint` on schemas + AJV schema-vs-example validation + internal HMCTS domain URL rejection |
+| `code-analysis.yml` | PR | PMD via `pmd/pmd-github-action@v2` against `.github/pmd-ruleset.xml`; no SonarCloud |
+| `codeql.yml` | PR + weekly (Thu) | GitHub CodeQL (`security-extended`, Java) + CycloneDX SBOM upload |
+| `secrets-scanner.yml` | PR + push + weekly (Thu) | `hmcts/secrets-scanner@main` (gitleaks + custom regex) |
 | `publish-openapi-spec.yml` | Called by ci-draft / ci-released | Publishes spec to SwaggerHub / APIHub |
+| `auto-merge-dependabot.yml` | Any PR | Auto-approves and merges Dependabot PRs on minor/patch bumps |
 
 CI injects the generated artefact version into `openapi-spec.yml` (via `hmcts/update-openapi-version`) before build steps run.
 

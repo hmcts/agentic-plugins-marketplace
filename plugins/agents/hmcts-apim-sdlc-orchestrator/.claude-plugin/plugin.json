@@ -1,7 +1,7 @@
 {
   "name": "hmcts-apim-sdlc-orchestrator",
   "version": "1.0.0",
-  "description": "HMCTS API-Marketplace SDLC orchestrator — a contract-first, dual-path pipeline for OpenAPI-first api-cp-* spec libraries and service-cp-* Spring Boot services. Bundles the apim-architect and contract-test-engineer agents, the openapi-spec-reviewer skill (4 policy lenses), APIM context docs (api-spec / service / code standards), and guard hooks (PII, secrets, bash, paths). Reuses the generic hmcts-sdlc-orchestrator agents by reference rather than duplicating them.",
+  "description": "HMCTS API-Marketplace SDLC orchestrator — a fully self-contained, contract-first pipeline for OpenAPI-first api-cp-* spec libraries and service-cp-* Spring Boot services. Bundles all pipeline agents (requirements-analyst, apim-architect, story-writer, contract-test-engineer, implementation, code-reviewer, ci-orchestrator, deployer), the openapi-spec-reviewer skill, APIM context docs, and guard hooks. Targets GHA + ADO CI/CD, PMD, CodeQL, GHCR, and the cp-vp-aks-deploy GitOps repo.",
   "author": {
     "name": "HMCTS APIM"
   },
