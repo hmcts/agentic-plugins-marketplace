@@ -1,13 +1,13 @@
 ---
 name: bootstrap-context
-description: Bootstrap the gitignored .claude/CLAUDE.md for any api-cp-* or service-cp-* repo with three @import lines pointing to hmcts-apim-sdlc-orchestrator context standards. Runs automatically on every session start via the SessionStart hook — invoke manually only to force an update or migrate from old apim-claude-template paths.
+description: Bootstrap the gitignored .claude/CLAUDE.md for any api-cp-* or service-cp-* repo with three @import lines pointing to hmcts-apim-sdlc-orchestrator context standards. Runs automatically on every session start via the SessionStart hook — invoke manually only to force an update.
 ---
 
 # Skill: Bootstrap Context
 
 > **Automatic:** The `SessionStart` hook (`hooks/bootstrap-context.sh`) runs this logic
 > automatically whenever Claude Code opens in an `api-cp-*` or `service-cp-*` repo.
-> Run `/bootstrap-context` manually only to force-update or migrate from old paths.
+> Run `/bootstrap-context` manually only to force-update.
 
 ## Trigger
 
@@ -17,7 +17,6 @@ Invoke this skill when a user asks to:
 - Set up shared template imports for Claude
 - Run `/bootstrap-context`
 - Initialise `.claude/CLAUDE.md`
-- Migrate from `apim-claude-template` paths to `hmcts-apim-sdlc-orchestrator` paths
 
 Invocation command: `/bootstrap-context`
 

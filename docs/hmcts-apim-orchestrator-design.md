@@ -4,7 +4,7 @@
 - **Status:** Implemented
 - **Author:** srivani.muddineni (with Claude Code)
 - **Location:** `plugins/agents/hmcts-apim-sdlc-orchestrator/`
-- **Related:** AMP-428 (`openapi-spec-reviewer` — already built in `apim-claude-template`, migrated here)
+- **Related:** AMP-428 (`openapi-spec-reviewer`) — TBD, pending discussion with Samir
 
 ---
 
@@ -14,18 +14,14 @@ Create a **fully self-contained** standalone marketplace plugin, `hmcts-apim-sdl
 that drives the **API-Marketplace SDLC** (OpenAPI-first `api-cp-*` spec libraries +
 `service-cp-*` Spring Boot services). It consolidates all API-Marketplace Claude tooling by:
 
-- **building** all pipeline agents natively,
-- **migrating** the API-Marketplace-unique assets out of `apim-claude-template`, and
-- **decommissioning** `apim-claude-template` once repos are re-pointed.
+- **building** all pipeline agents natively, and
+- **migrating** the API-Marketplace-unique assets into this plugin.
 
 ---
 
-## 2. Sources
+## 2. Source
 
-| Source | Owner | Reuse mode |
-|---|---|---|
-| `agentic-plugins-marketplace` | marketplace | **Host** the plugin |
-| `apim-claude-template` | this team | **Migrate then decommission** |
+Hosted in `agentic-plugins-marketplace` under `plugins/agents/hmcts-apim-sdlc-orchestrator/`. All assets are owned natively by this plugin.
 
 ---
 
@@ -36,7 +32,7 @@ that drives the **API-Marketplace SDLC** (OpenAPI-first `api-cp-*` spec librarie
 | Agent | Origin | Purpose |
 |---|---|---|
 | `apim-architect` | New | OpenAPI-first design; authors spec per `api-spec-shared.md`; hands to `openapi-spec-reviewer` |
-| `contract-test-engineer` | New | Pact + Spring Boot Test + WireMock/TestContainers; no Serenity/UI/CQRS content |
+| `contract-test-engineer` | New | Pact + Spring Boot Test + WireMock/TestContainers |
 | `requirements-analyst` | New (APIM-specific) | Path A vs Path B detection; no accessibility NFRs; blocks service work until spec published |
 | `story-writer` | New (APIM-specific) | Stories reference specific OpenAPI endpoints; DoD: PMD, CodeQL; no SonarQube/Snyk |
 | `implementation` | New (APIM-specific) | TDD (red→green→refactor); mapper-first order; generated interface compliance; CJSCPPUID; Jakarta EE; T1–T5 toggle rules |
@@ -76,21 +72,9 @@ that drives the **API-Marketplace SDLC** (OpenAPI-first `api-cp-*` spec librarie
 
 | Skill | Purpose |
 |---|---|
-| `openapi-spec-reviewer` | Migrated from `apim-claude-template`; 4 lenses; scored /100 |
+l| `openapi-spec-reviewer` | 4 lenses; scored /100 |
 | `bootstrap-context` | Manual trigger; also runs automatically via `SessionStart` hook |
 
-### 3.5 Migrated from `apim-claude-template`
-
-| Asset | Destination |
-|---|---|
-| `templates/api-spec-shared.md` | `context/api-spec-shared.md` |
-| `templates/service-shared.md` | `context/service-shared.md` (CI/CD section fully rewritten for GHA+ADO) |
-| `templates/shared-code-rules.md` | `context/shared-code-rules.md` |
-| `templates/claude-md-standards.md` | `context/claude-md-standards.md` |
-| `skills/openapi-spec-reviewer/` | `skills/openapi-spec-reviewer/` |
-| `skills/wire-claude-context/` | **Retired** — superseded by `SessionStart` hook automation |
-| `skills/create-pr/` | **Not migrated** — use `gh` + `conventional-commit` marketplace skill |
-| `skills/release/` | **Not migrated** — out of scope |
 
 ---
 
@@ -111,7 +95,7 @@ plugins/agents/hmcts-apim-sdlc-orchestrator/
 │   ├── ci-orchestrator.md
 │   └── deployer.md
 ├── skills/
-│   ├── openapi-spec-reviewer/        migrated from apim-claude-template
+│   ├── openapi-spec-reviewer/
 │   └── bootstrap-context/            new; also runs automatically on SessionStart
 ├── context/
 │   ├── api-spec-shared.md
@@ -195,12 +179,11 @@ GitHub Release published
 
 - **FR1** Fully self-contained marketplace plugin driving the dual-path API-first SDLC with human gates.
 - **FR2** All pipeline agents built natively and APIM-specific (correct CI, deploy, standards).
-- **FR3** Migrate `apim-claude-template`'s 4 templates → `context/` and `openapi-spec-reviewer` → `skills/`; retire `wire-claude-context`.
-- **FR4** New agents `apim-architect` + `contract-test-engineer`; OpenAPI-first, Pact-based, zero CQRS.
+- **FR3** Context files in `context/`; `openapi-spec-reviewer` in `skills/`; `SessionStart` hook auto-bootstraps `.claude/CLAUDE.md`.
+- **FR4** New agents `apim-architect` + `contract-test-engineer`; OpenAPI-first, Pact-based.
 - **FR5** Stage-3 contract review wired to `openapi-spec-reviewer` (4 lenses) + Spectral; gate on readiness score.
 - **FR6** Enforce contract-first (no service build before a published spec).
 - **FR7** `SessionStart` hook auto-bootstraps `.claude/CLAUDE.md` in `api-cp-*`/`service-cp-*` repos; idempotent.
-- **FR8** Decommission `apim-claude-template` once repos are re-pointed.
 
 **Non-functional**
 
@@ -216,13 +199,13 @@ GitHub Release published
 | Phase | Work | Status |
 |---|---|---|
 | **P0 Foundation** | Scaffold plugin; copy guard hooks; register in `marketplace.json` + `CATALOG.md` | Done |
-| **P1 Migrate APIM assets** | 4 templates → `context/`; migrate `openapi-spec-reviewer` → `skills/` | Done |
+| **P1 Migrate APIM assets** | 4 context files + `openapi-spec-reviewer` skill | Done |
 | **P2 Net-new agents** | `apim-architect` + `contract-test-engineer` | Done |
 | **P3 Pipeline agents** | `requirements-analyst`, `story-writer`, `implementation`, `code-reviewer`, `ci-orchestrator`, `deployer` | Done |
 | **P3b Context expansion** | `hmcts-standards.md`, `logging-standards.md`, `azure-sdk-guide.md` | Done |
 | **P3c Automation** | `SessionStart` hook (`bootstrap-context.sh`) + `bootstrap-context` skill | Done |
 | **P4 Validate** | End-to-end on a real `service-cp-*` pair | In progress |
-| **P5 Decommission** | Re-point repos off `apim-claude-template`; archive it | Pending |
+| **P5 Repo re-point** | Re-point all `api-cp-*`/`service-cp-*` repos to plugin context | Pending |
 | **P6 (optional)** | `api-dependency-analyzer` | Deferred |
 
 ---
@@ -230,10 +213,7 @@ GitHub Release published
 ## 9. Risks & trade-offs
 
 1. **Agents must stay APIM-specific** — review periodically to ensure CI/deploy/standards guidance stays accurate as the pipeline evolves.
-2. **Decommissioning `apim-claude-template`** breaks repos still using `@import` paths.
-   *Mitigation:* P5 re-points every repo before archiving; communicate the cut-over.
-3. **Over-engineering** — keep agents thin and context-driven.
-4. **AMP-428 already delivered** — migrated, not rebuilt.
+2. **Over-engineering** — keep agents thin and context-driven.
 
 ---
 

@@ -65,7 +65,4 @@ starts in an `api-cp-*` or `service-cp-*` repo. It creates (or verifies) the git
 `.claude/CLAUDE.md` with three `@import` lines pointing to this plugin's `context/` files — no
 manual step required.
 
-Run `/bootstrap-context` only when you need to force an update (e.g. after migrating from the old
-`apim-claude-template` paths) or in a repo that hasn't been opened in Claude Code yet.
-This replaces the old `wire-claude-context` / `apim-claude-template` approach — all shared
-standards now live here.
+Run `/bootstrap-context` only when you need to force an update or in a repo that hasn't been opened in Claude Code yet.

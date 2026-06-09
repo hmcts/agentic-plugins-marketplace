@@ -1,6 +1,6 @@
 # JIRA — `hmcts-apim-sdlc-orchestrator` epic & stories
 
-> Companion to `hmcts-apim-orchestrator-design.md`. Format mirrors AMP-428.
+> Companion to `hmcts-apim-orchestrator-design.md`.
 
 ---
 
@@ -9,18 +9,18 @@
 **Summary**
 Consolidate API-Marketplace Claude tooling into one **fully self-contained** standalone plugin in
 `agentic-plugins-marketplace`: build all pipeline agents natively for the APIM stack, migrate the
-API-Marketplace-unique assets out of `apim-claude-template`, and decommission `apim-claude-template`.
+all API-Marketplace Claude tooling into one plugin.
 
 **Why**
 API-Marketplace work (`api-cp-*` + `service-cp-*`) needs its own gated, contract-first pipeline
 with agents that carry accurate APIM-specific CI, deploy, and standards knowledge.
 
 **Out of scope**
-- CQRS / `cpp-context-*` work (RAML, Drools, Liquibase, events).
+- Non-API-Marketplace services.
 - UI / accessibility (no UI in API Marketplace scope).
 
 **Dependencies**
-- AMP-428 (`openapi-spec-reviewer`) — already delivered, migrated in Story 2.
+- AMP-428 (`openapi-spec-reviewer`) — TBD, pending discussion with Samir.
 
 ---
 
@@ -31,26 +31,26 @@ migrated shared context, **so that** the API-Marketplace standards load automati
 
 **AC**
 - [x] Create `plugins/agents/hmcts-apim-sdlc-orchestrator/` with `.claude-plugin/plugin.json`, `README.md`, `CLAUDE.md`.
-- [x] Migrate the 4 `apim-claude-template` templates into `context/` (`api-spec-shared`, `service-shared`, `shared-code-rules`, `claude-md-standards`).
+- [x] Context files: `api-spec-shared`, `service-shared`, `shared-code-rules`, `claude-md-standards`.
 - [x] Copy the 4 guard hooks + `hooks.json`.
 - [x] Register the plugin in `marketplace.json` and `CATALOG.md`.
-- [x] Plugin installs cleanly; context auto-loads; no `../../apim-claude-template/...` paths remain.
+- [x] Plugin installs cleanly; context auto-loads via `SessionStart` hook.
 
 ---
 
-## Story 2 — Migrate `openapi-spec-reviewer` (AMP-428) into the plugin  ✅
+## Story 2 — `openapi-spec-reviewer` (AMP-428)  ⏳ TBD — pending discussion with Samir
 
 **AC**
-- [x] Move `skills/openapi-spec-reviewer/` (SKILL + 4 knowledge files) into the plugin.
-- [x] Rebase knowledge-file paths from `../../apim-claude-template/...` to plugin-local.
-- [x] `/openapi-spec-reviewer` runs from the plugin; 4 lenses + readiness score intact; OAS2 rejected; parse errors handled.
+- [ ] Agree scope and approach with Samir.
+- [ ] `openapi-spec-reviewer` skill available from the plugin; 4 lenses + readiness score intact.
+- [ ] OAS2 rejected; parse errors handled.
 
 ---
 
 ## Story 3 — Author `apim-architect` agent  ✅
 
 **AC**
-- [x] OpenAPI-first / Modern-by-Default rubric; zero CQRS/RAML/Drools terms.
+- [x] OpenAPI-first design; no domain events.
 - [x] Drafts the OpenAPI spec per `context/api-spec-shared.md`.
 - [x] Hands off to `openapi-spec-reviewer` for the contract-review gate.
 - [x] Produces container + sequence (Mermaid) diagrams and an implementation outline.
@@ -120,16 +120,15 @@ session, **so that** security, logging, and Azure integration guidance is always
 
 ---
 
-## Story 9 — Decommission `apim-claude-template`
+## Story 9 — Re-point all repos to plugin context
 
-**As** an APIM engineer, **I want** all repos pointing at the plugin context instead of
-`apim-claude-template`, **so that** the template can be archived and the team uses one canonical
-tooling location.
+**As** an APIM engineer, **I want** all `api-cp-*` and `service-cp-*` repos using this plugin's
+context, **so that** the team has one canonical tooling location.
 
 **AC**
-- [ ] Re-point every `api-cp-*` / `service-cp-*` repo: `.claude/CLAUDE.md` imports from `hmcts-apim-sdlc-orchestrator/context/` not `apim-claude-template/templates/`.
-- [ ] Archive `apim-claude-template`; update its README to point at the plugin.
-- [ ] No repo depends on `apim-claude-template`.
+- [ ] Every repo's `.claude/CLAUDE.md` imports from `hmcts-apim-sdlc-orchestrator/context/`.
+- [ ] `SessionStart` hook verified working on each repo.
+- [ ] No repo depends on stale shared template paths.
 
 ---
 
@@ -153,7 +152,7 @@ tooling location.
 
 ## Story 12 (future, TBD) — `authentication-auditor`
 
-Replaces the CQRS `rbac-auditor` (Drools). Scope defined once the APIM authZ/authN design lands.
+Scope defined once the APIM authZ/authN design lands.
 
 **AC (provisional)**
 - [ ] Audit `securitySchemes` coverage and per-operation `security` in `api-cp-*` specs.
