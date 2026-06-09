@@ -14,17 +14,9 @@ Create a **fully self-contained** standalone marketplace plugin, `hmcts-apim-sdl
 that drives the **API-Marketplace SDLC** (OpenAPI-first `api-cp-*` spec libraries +
 `service-cp-*` Spring Boot services). It consolidates all API-Marketplace Claude tooling by:
 
-- **building** all pipeline agents natively (no dependency on `hmcts-sdlc-orchestrator`),
+- **building** all pipeline agents natively,
 - **migrating** the API-Marketplace-unique assets out of `apim-claude-template`, and
 - **decommissioning** `apim-claude-template` once repos are re-pointed.
-
-> **Design decision (revised):** The original design planned to reference
-> `hmcts-sdlc-orchestrator` agents by `subagent_type`. This was reversed — the CPP/CQRS
-> orchestrator targets a different stack (WildFly, Jenkins, SonarQube, Snyk, Drools) and its
-> agents carry incompatible guidance. All pipeline agents are now owned natively by this plugin.
-> Do **not** use `hmcts-sdlc-orchestrator` agents for `api-cp-*`/`service-cp-*` work.
-
-`apim-claude-template` is **decommissioned** once repos are re-pointed.
 
 ---
 
@@ -34,7 +26,6 @@ that drives the **API-Marketplace SDLC** (OpenAPI-first `api-cp-*` spec librarie
 |---|---|---|
 | `agentic-plugins-marketplace` | marketplace | **Host** the plugin |
 | `apim-claude-template` | this team | **Migrate then decommission** |
-| `hmcts-sdlc-orchestrator` | CPP team | **Not referenced** — different stack (CQRS/WildFly/Jenkins) |
 
 ---
 
@@ -202,7 +193,7 @@ GitHub Release published
 
 **Functional**
 
-- **FR1** Fully self-contained marketplace plugin driving the dual-path API-first SDLC with human gates; no dependency on `hmcts-sdlc-orchestrator`.
+- **FR1** Fully self-contained marketplace plugin driving the dual-path API-first SDLC with human gates.
 - **FR2** All pipeline agents built natively and APIM-specific (correct CI, deploy, standards).
 - **FR3** Migrate `apim-claude-template`'s 4 templates → `context/` and `openapi-spec-reviewer` → `skills/`; retire `wire-claude-context`.
 - **FR4** New agents `apim-architect` + `contract-test-engineer`; OpenAPI-first, Pact-based, zero CQRS.
@@ -227,7 +218,7 @@ GitHub Release published
 | **P0 Foundation** | Scaffold plugin; copy guard hooks; register in `marketplace.json` + `CATALOG.md` | Done |
 | **P1 Migrate APIM assets** | 4 templates → `context/`; migrate `openapi-spec-reviewer` → `skills/` | Done |
 | **P2 Net-new agents** | `apim-architect` + `contract-test-engineer` | Done |
-| **P3 Pipeline agents** | `requirements-analyst`, `story-writer`, `implementation`, `code-reviewer`, `ci-orchestrator`, `deployer` (all APIM-specific, not referenced from CPP) | Done |
+| **P3 Pipeline agents** | `requirements-analyst`, `story-writer`, `implementation`, `code-reviewer`, `ci-orchestrator`, `deployer` | Done |
 | **P3b Context expansion** | `hmcts-standards.md`, `logging-standards.md`, `azure-sdk-guide.md` | Done |
 | **P3c Automation** | `SessionStart` hook (`bootstrap-context.sh`) + `bootstrap-context` skill | Done |
 | **P4 Validate** | End-to-end on a real `service-cp-*` pair | In progress |
@@ -238,8 +229,7 @@ GitHub Release published
 
 ## 9. Risks & trade-offs
 
-1. **APIM-specific agents may drift from CPP agents over time** — mitigated by owning them
-   natively; no coupling to `hmcts-sdlc-orchestrator` release cycle.
+1. **Agents must stay APIM-specific** — review periodically to ensure CI/deploy/standards guidance stays accurate as the pipeline evolves.
 2. **Decommissioning `apim-claude-template`** breaks repos still using `@import` paths.
    *Mitigation:* P5 re-points every repo before archiving; communicate the cut-over.
 3. **Over-engineering** — keep agents thin and context-driven.

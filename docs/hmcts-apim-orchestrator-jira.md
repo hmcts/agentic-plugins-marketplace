@@ -12,14 +12,10 @@ Consolidate API-Marketplace Claude tooling into one **fully self-contained** sta
 API-Marketplace-unique assets out of `apim-claude-template`, and decommission `apim-claude-template`.
 
 **Why**
-The original design planned to reference `hmcts-sdlc-orchestrator` agents by `subagent_type`.
-This was revised — the CPP/CQRS orchestrator targets a different stack (WildFly, Jenkins,
-SonarQube, Snyk, Drools) and produces incorrect guidance for `api-cp-*`/`service-cp-*` work.
-All pipeline agents are now owned natively by this plugin with APIM-correct CI, deploy, and
-standards knowledge.
+API-Marketplace work (`api-cp-*` + `service-cp-*`) needs its own gated, contract-first pipeline
+with agents that carry accurate APIM-specific CI, deploy, and standards knowledge.
 
 **Out of scope**
-- `hmcts-sdlc-orchestrator` modifications (different team, different stack).
 - CQRS / `cpp-context-*` work (RAML, Drools, Liquibase, events).
 - UI / accessibility (no UI in API Marketplace scope).
 
@@ -74,7 +70,7 @@ migrated shared context, **so that** the API-Marketplace standards load automati
 
 **AC**
 - [x] Auto-detects `api-cp-*` vs `service-cp-*` and runs the matching path.
-- [x] All pipeline stages use natively-owned APIM agents (no `hmcts-sdlc-orchestrator` references).
+- [x] All pipeline stages use natively-owned APIM agents.
 - [x] Enforces contract-first: blocks `service-cp-*` work without a published `api-cp-*` artefact.
 - [x] Halts at every human gate (contract review, test specs, code review, SIT deploy).
 - [x] PR step uses existing tooling (`gh` + `conventional-commit`) — no bundled PR/release skill.
@@ -85,10 +81,6 @@ migrated shared context, **so that** the API-Marketplace standards load automati
 
 **As** an APIM engineer, **I want** pipeline agents that know the APIM stack exactly, **so that**
 Claude produces correct CI, deploy, and standards guidance for `api-cp-*`/`service-cp-*` repos.
-
-**Background:** Original design planned to reference `hmcts-sdlc-orchestrator` agents. Reversed
-because the CPP orchestrator carries CQRS-specific guidance (SonarQube, Snyk, Jenkins) incompatible
-with the APIM pipeline (PMD, CodeQL, GHA+ADO).
 
 **AC**
 - [x] `requirements-analyst` — Path A vs Path B detection; no accessibility NFRs; blocks service work if spec not published.
