@@ -39,6 +39,7 @@ Hosted in `agentic-plugins-marketplace` under `plugins/agents/hmcts-apim-sdlc-or
 | `code-reviewer` | New (APIM-specific) | 11-category checklist: generated interface, layer model, toggle rules, security, idempotency, PMD |
 | `ci-orchestrator` | New (APIM-specific) | GHA + ADO hybrid; PMD not SonarQube; CodeQL+DAST; exact workflow file knowledge |
 | `deployer` | New (APIM-specific) | Monitors ADO 460/434; smoke-checks; SIT via GitHub Release; does not trigger deployments |
+| `catalog-publisher` | New | Registers new `api-cp-*` specs in `hmcts/amp-catalog`; detects and updates drifted title/description; fires once per release |
 
 **Dropped from original scope (not applicable to APIM stack):**
 - `helm-config-validator` — not yet needed
@@ -113,6 +114,7 @@ plugins/agents/hmcts-apim-sdlc-orchestrator/
     ├── guard-bash.sh
     └── guard-paths.sh
 
+  catalog-publisher.md                new — AMP catalog registration + drift detection
 roadmap (not yet built):
   api-dependency-analyzer.md          optional — breaking-change detection across api-cp-*
   authentication-auditor.md           future — TBD, pending authZ/authN design

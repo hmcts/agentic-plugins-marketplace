@@ -46,6 +46,7 @@ a different stack (CQRS/WildFly/Jenkins/SonarQube/Snyk) and will produce incorre
 | Code review | `code-reviewer` |
 | CI build/test/publish/deploy | `ci-orchestrator` |
 | Deploy monitoring + SIT release | `deployer` |
+| AMP catalog registration / update | `catalog-publisher` |
 
 Standalone marketplace skills used as-is: `adr-template`, `bdd-workflow`, `review-checklist`,
 `conventional-commit`, `code-review`, `explain-codebase`. PRs are raised with `gh` +
@@ -66,8 +67,9 @@ artefact is published.**
 | 2 | API design + OpenAPI authoring | **`apim-architect`** | Human |
 | 3 | Contract review — Spectral lint + **`openapi-spec-reviewer`** (4 lenses, /100) | skill | **Human** |
 | 4 | Publish spec artefact (SemVer + media type) | `ci-draft.yml` → **`ci-orchestrator`** | Auto |
+| 5 | Register / update in AMP catalog | **`catalog-publisher`** | Auto (once per release) |
 
-No code, no deploy. Output of Path A is a published `api-cp-*` artefact.
+No code, no deploy. Output of Path A is a published `api-cp-*` artefact registered in the AMP catalog.
 
 ### Path B — `service-cp-*` service (requires a published spec)
 
@@ -82,7 +84,8 @@ No code, no deploy. Output of Path A is a published `api-cp-*` artefact.
 | 6 | Code review | **`code-reviewer`** | **Human** |
 | 7 | Build, test & publish | **`ci-orchestrator`** (GHA + ADO) | Auto |
 | 8 | Monitor deploy → dev (pipeline-triggered) / SIT (release) | **`deployer`** | Dev: pipeline; SIT: **Human** |
-| 9 | Raise PR | `gh` + `conventional-commit` skill | Human |
+| 9 | Sync AMP catalog if spec metadata changed | **`catalog-publisher`** | Auto (on drift) |
+| 10 | Raise PR | `gh` + `conventional-commit` skill | Human |
 
 ## Artefact output convention
 
