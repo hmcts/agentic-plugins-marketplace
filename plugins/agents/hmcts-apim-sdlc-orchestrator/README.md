@@ -27,13 +27,13 @@ natively for the API-first, Modern by Default stack.
 /plugin install hmcts-apim-sdlc-orchestrator@agentic-plugins-marketplace
 ```
 
-Then bootstrap context in each repo:
-```
-/bootstrap-context
-```
-This creates the gitignored `.claude/CLAUDE.md` with `@import` lines pointing to this
-plugin's `context/` files. Run `/init` afterwards to generate or refresh the committed
-`CLAUDE.md`.
+Context bootstraps **automatically** — the `SessionStart` hook creates the gitignored
+`.claude/CLAUDE.md` with the correct `@import` lines every time you open an `api-cp-*`
+or `service-cp-*` repo in Claude Code. No manual step needed.
+
+Run `/init` afterwards to generate or refresh the committed `CLAUDE.md` for the repo.
+
+> `/bootstrap-context` is available if you need to force an update manually.
 
 ## Usage
 
