@@ -123,6 +123,7 @@ No direct commits to `main` or `master` — all changes via PR with ≥1 human a
 | API | Full stack via docker-compose | `./gradlew dockerTest` |
 
 No accessibility tests — there is no UI surface in this pipeline.
+API tests cover happy-path flows only — do not add API/e2e tests for delete or error scenarios; those belong in integration tests.
 Smoke test in deployment: `/actuator/health/readiness` returns 200.
 
 ---
