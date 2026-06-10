@@ -1,16 +1,15 @@
 # hmcts-apim-sdlc-orchestrator
 
-Claude Code plugin that ships the **HMCTS API-Marketplace SDLC pipeline** — a contract-first,
-dual-path orchestrator for **OpenAPI-first `api-cp-*` spec libraries** and **`service-cp-*`
-Spring Boot services**. It is the API-first counterpart to `hmcts-sdlc-orchestrator` (which
-targets the CQRS / `cpp-context-*` model) and **reuses that plugin's generic agents by
-reference** rather than duplicating them.
+Claude Code plugin that ships the **HMCTS API-Marketplace SDLC pipeline** — a fully
+self-contained, contract-first, dual-path orchestrator for **OpenAPI-first `api-cp-*` spec
+libraries** and **`service-cp-*` Spring Boot services**. All pipeline agents are built
+natively for the API-first, Modern by Default stack.
 
 ## What's inside
 
 | Component | Items |
 |---|---|
-| **Agents** (`agents/`) | `requirements-analyst`, `apim-architect`, `story-writer`, `contract-test-engineer`, `implementation`, `code-reviewer`, `ci-orchestrator`, `deployer` — full self-contained pipeline; do not use `hmcts-sdlc-orchestrator` agents for `api-cp-*`/`service-cp-*` work |
+| **Agents** (`agents/`) | `requirements-analyst`, `apim-architect`, `story-writer`, `contract-test-engineer`, `implementation`, `code-reviewer`, `ci-orchestrator`, `deployer`, `catalog-publisher` — full self-contained pipeline |
 | **Skills** (`skills/`) | `openapi-spec-reviewer` — reviews a spec against 4 lenses (data-sharing/UK-GDPR, infrastructure-SLA/Azure, API standards, security); scored /100; `bootstrap-context` — writes `.claude/CLAUDE.md` with correct context imports (also runs automatically on session start) |
 | **Context** (`context/`) | `api-spec-shared`, `service-shared`, `shared-code-rules`, `hmcts-standards`, `logging-standards`, `azure-sdk-guide`, `claude-md-standards` |
 | **Hooks** (`hooks/`) | `block-pii`, `block-secrets`, `guard-bash`, `guard-paths`, `bootstrap-context` (SessionStart — auto-creates `.claude/CLAUDE.md` in `api-cp-*`/`service-cp-*` repos) |
@@ -56,7 +55,7 @@ service-cp-* (needs published spec)
   spec versions; breaking-change detection.
 - `authentication-auditor` (**TBD**) — APIM authentication/authorization audit
   (`securitySchemes` coverage, OAuth2/OIDC scopes, Spring Security config). Replaces the
-  CQRS `rbac-auditor`; scope pending the in-flight authZ/authN design.
+  scope pending the in-flight authZ/authN design.
 
 ## Context bootstrap
 
