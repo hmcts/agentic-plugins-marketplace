@@ -29,6 +29,7 @@ Install any plugin with:
 | [code-review](plugins/skills/code-review/) | Structured PR review — security, correctness, performance |
 | [conventional-commit](plugins/skills/conventional-commit/) | Conventional Commits message from staged changes |
 | [explain-codebase](plugins/skills/explain-codebase/) | Onboarding guide for new developers |
+| [hermes-tweet](plugins/skills/hermes-tweet/) | Hermes Agent X/Twitter workflows through Hermes Tweet with approval-gated actions |
 | [marketplace-skill](plugins/skills/marketplace/) | Browse and install plugins conversationally |
 | [review-checklist](plugins/skills/review-checklist/) | Structured pass/fail PR checklist — correctness, tests, security, quality, deps, docs |
 
