@@ -197,14 +197,42 @@ with open("/tmp/spec.yml") as f:
     spec = yaml.safe_load(f)
 
 schemas = spec.get("components", {}).get("schemas", {})
+responses_components = spec.get("components", {}).get("responses", {})
 
-def resolve(ref):
+def resolve_schema(ref):
     return schemas.get(ref.split("/")[-1], {})
+
+def resolve_response(ref):
+    return responses_components.get(ref.split("/")[-1], {})
+
+PY_TYPES = {
+    "string": str,
+    "integer": int,
+    "number": (int, float),
+    "boolean": bool,
+}
+
+import re
+UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 def check_value(value, schema, path):
     errors = []
     if "$ref" in schema:
-        schema = resolve(schema["$ref"])
+        schema = resolve_schema(schema["$ref"])
+
+    if "allOf" in schema:
+        for sub in schema["allOf"]:
+            errors += check_value(value, sub, path)
+        return errors
+
+    if "oneOf" in schema or "anyOf" in schema:
+        branches = schema.get("oneOf") or schema.get("anyOf")
+        branch_errors = [check_value(value, b, path) for b in branches]
+        if not any(not e for e in branch_errors):
+            errors.append(f"{path}: value does not match any of {len(branches)} oneOf/anyOf branches")
+        return errors
+
     schema_type = schema.get("type")
     if schema_type == "array":
         if not isinstance(value, list):
@@ -225,6 +253,23 @@ def check_value(value, schema, path):
             for req in schema.get("required", []):
                 if req not in value:
                     errors.append(f"{path}.{req}: required field missing")
+    elif schema_type in PY_TYPES:
+        expected = PY_TYPES[schema_type]
+        if schema_type == "boolean" and not isinstance(value, bool):
+            errors.append(f"{path}: expected boolean, got {type(value).__name__}")
+        elif schema_type != "boolean" and isinstance(value, bool):
+            errors.append(f"{path}: expected {schema_type}, got bool")
+        elif not isinstance(value, expected):
+            errors.append(f"{path}: expected {schema_type}, got {type(value).__name__}")
+        else:
+            enum = schema.get("enum")
+            if enum and value not in enum:
+                errors.append(f"{path}: value {value!r} not in enum {enum}")
+            fmt = schema.get("format")
+            if fmt == "uuid" and isinstance(value, str) and not UUID_RE.match(value):
+                errors.append(f"{path}: value {value!r} is not a valid uuid")
+            if fmt == "date" and isinstance(value, str) and not DATE_RE.match(value):
+                errors.append(f"{path}: value {value!r} is not a valid date (YYYY-MM-DD)")
     else:
         enum = schema.get("enum")
         if enum and value not in enum:
@@ -237,6 +282,8 @@ for route, methods in spec.get("paths", {}).items():
         if verb not in ("get", "post", "put", "patch", "delete"):
             continue
         for status, resp in (op.get("responses") or {}).items():
+            if isinstance(resp, dict) and "$ref" in resp:
+                resp = resolve_response(resp["$ref"])
             content = resp.get("content", {}) if isinstance(resp, dict) else {}
             for media_type, body in content.items():
                 examples = body.get("examples") or {}
