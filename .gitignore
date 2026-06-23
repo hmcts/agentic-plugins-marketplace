@@ -215,3 +215,6 @@ __marimo__/
 # Local-only demo/scratch docs — not for the repo
 docs/hmcts-apim-sdlc-orchestrator-demo.md
 
+# Subagent-driven-development scratch (progress ledger, task briefs/reports)
+.superpowers/
+
