@@ -12,7 +12,7 @@ description: |
   user: "Do a formal review of this subscription service change and post a PR comment"
   assistant: "I'll use the APIM code-reviewer to review and post a structured report as a PR comment."
   </example>
-model: opus
+model: sonnet
 tools: Read, Glob, Grep, Bash
 color: blue
 ---

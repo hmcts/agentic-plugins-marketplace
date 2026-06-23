@@ -12,7 +12,7 @@ description: |
   user: "Write the failing test suite for the court-schedule service — TDD first"
   assistant: "I'll use the contract-test-engineer agent to translate the stories into failing tests that define the implementation contract."
   </example>
-model: opus
+model: sonnet
 tools: Read, Write, Edit, Bash, Glob, Grep
 color: yellow
 ---

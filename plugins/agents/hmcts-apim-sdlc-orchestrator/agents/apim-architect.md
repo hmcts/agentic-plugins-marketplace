@@ -12,7 +12,7 @@ description: |
   user: "Model the courthouses reference-data resource and draft its OpenAPI spec"
   assistant: "I'll use the apim-architect agent to model the resource and author the OpenAPI 3.1 spec per api-spec-shared standards."
   </example>
-model: opus
+model: sonnet
 tools: Read, Glob, Grep, Bash, WebFetch
 color: magenta
 ---

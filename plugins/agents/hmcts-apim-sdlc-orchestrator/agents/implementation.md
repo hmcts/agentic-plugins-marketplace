@@ -12,7 +12,7 @@ description: |
   user: "Make the failing Pact and integration tests pass for the document lookup feature"
   assistant: "I'll use the APIM implementation agent to implement against the published api-cp-* contract."
   </example>
-model: opus
+model: sonnet
 tools: Read, Write, Edit, Bash, Glob, Grep
 color: green
 ---

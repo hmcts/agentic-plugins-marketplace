@@ -12,7 +12,7 @@ description: |
   user: "Convert this Jira epic into requirements for the document subscription service"
   assistant: "I'll use the APIM requirements-analyst to structure these as service-cp-* feature requirements, grounded in the published API contract."
   </example>
-model: opus
+model: sonnet
 tools: Read, WebFetch, Bash
 color: cyan
 ---
