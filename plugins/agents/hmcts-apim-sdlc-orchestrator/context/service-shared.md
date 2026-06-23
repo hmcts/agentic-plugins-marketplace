@@ -124,6 +124,11 @@ If a `@Value` toggle field is declared but never read in that class, remove it.
 - **Test naming**: all test methods follow `subject_should_doOutcome` or `subject_should_doOutcome_whenCondition`. Mixed styles within one class are not permitted.
 - **No `inOrder` in unit tests**: use plain `verify` — the transaction rollback is the real safeguard and `inOrder` in one test without applying it consistently across the suite is misleading. Do not introduce it.
 - **Delete scenarios belong in integration tests, not API/e2e tests**: when a delete operation needs a test, fix or extend the existing `@SpringBootTest` integration test (insert the record first, then delete) rather than adding a new API/e2e test. API tests cover happy-path flows only; adding delete-specific e2e tests inflates the suite without proportionate value.
+- **Time access goes through `ClockService`, never a raw `Clock` bean**: any class needing "now" (timestamps, date comparisons, expiry checks) depends on a `ClockService` wrapper, not `java.time.Clock` directly.
+  - `AppConfig` exposes exactly one bean: `ClockService clockService() { return new ClockService(Clock.systemDefaultZone()); }` — do not also expose a `Clock` bean alongside it.
+  - `ClockService` itself (in `services/`) wraps a `Clock` and exposes typed accessors — `now()` returning `Instant`, `nowOffsetUTC()` returning `OffsetDateTime`; add further accessors (e.g. a `LocalDate` getter) only when a real call site needs one, following the same wrap-don't-leak pattern.
+  - Tests construct `new ClockService(Clock.fixed(...))` for deterministic time — never let a test depend on the real system clock for date/time assertions.
+  - Rationale: a raw injected `Clock` lets every call site repeat its own `Instant`/`LocalDate`/`OffsetDateTime` conversion logic; centralising it in one service keeps that conversion consistent and swappable in one place.
 
 ## Configuration Standards
 
