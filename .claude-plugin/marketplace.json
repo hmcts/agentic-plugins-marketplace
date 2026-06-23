@@ -104,8 +104,8 @@
     {
       "name": "hmcts-apim-sdlc-orchestrator",
       "source": "./plugins/agents/hmcts-apim-sdlc-orchestrator",
-      "description": "HMCTS API-Marketplace SDLC orchestrator: contract-first dual-path pipeline for OpenAPI-first api-cp-* spec libraries and service-cp-* Spring Boot services. Bundles apim-architect and contract-test-engineer agents, the openapi-spec-reviewer skill (4 policy lenses), APIM context docs, and guard hooks. Reuses hmcts-sdlc-orchestrator generic agents by reference.",
-      "version": "1.0.0",
+      "description": "HMCTS API-Marketplace SDLC orchestrator: contract-first dual-path pipeline for OpenAPI-first api-cp-* spec libraries and service-cp-* Spring Boot services. Fully self-contained — bundles its own pipeline agents (requirements-analyst, apim-architect, story-writer, contract-test-engineer, implementation, code-reviewer, ci-orchestrator, deployer, catalog-publisher), the openapi-spec-reviewer and bootstrap-context skills, and the forked springboot-api-from-template / springboot-service-from-template repo-bootstrap skills. catalog-publisher is eligibility-checked and examples-gated. Does not reuse hmcts-sdlc-orchestrator agents — that plugin targets a different (CQRS/WildFly) stack.",
+      "version": "1.1.0",
       "category": "agent",
       "tags": ["hmcts", "apim", "api-marketplace", "sdlc", "orchestrator", "openapi", "spring-boot", "contract-first"]
     },
