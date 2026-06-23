@@ -200,7 +200,31 @@ Read, in this order — do not modify yet: `README.md`, `build.gradle` +
 5. Delete `Example*` sample code and tests. Keep `GlobalExceptionHandler`,
    `RootController`, filters, config.
 6. Update `README.md` — purpose, owners, runbook link, escalation, and add
-   the "New team member setup" section below.
+   the "New team member setup" section below. While editing it, **strip the
+   template's generic boilerplate** rather than carrying it into every new
+   repo verbatim:
+   - Delete the "About this template", "Want to Build Your Own Path?", and
+     "Implementation Patterns & Demo Project" sections (the full demo-repo
+     table). They describe the template, not this service — link to the
+     [template README](https://github.com/hmcts/service-hmcts-crime-springboot-template/blob/main/README.md)
+     and its [docs](https://github.com/hmcts/service-hmcts-crime-springboot-template/blob/main/docs)
+     instead of inlining them.
+   - Delete the inline "Prerequisites" / "Installation" / "Static code
+     analysis" sections (Java/Gradle/PMD setup) for the same reason — generic
+     build instructions belong in the template's own README, not duplicated
+     per repo.
+   - Delete `docs/PIPELINE.md` and `docs/SpringUpgradev4.md` from the new
+     repo (or any other doc that narrates the *template's* own development
+     history rather than this service) — they reference classes and
+     decisions from the template's lineage that don't exist in the new repo,
+     and rot immediately. Keep only docs that are genuinely about this
+     service (e.g. `docs/Logging.md` if customised).
+   - Keep everything that's actually specific to this repo: the API
+     contract, upstream/downstream calls, owning team, support model, and
+     the "New team member setup" section.
+   - Reference: this exact trim was done after-the-fact for
+     `service-cp-crime-hearing` — see its README/PR history for the target
+     shape. Doing it here at scaffold time avoids a repeat cleanup PR.
 
 Do **not** change the `build.gradle` plugin block, `apply from:` list,
 `logback.xml` encoder/providers, or the Dockerfile non-root setup.
@@ -301,6 +325,11 @@ grant) and Step 4.5 (team membership) before assuming a tooling problem.
 - [ ] `spring.application.name` and metrics tags match the repo name.
 - [ ] Java package renamed; `Example*` sample code removed.
 - [ ] `README.md` describes the new service, owners, support model.
+- [ ] `README.md` stripped of generic template boilerplate (demo-project
+      catalogue, "About this template", inline build/PMD instructions) —
+      links to the template README/docs instead of inlining them.
+- [ ] `docs/PIPELINE.md` / `docs/SpringUpgradev4.md` (or equivalent
+      template-history docs) removed, not carried into the new repo.
 - [ ] All config read from env vars; no connection strings/SAS tokens/account keys anywhere.
 - [ ] Azure services authenticated via Managed Identity.
 - [ ] JSON logs to stdout validated locally.
