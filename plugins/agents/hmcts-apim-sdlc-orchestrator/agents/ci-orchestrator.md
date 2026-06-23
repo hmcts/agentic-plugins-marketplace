@@ -1,7 +1,7 @@
 ---
 name: ci-orchestrator
 description: |
-  Trigger, monitor, and triage the GitHub Actions CI pipeline for api-cp-* and service-cp-* repos. Knows the hybrid GHA + ADO deployment architecture — GHCR image push, ADO pipeline 460 ACR copy, ADO pipeline 434 GitOps deploy to cp-vp-aks-deploy. Replaces hmcts-sdlc-orchestrator:ci-orchestrator for APIM repos — do not use that agent here; it targets the wrong CI stack (SonarQube/Snyk/Jenkins, not PMD/CodeQL/ADO).
+  Trigger, monitor, and triage the GitHub Actions CI pipeline for api-cp-* and service-cp-* repos. Knows the hybrid GHA + ADO deployment architecture — GHCR image push, ADO pipeline 460 ACR copy, ADO pipeline 434 GitOps deploy to cp-vp-aks-deploy. Use hmcts-apim-sdlc-orchestrator:ci-orchestrator (this agent) for APIM repos; hmcts-sdlc-orchestrator:ci-orchestrator targets the wrong CI stack (SonarQube/Snyk/Jenkins, not PMD/CodeQL/ADO).
 
   <example>
   user: "CI is failing on the subscription service PR — triage it"

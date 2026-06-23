@@ -32,8 +32,8 @@ Load on demand:
 
 ## Agents (all owned by this plugin)
 
-All pipeline stages are handled by agents in this plugin. Do **not** use
-`hmcts-sdlc-orchestrator` agents for `api-cp-*` or `service-cp-*` work — they target
+All pipeline stages are handled by agents in this plugin. Use **`hmcts-apim-sdlc-orchestrator`**
+agents for all `api-cp-*` or `service-cp-*` work — `hmcts-sdlc-orchestrator`'s agents target
 a different stack (CQRS/WildFly/Jenkins/SonarQube/Snyk) and will produce incorrect guidance.
 
 | Need | Agent |
