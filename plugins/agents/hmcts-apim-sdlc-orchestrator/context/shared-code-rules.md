@@ -13,9 +13,20 @@ Keep replies extremely concise. No filler.
 ## Error handling log levels
 
 - `ERROR` — unexpected failures requiring human attention
-- `WARN` — expected business errors, degraded dependencies, retries exhausted
+- `WARN` — expected business errors, degraded dependencies
 - `INFO` — lifecycle events, state transitions, idempotency skips (mandatory — see `service-shared.md`)
 - Never log PII, secrets, JWTs, full request/response bodies, or stack traces in HTTP responses
+
+## Logging guidelines
+
+- Never log anything that may contain PII or secrets
+- Log non sensitive volatile environment variables at app startup to assist debugging unexpected behaviours
+- Log entry points to endpoints - To ensure we can trace inbound calls if required
+- Use TracingFilter to propagate X-Correlation-Id
+- Use OutboundTracingInterceptor to add X-Correlation-Id on outbound client api calls
+- Log outgoing client api calls - they are increased risk of failure
+- Log outgoing interactions with other services such as Azure service
+- Better to add logging prior to production issues rather than struggle to diagnose tricky production issues with little information
 
 ## Dependencies
 
