@@ -169,18 +169,44 @@ added to the team." Don't block creation on it, but always surface it.
 gh repo view hmcts/{service-name} --json visibility,templateRepository
 ```
 
-Enable "Automatically delete head branches" and import the main-branch
-ruleset (same as the API skill's Step 6).
+Enable "Automatically delete head branches", then import the main-branch
+ruleset **via the API, not the GitHub UI's "New ruleset" flow** (same as the
+API skill's Step 6) — `gh repo create --template` does not carry rulesets
+over, and clicking through "New ruleset" in the UI defaults
+`required_approving_review_count` to `0`, silently leaving the new repo
+mergeable without review. This was found live on a freshly-created
+`service-cp-*` repo whose ruleset had `required_approving_review_count: 0`
+despite the template's own `.github/rulesets/main.json` correctly specifying
+`1` — the gap is in *how* the ruleset gets imported, not the template file:
 
-### Step 5.5 — Check the ruleset doesn't deadlock the owning team (new)
+```bash
+gh api --method POST repos/hmcts/{service-name}/rulesets \
+  --input service-hmcts-crime-springboot-template/.github/rulesets/main.json
+```
+
+(Adjust the `--input` path to wherever the template was cloned/checked out.
+Do not hand-recreate the ruleset's JSON via UI clicks or `-f`/`-F` flags —
+`gh api -F` does not reliably build the nested `rules[]` array of objects;
+always import the template's actual file with `--input`.)
+
+### Step 5.5 — Verify the imported ruleset, not just its presence (new)
 
 ```bash
 gh api repos/hmcts/{service-name}/rulesets \
-  --jq '.[] | {name, rules: [.rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count]}'
+  --jq '.[] | select(.name=="main") | .rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count'
 ```
 
-Compare against the Step 4.5 member count; flag (don't silently fix) if the
-required review count would deadlock the team's own PRs.
+This must print `1` (or whatever non-zero value the template specifies) —
+**never `0`**. If it prints `0`, the import silently dropped or zeroed the
+field; do not just flag it, fix it immediately by re-importing
+(`gh api --method PUT repos/hmcts/{service-name}/rulesets/{id} --input
+{the-template-json}`) and re-check. A `0` value is always a bug, not a policy
+trade-off — unlike the deadlock check below, it is safe to fix without asking.
+
+Separately, compare the (now-verified-non-zero) count against the Step 4.5
+member count; flag — don't silently fix — if the required review count would
+deadlock the team's own PRs (e.g. a 1-person team needing 2 approvals). That
+one *is* a policy trade-off for the user to decide.
 
 ### Step 6 — Read what the template already gives you
 
@@ -317,6 +343,7 @@ grant) and Step 4.5 (team membership) before assuming a tooling problem.
 - [ ] `gh repo view --json visibility` returns `"PUBLIC"`.
 - [ ] Owning team granted `admin`.
 - [ ] Team membership checked (Step 4.5) — not empty, or the gap was explicitly surfaced.
+- [ ] Branch-protection `required_approving_review_count` confirmed non-zero (Step 5.5) — fixed immediately if it printed `0`.
 - [ ] Branch-protection required-reviewer count checked against team size (Step 5.5).
 - [ ] New-member setup steps documented in the new repo's `README.md`.
 - [ ] Service name follows convention and avoids forbidden tokens.
