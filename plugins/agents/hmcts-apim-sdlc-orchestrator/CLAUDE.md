@@ -50,7 +50,8 @@ a different stack (CQRS/WildFly/Jenkins/SonarQube/Snyk) and will produce incorre
 
 Standalone marketplace skills used as-is: `adr-template`, `bdd-workflow`, `review-checklist`,
 `conventional-commit`, `code-review`, `explain-codebase`. PRs are raised with `gh` +
-`conventional-commit` (no bundled PR/release skill).
+`conventional-commit` (no bundled PR skill). Cutting the GitHub Release that triggers Path B's
+SIT deploy gate (stage 8, driven by `deployer`) uses the bundled **`release`** skill.
 
 ## Pipelines (run stages in order; halt at every human gate)
 

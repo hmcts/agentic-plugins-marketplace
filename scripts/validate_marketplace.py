@@ -257,13 +257,18 @@ def check_version_bumps(mp: dict[str, Any]) -> None:
         old_manifest_text = file_at(base_sha, manifest_path)
         if old_manifest_text is None:
             continue  # new plugin, no baseline
-        old_manifest = json.loads(old_manifest_text)
-        old_version = old_manifest.get("version")
-        new_version = entry.get("version")
-        if old_version != new_version and old_versions.get(entry["name"]) == old_version:
+        old_plugin_version = json.loads(old_manifest_text).get("version")
+        new_manifest = load_plugin_manifest(REPO / source)
+        new_plugin_version = new_manifest.get("version") if new_manifest else None
+        new_marketplace_version = entry.get("version")
+        old_marketplace_version = old_versions.get(entry["name"])
+        if (
+            old_plugin_version != new_plugin_version
+            and old_marketplace_version == new_marketplace_version
+        ):
             fail(
                 f"plugin '{entry['name']}': plugin.json version bumped "
-                f"{old_version} → {new_version} but marketplace.json version unchanged"
+                f"{old_plugin_version} → {new_plugin_version} but marketplace.json version unchanged"
             )
 
 
