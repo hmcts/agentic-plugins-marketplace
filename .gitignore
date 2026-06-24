@@ -212,3 +212,9 @@ __marimo__/
 .DS_Store
 */.DS_Store
 
+# Local-only demo/scratch docs — not for the repo
+docs/hmcts-apim-sdlc-orchestrator-demo.md
+
+# Subagent-driven-development scratch (progress ledger, task briefs/reports)
+.superpowers/
+
