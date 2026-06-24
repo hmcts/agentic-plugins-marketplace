@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=dashboard -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Control — Status Report Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070a0f; --panel:#0d121b; --panel-2:#121a26; --edge:#1f2c3d;
+    --txt:#92a3b8; --txt-hi:#eaf2fb; --muted:#5a6b80;
+    --green:#33e6a0; --amber:#ffc24d; --red:#ff5d6c; --cyan:#43d6ff; --vio:#9d7bff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:radial-gradient(1100px 500px at 50% -15%,rgba(67,214,255,.07),transparent),var(--bg);
+    color:var(--txt);font-family:'Space Grotesk',system-ui,sans-serif;font-size:15px;line-height:1.55}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 24px 100px}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:30px;
+    padding-bottom:18px;border-bottom:1px solid var(--edge)}
+  .kicker{font:700 11px 'JetBrains Mono',monospace;letter-spacing:3px;text-transform:uppercase;color:var(--cyan)}
+  h1{color:var(--txt-hi);font-size:clamp(24px,4vw,34px);font-weight:700;margin-top:8px}
+  .live{display:inline-flex;align-items:center;gap:8px;font:600 12px 'JetBrains Mono',monospace;color:var(--green);
+    text-transform:uppercase;letter-spacing:1.5px}
+  .live .dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:blip 1.4s infinite}
+  @keyframes blip{0%,100%{box-shadow:0 0 0 0 rgba(51,230,160,.7)}70%{box-shadow:0 0 0 7px transparent}}
+
+  h2{color:var(--txt-hi);font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:2px;margin:30px 0 14px;color:var(--muted)}
+
+  /* KPI stat cards */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+  .kpi{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--edge);border-radius:14px;padding:18px 20px;position:relative;overflow:hidden}
+  .kpi .l{font:600 11px 'JetBrains Mono',monospace;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+  .kpi .v{font-size:34px;font-weight:700;color:var(--txt-hi);margin:6px 0 2px;letter-spacing:-1px}
+  .kpi .d{font:600 12px 'JetBrains Mono',monospace}
+  .kpi .d.up{color:var(--green)} .kpi .d.down{color:var(--red)}
+  /* sparkline */
+  .spark{position:absolute;right:14px;bottom:14px;width:74px;height:30px;opacity:.85}
+  .spark path{fill:none;stroke:var(--cyan);stroke-width:2;stroke-linecap:round;
+    stroke-dasharray:200;stroke-dashoffset:200;animation:draw 1.6s ease forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+
+  /* progress rings (HERO COMPONENT A) */
+  .rings{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  .ring{background:var(--panel);border:1px solid var(--edge);border-radius:14px;padding:18px;text-align:center}
+  .ring svg{width:120px;height:120px;transform:rotate(-90deg)}
+  .ring .track{fill:none;stroke:var(--edge);stroke-width:10}
+  .ring .bar{fill:none;stroke-width:10;stroke-linecap:round;stroke-dasharray:339;
+    animation:ring 1.5s ease forwards}
+  @keyframes ring{from{stroke-dashoffset:339}}
+  .ring .pct{transform:rotate(90deg);transform-origin:center;fill:var(--txt-hi);font:700 22px 'Space Grotesk';text-anchor:middle}
+  .ring .cap{margin-top:8px;font:600 12px 'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+
+  /* status grid (HERO COMPONENT B) */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+  .svc{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:12px 16px}
+  .svc .sd{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+  .svc .sd.ok{background:var(--green);box-shadow:0 0 8px var(--green);animation:blip 2s infinite}
+  .svc .sd.warn{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+  .svc .sd.down{background:var(--red);box-shadow:0 0 10px var(--red);animation:blip 1s infinite}
+  .svc .nm{color:var(--txt-hi);font-weight:600;font-size:14px}
+  .svc .st{margin-left:auto;font:600 11px 'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px}
+  .st.ok{color:var(--green)} .st.warn{color:var(--amber)} .st.down{color:var(--red)}
+
+  footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--edge);color:var(--muted);font:500 12px 'JetBrains Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div><div class="kicker">Release Status · Sprint 24.6</div><h1>Scheduler v2 rollout</h1></div>
+    <div class="live"><span class="dot"></span>Live · updated 14:02</div>
+  </header>
+
+  <h2>Key metrics</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="l">Stories done</div><div class="v">18/24</div><div class="d up">▲ +4 this week</div>
+      <svg class="spark" viewBox="0 0 74 30"><path d="M2,24 L14,20 L26,22 L38,12 L50,14 L62,6 L72,4"/></svg></div>
+    <div class="kpi"><div class="l">Build health</div><div class="v" style="color:var(--green)">98%</div><div class="d up">▲ green 12d</div>
+      <svg class="spark" viewBox="0 0 74 30"><path d="M2,18 L14,16 L26,17 L38,10 L50,12 L62,8 L72,6"/></svg></div>
+    <div class="kpi"><div class="l">Open defects</div><div class="v" style="color:var(--amber)">3</div><div class="d down">▼ −2</div>
+      <svg class="spark" viewBox="0 0 74 30"><path d="M2,6 L14,10 L26,8 L38,16 L50,14 L62,20 L72,22" stroke="var(--amber)"/></svg></div>
+    <div class="kpi"><div class="l">Coverage</div><div class="v">82%</div><div class="d up">▲ +3%</div>
+      <svg class="spark" viewBox="0 0 74 30"><path d="M2,22 L14,20 L26,18 L38,16 L50,12 L62,10 L72,8"/></svg></div>
+  </div>
+
+  <h2>Rollout progress</h2>
+  <div class="rings">
+    <div class="ring"><svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="54"/>
+      <circle class="bar" cx="60" cy="60" r="54" stroke="var(--green)" style="stroke-dashoffset:34;--p:90"/>
+      <text class="pct" x="60" y="68">90%</text></svg><div class="cap">SIT</div></div>
+    <div class="ring"><svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="54"/>
+      <circle class="bar" cx="60" cy="60" r="54" stroke="var(--cyan)" style="stroke-dashoffset:136"/>
+      <text class="pct" x="60" y="68">60%</text></svg><div class="cap">STE</div></div>
+    <div class="ring"><svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="54"/>
+      <circle class="bar" cx="60" cy="60" r="54" stroke="var(--amber)" style="stroke-dashoffset:271"/>
+      <text class="pct" x="60" y="68">20%</text></svg><div class="cap">PRD</div></div>
+  </div>
+
+  <h2>Service health</h2>
+  <div class="grid">
+    <div class="svc"><span class="sd ok"></span><span class="nm">command-handler</span><span class="st ok">Healthy</span></div>
+    <div class="svc"><span class="sd ok"></span><span class="nm">event-listener</span><span class="st ok">Healthy</span></div>
+    <div class="svc"><span class="sd warn"></span><span class="nm">query-view</span><span class="st warn">Degraded</span></div>
+    <div class="svc"><span class="sd ok"></span><span class="nm">viewstore-pg</span><span class="st ok">Healthy</span></div>
+    <div class="svc"><span class="sd down"></span><span class="nm">legacy-slot-api</span><span class="st down">Draining</span></div>
+    <div class="svc"><span class="sd ok"></span><span class="nm">artemis-broker</span><span class="st ok">Healthy</span></div>
+  </div>
+
+  <footer>MISSION CONTROL TEMPLATE · KPI cards · animated sparklines · progress rings · pulsing status grid</footer>
+</div>
+</body>
+</html>

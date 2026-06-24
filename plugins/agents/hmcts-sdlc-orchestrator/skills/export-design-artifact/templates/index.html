@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=dashboard -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Artifact Theme Gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#08090d; --panel:#10121a; --panel-2:#161a26; --edge:#232838;
+    --txt:#a3acc0; --txt-hi:#f1f4fb; --muted:#616b80; --accent:#7b9dff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:radial-gradient(1100px 520px at 50% -12%,rgba(123,157,255,.08),transparent),var(--bg);
+    color:var(--txt);font-family:'Sora',system-ui,sans-serif;font-size:15px;line-height:1.6}
+  .wrap{max-width:1100px;margin:0 auto;padding:48px 24px 110px}
+  .mono{font-family:'JetBrains Mono',monospace}
+  a{text-decoration:none;color:inherit}
+
+  header{text-align:center;margin-bottom:14px}
+  .kicker{font:600 11px 'JetBrains Mono',monospace;letter-spacing:3px;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:clamp(28px,5vw,46px);font-weight:800;color:var(--txt-hi);letter-spacing:-1px;margin:12px 0 10px;
+    background:linear-gradient(110deg,#fff,#7b9dff 70%,#c77bff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .lede{color:var(--muted);max-width:60ch;margin:0 auto 14px}
+  .hint{text-align:center;font:500 12px 'JetBrains Mono',monospace;color:var(--muted);margin-bottom:40px}
+  .hint code{color:var(--accent)}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+  .card{display:flex;flex-direction:column;border:1px solid var(--edge);border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));transition:.22s;position:relative}
+  .card:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 16px 50px rgba(0,0,0,.5)}
+  /* theme preview band — uses each theme's real palette */
+  .swatch{height:64px;display:flex}
+  .swatch i{flex:1}
+  .body{padding:18px 20px 20px}
+  .num{font:700 11px 'JetBrains Mono',monospace;color:var(--muted);letter-spacing:1px}
+  .card h2{font-size:18px;font-weight:700;color:var(--txt-hi);margin:4px 0 2px}
+  .theme{font:600 12px 'JetBrains Mono',monospace;color:var(--accent);margin-bottom:10px}
+  .use{font-size:13.5px;color:var(--txt);margin-bottom:12px}
+  .meta{display:flex;flex-direction:column;gap:6px;font-size:12.5px;border-top:1px solid var(--edge);padding-top:12px}
+  .meta .r{display:flex;gap:8px}
+  .meta .lab{font:600 10px 'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;width:46px;flex-shrink:0;padding-top:2px}
+  .meta .best .lab{color:#46d98a} .meta .avoid .lab{color:#ff6573} .meta .hero .lab{color:var(--accent)}
+  .open{margin-top:14px;display:inline-flex;align-items:center;gap:6px;font:600 12px 'JetBrains Mono',monospace;color:var(--accent)}
+  .card:hover .open{gap:10px}
+
+  .guide{margin-top:50px;border:1px solid var(--edge);border-radius:16px;background:var(--panel);padding:24px 26px}
+  .guide h3{color:var(--txt-hi);font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font:600 11px 'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:var(--muted);
+    padding:8px 12px;border-bottom:1px solid var(--edge)}
+  td{padding:9px 12px;border-bottom:1px solid var(--edge);vertical-align:top}
+  td:first-child{color:var(--txt-hi);font-weight:600;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  .tag{font:600 11px 'JetBrains Mono',monospace;color:var(--accent)}
+
+  footer{margin-top:40px;text-align:center;color:var(--muted);font:500 12px 'JetBrains Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">analysis / templates</div>
+    <h1>Artifact Theme Gallery</h1>
+    <p class="lede">Eleven night-friendly HTML artifact themes, each matched to a job. Open one, copy its structure, swap the content.</p>
+  </header>
+  <div class="hint">click any card to open · all self-contained · all carry the <code>claude-artifact:</code> marker for <code>mymds</code></div>
+  <a href="playground-skills.html" style="display:block;max-width:680px;margin:0 auto 40px;text-align:center;border:1px dashed var(--accent);border-radius:14px;padding:14px 20px;background:rgba(123,157,255,.06);color:var(--txt-hi);font-size:14px">
+    🎛️ <b>Want interactive instead of static?</b> See the <b style="color:var(--accent)">Playground Skills</b> guide — tools you adjust to generate a prompt, not just read →
+  </a>
+
+  <div class="grid">
+
+    <a class="card" href="01-pr-review-audit-console.html">
+      <div class="swatch"><i style="background:#0c0f14"></i><i style="background:#ff5d6c"></i><i style="background:#ffa64d"></i><i style="background:#4ad991"></i><i style="background:#7aa2ff"></i></div>
+      <div class="body"><div class="num">01</div><h2>PR Review</h2><div class="theme">Audit Console</div>
+        <div class="use">Code-review findings with severity, inline diffs and a verdict scorecard.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>Review reports, code audits, before-merge gates</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>High-level narrative — too granular for execs</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>Severity diff-rows + scorecard</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+    <a class="card" href="02-concept-explainer-aurora.html">
+      <div class="swatch"><i style="background:#0a0a14"></i><i style="background:#9d7bff"></i><i style="background:#5ad6ff"></i><i style="background:#ff7bd0"></i></div>
+      <div class="body"><div class="num">02</div><h2>Concept Explainer</h2><div class="theme">Aurora</div>
+        <div class="use">Teach an idea with concept visualisations, analogies and inline glossary tooltips.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>Teaching, onboarding, "why does X work this way"</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>Dense data tables, ops dashboards</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>Orbit concept-viz + glossary chips</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+    <a class="card" href="03-implementation-plan-roadmap.html">
+      <div class="swatch"><i style="background:#071210"></i><i style="background:#2fe6b6"></i><i style="background:#46d6ff"></i><i style="background:#ffce5c"></i></div>
+      <div class="body"><div class="num">03</div><h2>Implementation Plan</h2><div class="theme">Roadmap</div>
+        <div class="use">Phased delivery with task checklists, progress and gantt-style effort.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>Build plans, sprint scope, multi-phase delivery</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>One-off bug fixes, pure comparisons</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>Phase timeline + progress bars</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+    <a class="card" href="04-investigation-dossier.html">
+      <div class="swatch"><i style="background:#0b0b0d"></i><i style="background:#ffb02e"></i><i style="background:#ff4d4d"></i><i style="background:#46d97a"></i></div>
+      <div class="body"><div class="num">04</div><h2>Investigation</h2><div class="theme">Dossier</div>
+        <div class="use">Forensic write-ups: evidence timeline, log extracts, hypothesis tree, verdict stamps.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>Debug post-mortems, incident analysis, RCA</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>Forward-looking plans, marketing</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>Evidence timeline + hypothesis tree</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+    <a class="card" href="05-journey-flow-swimlane.html">
+      <div class="swatch"><i style="background:#0c0816"></i><i style="background:#ff5fb0"></i><i style="background:#9d6bff"></i><i style="background:#4fd8ff"></i><i style="background:#ffd25c"></i></div>
+      <div class="body"><div class="num">05</div><h2>Journey Flow</h2><div class="theme">Journey</div>
+        <div class="use">Map a user or process flow with swimlanes, decision points and an emotion curve.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>User journeys, UX flows, process walkthroughs</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>System internals (use Blueprint/Signal Trace)</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>Animated flow + emotion curve</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+    <a class="card" href="06-migration-runbook.html">
+      <div class="swatch"><i style="background:#0f0d08"></i><i style="background:#ffb733"></i><i style="background:#e8622d"></i><i style="background:#5dd98a"></i></div>
+      <div class="body"><div class="num">06</div><h2>Migration Plan</h2><div class="theme">Runbook</div>
+        <div class="use">Cutover runbooks: before→after, numbered steps with gates, rollback and risk matrix.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>Cutovers, data migrations, decommissions</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>Feature roadmaps (use Roadmap)</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>Before/after split + risk matrix</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+    <a class="card" href="07-decision-record-adr.html">
+      <div class="swatch"><i style="background:#0a0e16"></i><i style="background:#5b9dff"></i><i style="background:#3fd9c9"></i><i style="background:#a78bff"></i><i style="background:#4cd98a"></i></div>
+      <div class="body"><div class="num">07</div><h2>Decision Making</h2><div class="theme">Decision Record</div>
+        <div class="use">ADR-style: options matrix, weighted scoring, pros/cons and a verdict banner.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>ADRs, tech selection, "which option" calls</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>Two-way only (use Versus)</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>Options matrix + weighted score</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+    <a class="card" href="08-architecture-blueprint.html">
+      <div class="swatch"><i style="background:#04080f"></i><i style="background:#2bd9fe"></i><i style="background:#ff3d81"></i><i style="background:#ffb84d"></i><i style="background:#4ce6a1"></i></div>
+      <div class="body"><div class="num">08</div><h2>Architecture</h2><div class="theme">Blueprint</div>
+        <div class="use">System maps as engineering schematics: component diagram, layer bands, data-flow wires.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>System design, topology, component maps</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>Step-by-step sequences (use Signal Trace)</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>SVG component map + animated wires</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+    <a class="card" href="09-status-mission-control.html">
+      <div class="swatch"><i style="background:#070a0f"></i><i style="background:#33e6a0"></i><i style="background:#43d6ff"></i><i style="background:#ffc24d"></i><i style="background:#ff5d6c"></i></div>
+      <div class="body"><div class="num">09</div><h2>Status Report</h2><div class="theme">Mission Control</div>
+        <div class="use">Live-feeling dashboards: KPI cards, sparklines, progress rings, service status grid.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>Sprint status, rollout dashboards, health</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>Long-form prose explanations</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>Progress rings + pulsing status grid</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+    <a class="card" href="10-comparison-versus.html">
+      <div class="swatch"><i style="background:#0b0c10"></i><i style="background:#4aa8ff"></i><i style="background:#ff8a3d"></i><i style="background:#46d98a"></i></div>
+      <div class="body"><div class="num">10</div><h2>Comparison</h2><div class="theme">Versus</div>
+        <div class="use">Head-to-head A vs B with mirrored attribute bars, winner ticks and a verdict tally.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>Two-option trade-offs, X vs Y debates</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>3+ options (use Decision Record)</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>Mirrored bars + verdict tally</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+    <a class="card" href="11-event-flow-signal-trace.html">
+      <div class="swatch"><i style="background:#05080c"></i><i style="background:#28e0ff"></i><i style="background:#ff4d9d"></i><i style="background:#3df0b0"></i></div>
+      <div class="body"><div class="num">11</div><h2>Event Flow</h2><div class="theme">Signal Trace</div>
+        <div class="use">Sequence diagrams: lifelines, activation bars, flowing async wires, payload bubbles.</div>
+        <div class="meta">
+          <div class="r best"><span class="lab">Best</span><span>CQRS event flows, API sequences, message paths</span></div>
+          <div class="r avoid"><span class="lab">Avoid</span><span>Static structure (use Blueprint)</span></div>
+          <div class="r hero"><span class="lab">Hero</span><span>Lifelines + traveling pulses</span></div>
+        </div><span class="open">Open →</span></div>
+    </a>
+
+  </div>
+
+  <div class="guide">
+    <h3>Pick by intent</h3>
+    <table>
+      <thead><tr><th>If you're producing…</th><th>Use</th><th>Because</th></tr></thead>
+      <tbody>
+        <tr><td>A code review</td><td class="tag">Audit Console</td><td>Severity + diff is the universal review vocabulary</td></tr>
+        <tr><td>An explainer / teaching doc</td><td class="tag">Aurora</td><td>Calm, spacious, visual — built to be read slowly</td></tr>
+        <tr><td>A delivery plan</td><td class="tag">Roadmap</td><td>Phases + progress answer "where are we"</td></tr>
+        <tr><td>A debug / RCA write-up</td><td class="tag">Dossier</td><td>Evidence → hypothesis → verdict mirrors investigation</td></tr>
+        <tr><td>A user / process flow</td><td class="tag">Journey</td><td>Swimlanes + emotion show who-does-what and how it feels</td></tr>
+        <tr><td>A cutover / migration</td><td class="tag">Runbook</td><td>Gates + rollback + risk = safe, reversible execution</td></tr>
+        <tr><td>A design decision (3+ options)</td><td class="tag">Decision Record</td><td>Matrix + weighted score makes the call defensible</td></tr>
+        <tr><td>A two-way trade-off</td><td class="tag">Versus</td><td>Mirrored bars make the winner obvious at a glance</td></tr>
+        <tr><td>A system/architecture map</td><td class="tag">Blueprint</td><td>Schematic language reads as authoritative structure</td></tr>
+        <tr><td>A status / rollout dashboard</td><td class="tag">Mission Control</td><td>KPIs + rings + health convey state instantly</td></tr>
+        <tr><td>An event / API sequence</td><td class="tag">Signal Trace</td><td>Lifelines + flow show order and async hops</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>11 themes · dark / night-friendly · self-contained · analysis/templates/</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=report -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Versus — Comparison / Trade-off Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0c10; --panel:#13151c; --panel-2:#191c25; --edge:#262a36;
+    --txt:#a6adbd; --txt-hi:#f2f4fa; --muted:#646c7e;
+    --a:#4aa8ff; --a-dim:#1e6bbf; --b:#ff8a3d; --b-dim:#bf5a1a; --green:#46d98a; --red:#ff5d6c;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:radial-gradient(700px 380px at 18% -8%,rgba(74,168,255,.08),transparent),
+    radial-gradient(700px 380px at 82% -8%,rgba(255,138,61,.08),transparent),var(--bg);
+    color:var(--txt);font-family:'Archivo',system-ui,sans-serif;font-size:15px;line-height:1.6}
+  .wrap{max-width:900px;margin:0 auto;padding:44px 24px 110px}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  .kicker{text-align:center;font:700 11px 'JetBrains Mono',monospace;letter-spacing:3px;text-transform:uppercase;color:var(--muted)}
+  h1{text-align:center;color:var(--txt-hi);font-size:clamp(24px,4.2vw,38px);font-weight:800;margin:10px 0 28px}
+
+  /* contender headers (HERO COMPONENT A) */
+  .versus{display:grid;grid-template-columns:1fr 60px 1fr;align-items:center;gap:0;margin-bottom:8px}
+  .cand{border:1px solid var(--edge);border-radius:14px;padding:20px;text-align:center;background:linear-gradient(180deg,var(--panel-2),var(--panel))}
+  .cand.A{border-top:3px solid var(--a)} .cand.B{border-top:3px solid var(--b)}
+  .cand .nm{font-size:20px;font-weight:800;color:var(--txt-hi)}
+  .cand.A .nm{color:var(--a)} .cand.B .nm{color:var(--b)}
+  .cand .tl{font:600 12px 'JetBrains Mono',monospace;color:var(--muted);margin-top:4px}
+  .vs{display:grid;place-items:center;font:800 18px 'Archivo';color:var(--muted)}
+  .vs span{width:42px;height:42px;border-radius:50%;border:2px solid var(--edge);display:grid;place-items:center;background:var(--bg)}
+
+  /* attribute rows with dual bars (HERO COMPONENT B) */
+  .rows{margin-top:18px;border:1px solid var(--edge);border-radius:14px;overflow:hidden}
+  .row{display:grid;grid-template-columns:1fr 150px 1fr;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--edge)}
+  .row:last-child{border-bottom:none}
+  .row .attr{text-align:center;font:600 12px 'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+  .barwrap{display:flex;align-items:center;gap:10px}
+  .barwrap.L{justify-content:flex-end}
+  .bar{height:16px;border-radius:5px;animation:grow 1.1s ease forwards;width:0}
+  .bar.A{background:linear-gradient(90deg,var(--a-dim),var(--a))}
+  .bar.B{background:linear-gradient(270deg,var(--b-dim),var(--b))}
+  @keyframes grow{to{width:var(--w)}}
+  .barwrap .n{font:700 13px 'JetBrains Mono',monospace;color:var(--txt-hi);min-width:34px}
+  .win{color:var(--green)} .win::after{content:" ✓"}
+
+  /* verdict */
+  .verdict{margin-top:24px;border:1px solid var(--a);border-radius:14px;padding:20px 24px;text-align:center;
+    background:linear-gradient(180deg,rgba(74,168,255,.1),transparent)}
+  .verdict .h{font:700 12px 'JetBrains Mono',monospace;letter-spacing:2px;text-transform:uppercase;color:var(--a);margin-bottom:8px}
+  .verdict .w{font-size:20px;font-weight:800;color:var(--txt-hi);margin-bottom:6px}
+  .verdict p{color:var(--txt);max-width:56ch;margin:0 auto}
+  .tally{display:inline-flex;gap:18px;margin-top:14px;font:700 14px 'JetBrains Mono',monospace}
+  .tally .A{color:var(--a)} .tally .B{color:var(--b)}
+
+  footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--edge);color:var(--muted);text-align:center;
+    font:500 12px 'JetBrains Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="kicker">Trade-off Analysis</div>
+  <h1>Polling&nbsp;vs&nbsp;Event subscription</h1>
+
+  <div class="versus">
+    <div class="cand A"><div class="nm">Polling</div><div class="tl">query on a timer</div></div>
+    <div class="vs"><span>VS</span></div>
+    <div class="cand B"><div class="nm">Subscription</div><div class="tl">react to events</div></div>
+  </div>
+
+  <div class="rows">
+    <div class="row"><div class="barwrap L"><span class="n win">9</span><div class="bar A" style="--w:80%"></div></div>
+      <div class="attr">Simplicity</div>
+      <div class="barwrap"><div class="bar B" style="--w:55%"></div><span class="n">6</span></div></div>
+
+    <div class="row"><div class="barwrap L"><span class="n">4</span><div class="bar A" style="--w:35%"></div></div>
+      <div class="attr">Latency</div>
+      <div class="barwrap"><div class="bar B" style="--w:92%"></div><span class="n win">9</span></div></div>
+
+    <div class="row"><div class="barwrap L"><span class="n">3</span><div class="bar A" style="--w:28%"></div></div>
+      <div class="attr">Resource cost</div>
+      <div class="barwrap"><div class="bar B" style="--w:85%"></div><span class="n win">8</span></div></div>
+
+    <div class="row"><div class="barwrap L"><span class="n">5</span><div class="bar A" style="--w:45%"></div></div>
+      <div class="attr">Scalability</div>
+      <div class="barwrap"><div class="bar B" style="--w:90%"></div><span class="n win">9</span></div></div>
+
+    <div class="row"><div class="barwrap L"><span class="n win">8</span><div class="bar A" style="--w:72%"></div></div>
+      <div class="attr">Debuggability</div>
+      <div class="barwrap"><div class="bar B" style="--w:60%"></div><span class="n">6</span></div></div>
+  </div>
+
+  <div class="verdict" style="border-color:var(--b);background:linear-gradient(180deg,rgba(255,138,61,.1),transparent)">
+    <div class="h" style="color:var(--b)">Recommendation</div>
+    <div class="w">Event subscription</div>
+    <p>Wins on latency, cost and scalability — the dimensions that matter at listing peak. Keep polling only for the legacy bridge until cutover completes.</p>
+    <div class="tally"><span class="A">Polling · 2</span><span class="B">Subscription · 3</span></div>
+  </div>
+
+  <footer>VERSUS TEMPLATE · contender headers · mirrored attribute bars · winner ticks · verdict tally</footer>
+</div>
+</body>
+</html>

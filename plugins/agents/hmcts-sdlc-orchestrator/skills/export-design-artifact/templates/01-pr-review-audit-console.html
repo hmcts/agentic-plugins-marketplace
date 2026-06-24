@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=mockup -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Console — PR Review Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#11161f; --panel-2:#161d29; --edge:#222c3a;
+    --txt:#aeb9c9; --txt-hi:#eaf1fb; --muted:#6b7888;
+    --crit:#ff5d6c; --crit-bg:rgba(255,93,108,.12);
+    --major:#ffa64d; --major-bg:rgba(255,166,77,.12);
+    --minor:#ffe066; --minor-bg:rgba(255,224,102,.10);
+    --nit:#7aa2ff; --nit-bg:rgba(122,162,255,.12);
+    --ok:#4ad991; --ok-bg:rgba(74,217,145,.12);
+    --add:#1f6f43; --del:#7a2530;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(122,162,255,.06),transparent),var(--bg);
+    color:var(--txt);font-family:'Inter',system-ui,sans-serif;font-size:15px;line-height:1.65}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 24px 100px}
+  .mono{font-family:'JetBrains Mono',monospace}
+  a{color:var(--nit);text-decoration:none}
+
+  /* ---- header / scorecard ---- */
+  header{border:1px solid var(--edge);border-radius:14px;background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    padding:26px 28px;margin-bottom:34px;position:relative;overflow:hidden}
+  header::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(var(--crit),var(--major),var(--ok))}
+  .eyebrow{font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted)}
+  h1{color:var(--txt-hi);font-size:clamp(22px,3.4vw,30px);font-weight:700;margin:10px 0 4px;letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:20px}
+  .scorecard{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
+  .stat{background:var(--bg);border:1px solid var(--edge);border-radius:10px;padding:14px 16px}
+  .stat .n{font:700 26px/1 'Inter';color:var(--txt-hi)}
+  .stat.crit .n{color:var(--crit)} .stat.major .n{color:var(--major)} .stat.ok .n{color:var(--ok)}
+  .stat .l{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-top:6px}
+  .verdict{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:7px 14px;border-radius:999px;
+    font:600 13px 'Inter';background:var(--major-bg);color:var(--major);border:1px solid var(--major)}
+  .verdict .dot{width:8px;height:8px;border-radius:50%;background:var(--major);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 var(--major)}50%{box-shadow:0 0 0 6px transparent}}
+
+  /* ---- sections ---- */
+  section{margin-bottom:40px}
+  h2{color:var(--txt-hi);font-size:18px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+  h2 .hash{color:var(--muted);font-family:'JetBrains Mono',monospace;font-weight:600}
+
+  /* ---- finding card (HERO COMPONENT) ---- */
+  .finding{border:1px solid var(--edge);border-radius:12px;background:var(--panel);margin-bottom:18px;overflow:hidden}
+  .finding>.head{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--edge);
+    background:var(--panel-2);flex-wrap:wrap}
+  .badge{font:600 10.5px/1 'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;
+    padding:5px 9px;border-radius:6px;border:1px solid currentColor}
+  .badge.crit{color:var(--crit);background:var(--crit-bg)} .badge.major{color:var(--major);background:var(--major-bg)}
+  .badge.minor{color:var(--minor);background:var(--minor-bg)} .badge.nit{color:var(--nit);background:var(--nit-bg)}
+  .finding .file{font:600 13px 'JetBrains Mono',monospace;color:var(--txt-hi)}
+  .finding .file .ln{color:var(--muted)}
+  .finding .ttl{margin-left:auto;font-size:13px;color:var(--muted)}
+  .finding .body{padding:16px 18px}
+  .finding .body p{margin-bottom:10px}
+
+  /* inline highlight in prose */
+  mark{background:var(--minor-bg);color:var(--minor);border-radius:3px;padding:0 4px;font-weight:500}
+  code{font-family:'JetBrains Mono',monospace;font-size:13px;background:#0a0d12;color:#9fd0ff;
+    padding:2px 6px;border-radius:5px;border:1px solid var(--edge)}
+
+  /* diff block */
+  .diff{font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.7;border:1px solid var(--edge);
+    border-radius:8px;overflow:hidden;margin:12px 0;background:#0a0d12}
+  .diff .row{display:flex}
+  .diff .gut{width:42px;flex-shrink:0;text-align:right;padding:0 10px;color:var(--muted);user-select:none;
+    border-right:1px solid var(--edge);background:#0c1016}
+  .diff .ln{padding:0 14px;white-space:pre;flex:1;overflow-x:auto}
+  .diff .add{background:rgba(74,217,145,.08)} .diff .add .ln{color:#9bf0c2}
+  .diff .add .gut{background:rgba(31,111,67,.25);color:#4ad991}
+  .diff .del{background:rgba(255,93,108,.07)} .diff .del .ln{color:#ffb3ba}
+  .diff .del .gut{background:rgba(122,37,48,.3);color:var(--crit)}
+
+  /* reviewer callout */
+  .callout{border-left:3px solid var(--nit);background:var(--nit-bg);border-radius:0 8px 8px 0;
+    padding:12px 16px;margin:12px 0;font-size:14px}
+  .callout .who{font:600 12px 'JetBrains Mono',monospace;color:var(--nit);margin-bottom:4px}
+  .suggest{border-left-color:var(--ok);background:var(--ok-bg)} .suggest .who{color:var(--ok)}
+
+  footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--edge);color:var(--muted);
+    font:500 12px 'JetBrains Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">PULL REQUEST REVIEW · #2841</div>
+    <h1>Enrich listing command with jurisdiction metadata</h1>
+    <div class="sub mono">cpp-context-listing · feature/LPT-1006-jurisdiction → main · 14 files · +312 −87</div>
+    <div class="scorecard">
+      <div class="stat crit"><div class="n">1</div><div class="l">Critical</div></div>
+      <div class="stat major"><div class="n">3</div><div class="l">Major</div></div>
+      <div class="stat"><div class="n">5</div><div class="l">Minor</div></div>
+      <div class="stat ok"><div class="n">82%</div><div class="l">Coverage</div></div>
+    </div>
+    <div class="verdict"><span class="dot"></span>Changes requested — resolve the critical before merge</div>
+  </header>
+
+  <section>
+    <h2><span class="hash">01</span> Findings</h2>
+
+    <!-- HERO COMPONENT: severity finding card with diff -->
+    <div class="finding">
+      <div class="head">
+        <span class="badge crit">Critical</span>
+        <span class="file">CommandHandler.java<span class="ln">:142</span></span>
+        <span class="ttl">Silent failure swallows validation error</span>
+      </div>
+      <div class="body">
+        <p>The <code>catch</code> block logs at <mark>DEBUG</mark> and returns a success envelope, so a malformed
+        <code>jurisdiction</code> field is accepted as valid. The command appears to succeed while no event is emitted.</p>
+        <div class="diff">
+          <div class="row del"><div class="gut">142</div><div class="ln">  } catch (ValidationException e) {</div></div>
+          <div class="row del"><div class="gut">143</div><div class="ln">    log.debug("validation failed", e);  // swallowed</div></div>
+          <div class="row del"><div class="gut">144</div><div class="ln">    return CommandResult.ok();</div></div>
+          <div class="row add"><div class="gut">142</div><div class="ln">  } catch (ValidationException e) {</div></div>
+          <div class="row add"><div class="gut">143</div><div class="ln">    log.warn("rejecting command {}", id, e);</div></div>
+          <div class="row add"><div class="gut">144</div><div class="ln">    return CommandResult.rejected(e.getMessage());</div></div>
+        </div>
+        <div class="callout suggest"><div class="who">▸ suggestion</div>
+          Surface the rejection to the caller and add an integration test asserting no <code>ListingEnriched</code> event is published on invalid input.</div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="head">
+        <span class="badge major">Major</span>
+        <span class="file">listing.command.enrich.schema.json</span>
+        <span class="ttl">Schema example missing for new field</span>
+      </div>
+      <div class="body">
+        <p>The new <code>jurisdiction</code> property is required but the matching <mark>example file</mark> was not updated — contract tests will fail on the example/schema parity check.</p>
+        <div class="callout"><div class="who">▸ reviewer · baris</div>
+          Every JSON schema needs a sibling example with the same name. Add <code>jurisdiction</code> to the example payload.</div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <div class="head">
+        <span class="badge nit">Nit</span>
+        <span class="file">ListingView.java<span class="ln">:58</span></span>
+        <span class="ttl">Prefer Optional over null guard</span>
+      </div>
+      <div class="body">
+        <p>Minor style — the manual null check reads more clearly as <code>Optional.ofNullable(...)</code>. Non-blocking.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>AUDIT CONSOLE TEMPLATE · severity diff-rows · verdict scorecard · reviewer callouts</footer>
+</div>
+</body>
+</html>

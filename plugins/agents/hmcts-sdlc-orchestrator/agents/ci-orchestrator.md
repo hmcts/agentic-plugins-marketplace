@@ -58,6 +58,11 @@ Report stage completion in real time.
 
 **If all stages pass:**
 - Summarise: total tests run, coverage %, any warnings worth noting
+- **Integration-test gate (backend features & bugfixes):** confirm the integration-test stage actually
+  ran and is green, and that **every new/changed endpoint in this PR has at least one integration
+  test**. A new endpoint with no IT, or an IT stage that was skipped, is a **fail** — do not pass the
+  PR to deploy even if every other stage is green. Where ITs do not run in PR-verify, require evidence
+  they were run locally (`mvn clean && ./runIntegrationTests.sh`) and the summary pasted in the PR.
 - Confirm the build artefact reference (image tag, JAR version, etc.)
 - Signal deployer agent to proceed
 
@@ -81,6 +86,7 @@ New Medium findings should be noted but do not block the pipeline (create a Jira
 
 ## Build quality thresholds (from context/hmcts-standards.md)
 - Unit test coverage on new code: ≥80%
+- At least one integration test per new/changed endpoint, and the integration-test suite green
 - Zero new Critical/High Snyk findings
 - Zero axe-core accessibility violations on new pages
 - SonarQube quality gate: must pass (no new blockers or criticals)

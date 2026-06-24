@@ -47,6 +47,7 @@ Skills split across the marketplace and this repo. Install the marketplace plugi
 | skills/springboot-service-from-template/| local (HMCTS-specific)            | Standing up a new Spring Boot service from the HMCTS template |
 | skills/springboot-api-from-template/    | local (HMCTS-specific)            | Standing up a new HMCTS Marketplace API spec repo |
 | skills/cpp-test-authoring/              | local (HMCTS-specific)            | Writing or extending tests in `cpp-ui-e2e-serenity` (Serenity BDD/Cucumber) or `cpp-apitests` (JUnit 5 + REST Assured) |
+| skills/export-design-artifact/          | local (HMCTS-specific)            | Exporting a self-contained HTML artifact (plan / decision / design-gap / comparison) from the bundled template gallery — **mandatory** for the implementation plan before Stage 5 |
 
 ---
 
@@ -63,8 +64,15 @@ docs/pipeline/
 │   └── <story-id>.feature
 ├── adrs/
 │   └── <NNN>-<title>.md
+├── artifacts/
+│   └── <NNN>-<slug>.html   # HTML artifacts (plan, decision, design-gap, comparison)
 └── deploy-notes.md
 ```
+
+HTML artifacts are produced via `skills/export-design-artifact/` from the bundled template gallery.
+Each keeps its `<!-- claude-artifact: ... -->` marker (line 1 of `<head>`) so it is indexable, and
+must be surfaced at the relevant human gate. An **implementation-plan** artifact is mandatory before
+Stage 5 — see the Hard rules.
 
 ---
 
@@ -77,6 +85,15 @@ docs/pipeline/
 - Accessibility (WCAG 2.1 AA) is non-negotiable for any user-facing output.
 - Do not store PII, case data, or court reference numbers in artefacts or prompts.
 - If confidence in a decision is low, write an ADR and surface it for review.
+- **Export an HTML artifact** (via `skills/export-design-artifact/`) whenever a decision must be made,
+  a plan needs improving, or a design gap is discovered — and **always export an implementation-plan
+  artifact before Stage 5 (Code) begins**, even when the design is clean. No plan artifact at
+  `docs/pipeline/artifacts/` → do not start coding.
+- **Integration tests for new endpoints (backend features & bugfixes).** Any PR that adds or changes
+  a REST endpoint / `@Handles` action / message-driven entry point MUST add **at least one integration
+  test per new endpoint**, and the integration-test suite MUST be green when run locally — via
+  `mvn clean && ./runIntegrationTests.sh` when that script exists at the repo root, otherwise the
+  repo's documented IT command. Never weaken or skip an IT to go green.
 - For Spring Boot services: the HMCTS templates (`service-hmcts-crime-springboot-template`, `api-hmcts-crime-template`) are the master source. Use `skills/springboot-service-from-template/` or `skills/springboot-api-from-template/` to adopt them — do not scaffold build files, Dockerfile, or logback config from scratch. Deviations require an ADR.
 - JSON logging to stdout is mandatory for Spring Boot services. See `context/logging-standards.md`.
 - Azure integrations use the Azure SDK via Managed Identity. Connection strings, SAS tokens, and account keys are not permitted in code, config, env vars, or Helm values. See `context/azure-sdk-guide.md`.

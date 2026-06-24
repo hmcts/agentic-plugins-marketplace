@@ -77,6 +77,11 @@ For each identifiable unit of logic in the story (service method, validator, tra
 
 ### Step 3 — Write integration test stubs
 For any story touching an API endpoint, database, event store, or external service:
+- **At least one integration test per new or changed endpoint** (REST resource / `@Handles` action /
+  message-driven entry point) — one happy-path stub plus its primary failure mode. This is a hard
+  requirement for backend features and bugfixes, not a nice-to-have: it is the only coverage that
+  exercises real persistence/SQL, event flow, and status-code mapping that unit tests (which mock the
+  repository) cannot reach.
 - CQRS: stubs under `<context>-integration-test/src/test/java/...` driven by Cucumber + Serenity, with embedded Artemis + PostgreSQL TestContainers; assert via REST Assured against the RAML-defined endpoints.
 - MbD: `@SpringBootTest` integration tests under `src/test/java/...`, TestContainers for Postgres/Redis, WireMock 3.13 for outbound HTTP, Spring Application Events verified via `ApplicationEventPublisher` spies.
 - For Azure Service Bus interactions, mock at the messaging boundary — do not call live Azure resources from tests.
@@ -110,7 +115,7 @@ Do not proceed to implementation until the user confirms test specs are approved
 
 ## Coverage standard (from context/hmcts-standards.md)
 - Unit: ≥80% line coverage on new code
-- Integration: all AC happy paths + top 3 failure modes
+- Integration: all AC happy paths + top 3 failure modes; **at least one IT per new/changed endpoint**, and the suite must be green locally (`mvn clean && ./runIntegrationTests.sh` when available)
 - Accessibility: `@axe-core/webdriverjs` zero violations on all new pages in `cpp-ui-e2e`
 - Contract: required for all inter-service calls — REST Assured + RAML (CQRS) or Pact (MbD)
 - E2E: every user-visible AC has a Protractor spec in `cpp-ui-e2e` registered in `protractor.conf.ts`

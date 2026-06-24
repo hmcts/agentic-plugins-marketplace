@@ -19,6 +19,15 @@ This overlay adds HMCTS-specific additions the `code-reviewer` agent must apply 
 ### Test quality (extra)
 - [ ] No real PII or court reference numbers in test data
 
+### Integration tests (extra — backend features & bugfixes)
+- [ ] At least one integration test per new/changed endpoint (REST resource, `@Handles` action, message-driven entry point)
+- [ ] The IT exercises the real persistence/SQL + event path — not just unit tests that mock the repository
+- [ ] Integration-test suite is green locally (`mvn clean && ./runIntegrationTests.sh` when present); summary pasted in the PR
+
+### Pipeline artifacts (extra)
+- [ ] An implementation-plan HTML artifact exists at `docs/pipeline/artifacts/` (exported via `skills/export-design-artifact/`) and the change matches it
+- [ ] Decisions made and design gaps found during the work were captured as artifacts and surfaced at a gate
+
 ### Security (extra)
 - [ ] No connection strings, SAS tokens, or account keys — Managed Identity only (see `context/azure-sdk-guide.md`)
 - [ ] No PII in log statements
@@ -52,3 +61,5 @@ Run the `accessibility-check` skill (install `accessibility-check@agentic-plugin
 ### HMCTS scoring overrides
 - Any FAIL in **Accessibility** (UI story) → **block merge, must fix** (HMCTS treats a11y failures as equivalent to security failures)
 - Any unresolved **PII leak** in logs or test data → **block merge, must fix**
+- Any **new/changed endpoint without an integration test**, or an IT suite that is not green → **block merge, must fix**
+- **No implementation-plan artifact** at `docs/pipeline/artifacts/` for a backend feature/bugfix → **block merge, must fix**

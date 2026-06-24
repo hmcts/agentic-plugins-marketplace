@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=report -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Runbook — Migration Plan Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f0d08; --panel:#1a160d; --panel-2:#231d10; --edge:#3a3019;
+    --txt:#d3c4a0; --txt-hi:#fff6e3; --muted:#8a7a55;
+    --amber:#ffb733; --amber-d:#b87f1a; --rust:#e8622d; --green:#5dd98a; --red:#ff5a52; --steel:#6fb3d9;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:repeating-linear-gradient(135deg,transparent 0 40px,rgba(255,183,51,.012) 40px 41px),
+    radial-gradient(900px 400px at 90% -10%,rgba(255,183,51,.06),transparent),var(--bg);
+    color:var(--txt);font-family:'Barlow',system-ui,sans-serif;font-size:15px;line-height:1.6}
+  .wrap{max-width:980px;margin:0 auto;padding:42px 24px 110px}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  header{border:1px solid var(--edge);border-left:4px solid var(--amber);background:var(--panel);padding:22px 26px;margin-bottom:34px}
+  .tag-row{display:flex;gap:8px;flex-wrap:wrap;font:600 11px 'JetBrains Mono',monospace;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+  .tag-row .hot{color:var(--rust)}
+  h1{color:var(--txt-hi);font-size:clamp(24px,4vw,36px);font-weight:800;margin-bottom:8px}
+  .sub{color:var(--txt);max-width:68ch}
+  h2{color:var(--txt-hi);font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;
+    margin:38px 0 16px;display:flex;align-items:center;gap:10px}
+  h2 .b{color:var(--amber)}
+
+  /* before → after split (HERO COMPONENT A) */
+  .split{display:grid;grid-template-columns:1fr 56px 1fr;align-items:stretch;gap:0}
+  .col{border:1px solid var(--edge);border-radius:12px;padding:18px 20px;background:var(--panel)}
+  .col.from{border-color:var(--amber-d)} .col.to{border-color:var(--green)}
+  .col .ctitle{font:700 12px 'JetBrains Mono',monospace;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px}
+  .from .ctitle{color:var(--amber)} .to .ctitle{color:var(--green)}
+  .col ul{list-style:none}
+  .col li{padding:7px 0 7px 22px;position:relative;font-size:14px;border-bottom:1px dashed var(--edge)}
+  .col li:last-child{border-bottom:none}
+  .from li::before{content:"✕";position:absolute;left:0;color:var(--rust)}
+  .to li::before{content:"✓";position:absolute;left:0;color:var(--green)}
+  .arrow{display:grid;place-items:center;position:relative}
+  .arrow .a{width:0;height:0;border:14px solid transparent;border-left:20px solid var(--amber);
+    filter:drop-shadow(0 0 10px rgba(255,183,51,.5));animation:nudge 1.6s ease-in-out infinite}
+  @keyframes nudge{50%{transform:translateX(6px)}}
+
+  /* cutover steps (HERO COMPONENT B) */
+  .runlist{counter-reset:step;margin-top:6px}
+  .run{counter-increment:step;display:flex;gap:16px;border:1px solid var(--edge);border-radius:10px;
+    background:var(--panel);padding:14px 18px;margin-bottom:10px;align-items:flex-start}
+  .run::before{content:counter(step);flex-shrink:0;width:30px;height:30px;border-radius:8px;
+    background:var(--panel-2);border:1px solid var(--amber-d);color:var(--amber);
+    font:700 14px 'JetBrains Mono',monospace;display:grid;place-items:center}
+  .run .c h4{color:var(--txt-hi);font-size:15px;font-weight:700;margin-bottom:3px}
+  .run .c p{font-size:13.5px}
+  .run .c code{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:#0c0a05;color:var(--amber);
+    padding:2px 6px;border-radius:5px;border:1px solid var(--edge)}
+  .gate{margin-left:46px;margin-bottom:10px;font:600 12px 'JetBrains Mono',monospace;color:var(--steel);
+    border-left:2px solid var(--steel);padding:6px 0 6px 12px}
+  .gate::before{content:"⛳ GATE · ";color:var(--steel)}
+
+  /* rollback callout */
+  .rollback{border:1px dashed var(--red);background:rgba(255,90,82,.06);border-radius:10px;padding:16px 18px;margin:14px 0}
+  .rollback .h{color:var(--red);font:700 13px 'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px}
+  .rollback .h::before{content:"↩ "}
+
+  /* risk matrix (HERO COMPONENT C) */
+  .matrix{display:grid;grid-template-columns:90px repeat(3,1fr);gap:6px;margin-top:8px}
+  .matrix .cell{padding:12px 10px;border-radius:8px;font-size:12.5px;text-align:center;border:1px solid var(--edge)}
+  .matrix .axis{background:transparent;border:none;color:var(--muted);font:600 11px 'JetBrains Mono',monospace;
+    display:flex;align-items:center;justify-content:center;text-transform:uppercase;letter-spacing:1px}
+  .risk-lo{background:rgba(93,217,138,.12);color:var(--green);border-color:rgba(93,217,138,.4)}
+  .risk-md{background:rgba(255,183,51,.12);color:var(--amber);border-color:rgba(255,183,51,.4)}
+  .risk-hi{background:rgba(255,90,82,.14);color:var(--red);border-color:rgba(255,90,82,.4)}
+  .matrix .cell b{display:block;color:var(--txt-hi);font-size:12px;margin-bottom:2px}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--edge);color:var(--muted);
+    font:500 12px 'JetBrains Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="tag-row"><span>MIGRATION RUNBOOK</span><span>cpp-context-scheduler</span><span class="hot">CUTOVER · STE → PRD</span></div>
+    <h1>Legacy slot table → event-sourced reservations</h1>
+    <p class="sub">Dual-write behind a flag, backfill, verify parity, flip, then decommission. Designed to be reversible at every gate.</p>
+  </header>
+
+  <h2><span class="b">A.</span> Before &amp; after</h2>
+  <div class="split">
+    <div class="col from">
+      <div class="ctitle">Legacy (today)</div>
+      <ul>
+        <li>Direct writes to <code>slot_reservation</code></li>
+        <li>No audit trail of changes</li>
+        <li>Read &amp; write share one table</li>
+        <li>Hard to rebuild after data loss</li>
+      </ul>
+    </div>
+    <div class="arrow"><div class="a"></div></div>
+    <div class="col to">
+      <div class="ctitle">Target</div>
+      <ul>
+        <li>Commands emit <code>reservation-made</code></li>
+        <li>Full event-sourced history</li>
+        <li>Viewstore rebuilt from events</li>
+        <li>Replayable &amp; recoverable</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="b">B.</span> Cutover sequence</h2>
+  <div class="runlist">
+    <div class="run"><div class="c"><h4>Deploy dual-write</h4><p>Enable <code>scheduler.v2</code> in <code>shadow</code> mode — write both paths, read legacy.</p></div></div>
+    <div class="gate">Both paths agree on 100 sample reservations</div>
+    <div class="run"><div class="c"><h4>Backfill</h4><p>Replay historical rows into the event store; rebuild viewstore. Verify row counts match.</p></div></div>
+    <div class="gate">Viewstore count == legacy count; zero parity diffs</div>
+    <div class="run"><div class="c"><h4>Flip reads</h4><p>Point queries at the viewstore. Legacy still written as a safety net.</p></div></div>
+    <div class="gate">24h soak in STE with no error-rate regression</div>
+    <div class="run"><div class="c"><h4>Decommission</h4><p>Stop legacy writes; archive <code>slot_reservation</code>; remove the flag.</p></div></div>
+  </div>
+
+  <div class="rollback">
+    <div class="h">Rollback at any gate</div>
+    Flip <code>scheduler.v2</code> back to <code>off</code> → reads return to the legacy table instantly. Backfill is additive, so no destructive change exists until the final decommission step. <b style="color:var(--txt-hi)">Do not</b> drop the legacy table until 7 days post-flip.
+  </div>
+
+  <h2><span class="b">C.</span> Risk matrix</h2>
+  <div class="matrix">
+    <div class="axis"></div><div class="axis">Backfill</div><div class="axis">Flip reads</div><div class="axis">Decommission</div>
+    <div class="axis">Likelihood</div>
+    <div class="cell risk-lo"><b>Low</b>additive only</div>
+    <div class="cell risk-md"><b>Medium</b>cache warmup</div>
+    <div class="cell risk-lo"><b>Low</b>flag-gated</div>
+    <div class="axis">Impact</div>
+    <div class="cell risk-md"><b>Medium</b>slow replay</div>
+    <div class="cell risk-hi"><b>High</b>wrong reads</div>
+    <div class="cell risk-hi"><b>High</b>irreversible</div>
+  </div>
+
+  <footer>RUNBOOK TEMPLATE · before/after split · numbered cutover · phase gates · rollback callout · risk matrix</footer>
+</div>
+</body>
+</html>

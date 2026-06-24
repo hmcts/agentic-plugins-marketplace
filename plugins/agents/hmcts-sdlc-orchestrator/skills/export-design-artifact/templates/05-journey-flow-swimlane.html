@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=mockup -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Journey — User / Process Flow Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0816; --panel:#160f28; --panel-2:#1d1436; --edge:#34245c;
+    --txt:#c4b6e6; --txt-hi:#f4eeff; --muted:#8073a8;
+    --mag:#ff5fb0; --vio:#9d6bff; --cyan:#4fd8ff; --gold:#ffd25c; --green:#4ee6a8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{color:var(--txt);font-family:'Outfit',system-ui,sans-serif;font-size:15px;line-height:1.6;
+    background:radial-gradient(900px 460px at 5% 0%,rgba(255,95,176,.10),transparent),
+      radial-gradient(900px 500px at 100% 30%,rgba(157,107,255,.12),transparent),var(--bg)}
+  .wrap{max-width:1040px;margin:0 auto;padding:44px 24px 110px}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  .kicker{font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:3px;text-transform:uppercase;color:var(--mag)}
+  h1{font-size:clamp(26px,4.4vw,40px);font-weight:700;color:var(--txt-hi);letter-spacing:-.5px;margin:12px 0 8px}
+  .sub{color:var(--muted);max-width:64ch;margin-bottom:36px}
+  h2{color:var(--txt-hi);font-size:18px;font-weight:600;margin:36px 0 18px}
+
+  /* horizontal flow (HERO COMPONENT) */
+  .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:10px 4px 18px}
+  .step{flex:0 0 180px;background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--edge);
+    border-radius:14px;padding:16px;position:relative}
+  .step .ico{font-size:22px;margin-bottom:8px}
+  .step .st{font:600 10px 'JetBrains Mono',monospace;letter-spacing:1.5px;text-transform:uppercase;color:var(--mag)}
+  .step h3{color:var(--txt-hi);font-size:15px;font-weight:600;margin:4px 0 6px}
+  .step p{font-size:13px;color:var(--txt)}
+  /* animated connector */
+  .conn{flex:0 0 44px;align-self:center;height:2px;position:relative;
+    background:linear-gradient(90deg,var(--vio),var(--mag));overflow:visible}
+  .conn::after{content:"";position:absolute;right:-2px;top:-4px;border:5px solid transparent;border-left-color:var(--mag)}
+  .conn .pulse{position:absolute;top:-2.5px;left:0;width:7px;height:7px;border-radius:50%;background:#fff;
+    box-shadow:0 0 8px var(--cyan);animation:travel 2.4s linear infinite}
+  @keyframes travel{from{left:0;opacity:0}10%{opacity:1}90%{opacity:1}to{left:100%;opacity:0}}
+  .conn:nth-child(4) .pulse{animation-delay:.8s} .conn:nth-child(6) .pulse{animation-delay:1.6s}
+
+  /* decision diamond */
+  .decision{flex:0 0 150px;align-self:center;display:grid;place-items:center;position:relative;height:150px}
+  .diamond{width:104px;height:104px;background:linear-gradient(135deg,var(--gold),#c9952f);transform:rotate(45deg);
+    border-radius:14px;display:grid;place-items:center;box-shadow:0 0 26px rgba(255,210,92,.25)}
+  .diamond span{transform:rotate(-45deg);text-align:center;font:600 12px 'Outfit';color:#3a2a06;padding:4px}
+  .dlabel{position:absolute;bottom:-2px;font:600 11px 'JetBrains Mono',monospace;color:var(--gold)}
+
+  /* swimlane (HERO COMPONENT B) */
+  .lanes{margin-top:8px;border:1px solid var(--edge);border-radius:14px;overflow:hidden}
+  .lane{display:grid;grid-template-columns:140px 1fr;border-bottom:1px solid var(--edge)}
+  .lane:last-child{border-bottom:none}
+  .lane .who{background:var(--panel-2);padding:16px;font-weight:600;color:var(--txt-hi);font-size:13px;
+    border-right:1px solid var(--edge);display:flex;align-items:center}
+  .lane .acts{display:flex;gap:10px;padding:14px 16px;flex-wrap:wrap;align-items:center}
+  .act{background:var(--panel);border:1px solid var(--edge);border-radius:9px;padding:9px 13px;font-size:13px;color:var(--txt-hi)}
+  .act.sys{border-color:var(--cyan);color:var(--cyan)} .act.user{border-color:var(--mag);color:var(--mag)}
+  .lane:nth-child(1) .who{color:var(--mag)} .lane:nth-child(2) .who{color:var(--cyan)} .lane:nth-child(3) .who{color:var(--vio)}
+
+  /* emotion curve */
+  .emotion{margin-top:10px;background:var(--panel);border:1px solid var(--edge);border-radius:14px;padding:18px 20px}
+  .emotion svg{width:100%;height:auto;display:block}
+  .ecurve{fill:none;stroke:url(--eg);stroke-width:3;stroke-linecap:round}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--edge);color:var(--muted);
+    font:500 12px 'JetBrains Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="kicker">User Journey · Booking a hearing slot</div>
+  <h1>Listing officer reserves a Crown slot</h1>
+  <p class="sub">End-to-end flow from search to confirmed reservation, mapping system events, decision points, and how the officer feels at each step.</p>
+
+  <h2>Flow</h2>
+  <!-- HERO: horizontal flow with animated connectors + decision diamond -->
+  <div class="flow">
+    <div class="step"><div class="ico">🔎</div><div class="st">Step 01</div><h3>Search slots</h3><p>Officer filters by date, court &amp; business type.</p></div>
+    <div class="conn"><span class="pulse"></span></div>
+    <div class="step"><div class="ico">📋</div><div class="st">Step 02</div><h3>Select slot</h3><p>Picks an available Mon–Wed span.</p></div>
+    <div class="conn"><span class="pulse"></span></div>
+    <div class="decision"><div class="diamond"><span>Slot still free?</span></div><div class="dlabel">decision</div></div>
+    <div class="conn"><span class="pulse"></span></div>
+    <div class="step"><div class="ico">✅</div><div class="st">Step 03</div><h3>Confirm</h3><p>Reservation event published, viewstore updated.</p></div>
+  </div>
+
+  <h2>Swimlanes — who does what</h2>
+  <div class="lanes">
+    <div class="lane"><div class="who">👤 Officer</div><div class="acts"><span class="act user">Enter filters</span><span class="act user">Pick slot</span><span class="act user">Click confirm</span></div></div>
+    <div class="lane"><div class="who">🖥️ UI</div><div class="acts"><span class="act">Query available slots</span><span class="act">Optimistic lock check</span><span class="act sys">POST /reservations</span></div></div>
+    <div class="lane"><div class="who">⚙️ Backend</div><div class="acts"><span class="act sys">Validate command</span><span class="act sys">Emit reservation-made</span><span class="act sys">Update viewstore</span></div></div>
+  </div>
+
+  <h2>Emotion curve</h2>
+  <div class="emotion">
+    <svg viewBox="0 0 800 200" preserveAspectRatio="none" role="img" aria-label="Officer emotion across the journey">
+      <defs>
+        <linearGradient id="eg" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#ff5fb0"/><stop offset=".5" stop-color="#9d6bff"/><stop offset="1" stop-color="#4ee6a8"/>
+        </linearGradient>
+      </defs>
+      <line x1="0" y1="100" x2="800" y2="100" stroke="#34245c" stroke-dasharray="4 6"/>
+      <text x="6" y="28" fill="#8073a8" font-size="12" font-family="JetBrains Mono">😀 delighted</text>
+      <text x="6" y="184" fill="#8073a8" font-size="12" font-family="JetBrains Mono">😕 frustrated</text>
+      <path d="M40,70 C150,60 200,150 300,150 S480,40 560,60 700,40 770,30"
+        fill="none" stroke="url(#eg)" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="40" cy="70" r="6" fill="#ff5fb0"/><circle cx="300" cy="150" r="6" fill="#9d6bff"/>
+      <circle cx="560" cy="60" r="6" fill="#4ee6a8"/><circle cx="770" cy="30" r="6" fill="#4ee6a8"/>
+      <text x="270" y="178" fill="#9d6bff" font-size="11" font-family="JetBrains Mono">slot taken — retry</text>
+    </svg>
+  </div>
+
+  <footer>JOURNEY TEMPLATE · animated flow connectors · decision diamonds · swimlanes · emotion curve</footer>
+</div>
+</body>
+</html>

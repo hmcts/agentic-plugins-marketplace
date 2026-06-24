@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=mockup -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roadmap — Implementation Plan Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#071210; --panel:#0c1c19; --panel-2:#103029; --edge:#1d4038;
+    --txt:#9fc7bd; --txt-hi:#e8fff7; --muted:#5f857b;
+    --teal:#2fe6b6; --teal-dim:#179e7c; --cyan:#46d6ff; --gold:#ffce5c; --done:#2fe6b6; --rose:#ff6b8a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:radial-gradient(1000px 500px at 90% -10%,rgba(47,230,182,.07),transparent),var(--bg);
+    color:var(--txt);font-family:'Manrope',system-ui,sans-serif;font-size:15px;line-height:1.65}
+  .wrap{max-width:940px;margin:0 auto;padding:44px 24px 110px}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  header{margin-bottom:40px}
+  .kicker{font:700 11px/1 'JetBrains Mono',monospace;letter-spacing:3px;text-transform:uppercase;color:var(--teal-dim)}
+  h1{color:var(--txt-hi);font-size:clamp(26px,4.4vw,40px);font-weight:800;letter-spacing:-.5px;margin:12px 0 8px}
+  .sub{color:var(--muted);max-width:64ch}
+
+  /* overall progress bar */
+  .overall{margin-top:24px;background:var(--panel);border:1px solid var(--edge);border-radius:12px;padding:16px 20px}
+  .overall .top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px}
+  .overall .top b{color:var(--txt-hi)}
+  .track{height:10px;border-radius:6px;background:#0a1714;overflow:hidden;border:1px solid var(--edge)}
+  .fill{height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--teal-dim),var(--teal));
+    box-shadow:0 0 14px rgba(47,230,182,.5);animation:grow 1.4s ease forwards}
+  @keyframes grow{to{width:var(--w,42%)}}
+
+  /* phase timeline (HERO COMPONENT) */
+  .phase{position:relative;padding:0 0 14px 46px;margin-bottom:8px}
+  .phase::before{content:"";position:absolute;left:15px;top:6px;bottom:-8px;width:2px;background:var(--edge)}
+  .phase:last-child::before{display:none}
+  .phase>.pin{position:absolute;left:0;top:2px;width:32px;height:32px;border-radius:50%;background:var(--panel-2);
+    border:2px solid var(--teal-dim);display:grid;place-items:center;font:700 13px 'JetBrains Mono',monospace;color:var(--teal);z-index:2}
+  .phase.done>.pin{background:var(--teal);border-color:var(--teal);color:var(--bg)}
+  .phase.active>.pin{border-color:var(--teal);box-shadow:0 0 0 4px rgba(47,230,182,.15);animation:beat 2s infinite}
+  @keyframes beat{50%{box-shadow:0 0 0 8px rgba(47,230,182,.05)}}
+  .phase .card{background:var(--panel);border:1px solid var(--edge);border-radius:12px;padding:18px 20px;margin-left:4px}
+  .phase.active .card{border-color:var(--teal-dim)}
+  .ph-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .ph-head h3{font-size:17px;color:var(--txt-hi);font-weight:700}
+  .tag{font:600 10.5px/1 'JetBrains Mono',monospace;letter-spacing:.5px;padding:5px 9px;border-radius:20px;border:1px solid currentColor}
+  .tag.t{color:var(--cyan)} .tag.o{color:var(--gold)} .tag.d{color:var(--done)} .tag.now{color:var(--teal);background:rgba(47,230,182,.1)}
+  .ph-desc{color:var(--txt);font-size:14px;margin-bottom:14px}
+
+  /* task checklist */
+  ul.tasks{list-style:none;margin:6px 0 14px}
+  ul.tasks li{display:flex;align-items:flex-start;gap:10px;padding:6px 0;font-size:14px}
+  ul.tasks .box{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--edge);flex-shrink:0;margin-top:2px;position:relative}
+  ul.tasks li.x .box{background:var(--teal);border-color:var(--teal)}
+  ul.tasks li.x .box::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;color:var(--bg);font-size:12px;font-weight:800}
+  ul.tasks li.x{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--teal-dim)}
+  ul.tasks li.doing .box{border-color:var(--teal);box-shadow:0 0 0 3px rgba(47,230,182,.12)}
+
+  /* gantt-style effort bars */
+  .gantt{margin-top:14px;border-top:1px dashed var(--edge);padding-top:14px}
+  .gantt .row{display:grid;grid-template-columns:130px 1fr;align-items:center;gap:14px;margin:7px 0;font-size:12.5px}
+  .gantt .lbl{color:var(--muted);font-family:'JetBrains Mono',monospace;text-align:right}
+  .gantt .bar{height:18px;border-radius:5px;background:linear-gradient(90deg,var(--teal-dim),var(--cyan));
+    display:flex;align-items:center;padding:0 8px;font:600 11px 'JetBrains Mono',monospace;color:var(--bg)}
+  .gantt .bar.warn{background:linear-gradient(90deg,#8a6a1f,var(--gold))}
+
+  .milestone{display:inline-flex;align-items:center;gap:8px;margin-top:8px;color:var(--gold);font-size:13px;font-weight:600}
+  .milestone::before{content:"◆";color:var(--gold)}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--edge);color:var(--muted);
+    font:500 12px 'JetBrains Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">Implementation Plan · LPT-1006</div>
+    <h1>Court scheduler API rework</h1>
+    <p class="sub">Replace the legacy slot-reservation endpoint with an event-driven booking flow, behind a feature flag, across three phases.</p>
+    <div class="overall" style="--w:42%">
+      <div class="top"><span>Overall progress</span><b>42% · 5 of 12 tasks</b></div>
+      <div class="track"><div class="fill"></div></div>
+    </div>
+  </header>
+
+  <!-- HERO: phase timeline -->
+  <div class="phase done">
+    <div class="pin">1</div>
+    <div class="card">
+      <div class="ph-head"><h3>Foundations &amp; contracts</h3><span class="tag d">Done</span><span class="tag t mono">3d</span></div>
+      <div class="ph-desc">Define the new RAML endpoint, JSON schema + example, and Drools access rule before any handler code.</div>
+      <ul class="tasks">
+        <li class="x"><span class="box"></span>Add <code>POST /reservations</code> to command-api RAML</li>
+        <li class="x"><span class="box"></span>Author schema + matching example file</li>
+        <li class="x"><span class="box"></span>Add DRL rule requiring <code>CJSCPPUID</code></li>
+      </ul>
+      <span class="milestone">Contract frozen — consumers can mock</span>
+    </div>
+  </div>
+
+  <div class="phase active">
+    <div class="pin">2</div>
+    <div class="card">
+      <div class="ph-head"><h3>Command + event flow</h3><span class="tag now">In progress</span><span class="tag t mono">5d</span><span class="tag o mono">@you</span></div>
+      <div class="ph-desc">Wire the handler, emit the public event, and update the viewstore via the event listener.</div>
+      <ul class="tasks">
+        <li class="x"><span class="box"></span>Add <code>@Handles</code> method + <code>sender.send()</code></li>
+        <li class="x"><span class="box"></span>Emit <code>public.scheduler.reservation-made</code></li>
+        <li class="doing"><span class="box"></span>Event listener → viewstore upsert</li>
+        <li><span class="box"></span>Liquibase changeset for reservation table</li>
+        <li><span class="box"></span>Contract test: command → event parity</li>
+      </ul>
+      <div class="gantt">
+        <div class="row"><span class="lbl">handler</span><div class="bar" style="width:90%">done</div></div>
+        <div class="row"><span class="lbl">listener+db</span><div class="bar" style="width:55%">in progress</div></div>
+        <div class="row"><span class="lbl">contract test</span><div class="bar warn" style="width:25%">at risk</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="pin">3</div>
+    <div class="card">
+      <div class="ph-head"><h3>Migration &amp; rollout</h3><span class="tag t mono">4d</span><span class="tag o mono">@team</span></div>
+      <div class="ph-desc">Dual-write behind the flag, backfill, verify parity, then flip and retire the legacy path.</div>
+      <ul class="tasks">
+        <li><span class="box"></span>Feature flag <code>scheduler.v2</code> (default off)</li>
+        <li><span class="box"></span>Backfill existing reservations into viewstore</li>
+        <li><span class="box"></span>Integration test suite (<code>runIntegrationTests.sh</code>)</li>
+        <li><span class="box"></span>Flip flag in SIT → STE → PRD</li>
+      </ul>
+      <span class="milestone">Legacy endpoint deprecated</span>
+    </div>
+  </div>
+
+  <footer>ROADMAP TEMPLATE · phase timeline · task checklists · gantt effort bars · animated progress</footer>
+</div>
+</body>
+</html>
