@@ -65,3 +65,27 @@ Add on top only where the service actually needs it — do not pre-add unused ha
 
 Every `api-cp-*` spec must declare the same `ErrorResponse` schema (`error`, `message`, `details`,
 `timestamp`, `traceId`) so this handler can serve every service uniformly.
+
+## Standard Integration Test Suite (stateless-proxy `service-cp-*`)
+
+Every stateless-proxy `service-cp-*` must have these under `src/test/java/.../integration/` on
+day one, mirroring the working pattern already in `service-cp-crime-prosecution-case-details`
+and `service-cp-refdata-courthearing-courthouses` — not added later once a regression in tracing
+or logging goes unnoticed for lack of a test:
+
+| File | Verifies |
+|---|---|
+| `IntegrationTestBase` (abstract) | `@SpringBootTest @AutoConfigureMockMvc`, exposes `appProperties` and `mockMvc` to subclasses |
+| `SpringLoggingIntegrationTest` | the JSON log line shape (`timestamp`, `logger_name`, `thread_name`, `level`, `message`, MDC fields) under a real Spring context, not just the plain-JUnit logging test |
+| `TracingIntegrationTest` | `TracingFilter` propagates `traceId`/`spanId` from request headers to MDC and response headers, against whichever controller logs on receipt — **adapt the target endpoint to what the repo actually has**: don't port the literal `mockMvc.perform(get("/"))` against a `RootController` if the repo has no `RootController` (several `service-cp-*` repos don't) |
+| `<Controller>IntegrationTest` | the real controller→service→client→`RestTemplate` stack against an in-process `WireMockServer` (port matching `CP_BACKEND_URL`'s default, typically 8081) — happy path, and a 404 from each upstream hop |
+
+`TracingFilter` (`filters/tracing/TracingFilter.java`, `@Component extends OncePerRequestFilter`)
+is a prerequisite — `TracingIntegrationTest` verifies a filter that must already exist. If a repo
+is missing it (check before assuming it's there), port it alongside these tests; it's the same
+class across every sibling repo.
+
+`org.wiremock:wiremock-standalone` is the test dependency (`testImplementation`) — check the
+repo's actual Jackson generation (`com.fasterxml.jackson.*` vs `tools.jackson.*`, Jackson 2 vs 3)
+before copying import statements from a sibling; don't assume both repos are on the same Jackson
+major version.
