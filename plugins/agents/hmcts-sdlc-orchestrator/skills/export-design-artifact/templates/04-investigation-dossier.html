@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=investigation -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dossier — Investigation Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0b0d; --panel:#131316; --panel-2:#1a1a1f; --edge:#2a2a31;
+    --txt:#b7b7c0; --txt-hi:#f0f0f3; --muted:#6d6d78;
+    --amber:#ffb02e; --red:#ff4d4d; --green:#46d97a; --blue:#5aa9ff;
+    --paper:rgba(255,176,46,.06);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--txt);font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:15px;line-height:1.65}
+  /* faint paper-grain + corner classified band */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+    background:repeating-linear-gradient(115deg,transparent 0 24px,rgba(255,255,255,.012) 24px 25px)}
+  .wrap{max-width:920px;margin:0 auto;padding:40px 24px 110px;position:relative;z-index:1}
+  .mono{font-family:'IBM Plex Mono',monospace}
+
+  /* case-file header */
+  header{border:1px solid var(--edge);border-top:3px solid var(--amber);background:var(--panel);
+    padding:24px 26px;margin-bottom:36px;position:relative}
+  .filebar{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font:600 11px 'IBM Plex Mono',monospace;
+    letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+  .filebar .case{color:var(--amber)}
+  h1{color:var(--txt-hi);font-size:clamp(22px,3.6vw,32px);font-weight:700;margin-bottom:8px}
+  .summary{color:var(--txt);max-width:70ch}
+  .stamp{position:absolute;top:18px;right:26px;transform:rotate(-9deg);border:2.5px solid var(--red);
+    color:var(--red);font:700 14px 'IBM Plex Mono',monospace;letter-spacing:2px;padding:5px 12px;border-radius:6px;
+    opacity:.85;text-transform:uppercase}
+  .stamp.resolved{border-color:var(--green);color:var(--green)}
+
+  section{margin-bottom:40px}
+  h2{color:var(--txt-hi);font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:18px;
+    padding-bottom:8px;border-bottom:1px solid var(--edge)}
+  h2 .ix{color:var(--amber);font-family:'IBM Plex Mono',monospace;margin-right:8px}
+
+  /* evidence timeline (HERO COMPONENT A) */
+  .timeline{position:relative;padding-left:30px}
+  .timeline::before{content:"";position:absolute;left:7px;top:4px;bottom:4px;width:2px;background:var(--edge)}
+  .ev{position:relative;margin-bottom:20px}
+  .ev::before{content:"";position:absolute;left:-27px;top:5px;width:12px;height:12px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--blue)}
+  .ev.key::before{border-color:var(--amber);box-shadow:0 0 0 4px rgba(255,176,46,.15)}
+  .ev .t{font:600 12px 'IBM Plex Mono',monospace;color:var(--blue)}
+  .ev.key .t{color:var(--amber)}
+  .ev .d{color:var(--txt-hi);font-weight:600;margin:2px 0}
+  .ev .x{font-size:14px}
+
+  /* log block */
+  pre{font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.7;background:#08080a;
+    border:1px solid var(--edge);border-left:3px solid var(--amber);border-radius:6px;padding:14px 16px;
+    overflow-x:auto;margin:12px 0;color:#c9c9d2}
+  pre .err{color:var(--red)} pre .warn{color:var(--amber)} pre .dim{color:var(--muted)} pre .ok{color:var(--green)}
+  code{font-family:'IBM Plex Mono',monospace;font-size:13px;background:var(--panel-2);color:var(--amber);
+    padding:2px 6px;border-radius:5px;border:1px solid var(--edge)}
+
+  /* hypothesis tree (HERO COMPONENT B) */
+  .hyp{border:1px solid var(--edge);border-radius:10px;background:var(--panel);padding:8px 4px;margin-top:10px}
+  .branch{display:flex;align-items:flex-start;gap:12px;padding:11px 16px;border-bottom:1px solid var(--edge)}
+  .branch:last-child{border-bottom:none}
+  .branch .v{font:700 11px 'IBM Plex Mono',monospace;letter-spacing:1px;text-transform:uppercase;padding:4px 9px;
+    border-radius:5px;flex-shrink:0;width:96px;text-align:center}
+  .v.ruled{background:rgba(255,77,77,.12);color:var(--red);border:1px solid var(--red)}
+  .v.conf{background:rgba(70,217,122,.12);color:var(--green);border:1px solid var(--green)}
+  .v.open{background:rgba(255,176,46,.12);color:var(--amber);border:1px solid var(--amber)}
+  .branch .h{color:var(--txt-hi);font-weight:600}
+  .branch.ruled .h{text-decoration:line-through;text-decoration-color:var(--red);color:var(--muted)}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--edge);color:var(--muted);
+    font:500 12px 'IBM Plex Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="filebar"><span class="case">CASE · SPRDT-939</span><span>OPENED 2026-06-12</span><span>ANALYST · BARIS</span></div>
+    <span class="stamp">Open</span>
+    <h1>Crown multi-day hearing skips a weekday warning</h1>
+    <p class="summary">A 3-day Crown hearing scheduled over a bank holiday emits a spurious "non-business-day" warning on day 2, despite day 2 being a valid weekday. Investigating the business-day calculation.</p>
+  </header>
+
+  <section>
+    <h2><span class="ix">A.</span> Timeline of events</h2>
+    <div class="timeline">
+      <div class="ev"><div class="t">09:14 · 2026-06-12</div><div class="d">Report received</div><div class="x">Listing officer flags warning on hearing <code>H-44821</code> spanning Mon–Wed over a bank-holiday Monday.</div></div>
+      <div class="ev key"><div class="t">10:02 · 2026-06-12</div><div class="d">Reproduced locally</div><div class="x">Warning fires for day 2 (Tue) only when day 1 is a bank holiday. Suggests off-by-one in holiday skip.</div></div>
+      <div class="ev"><div class="t">11:30 · 2026-06-12</div><div class="d">Logs pulled from STE</div><div class="x">See evidence B.</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="ix">B.</span> Evidence — log extract</h2>
+    <pre><span class="dim"># cpp-context-hearing · BusinessDayCalculator</span>
+<span class="dim">10:01:58</span> DEBUG computing days from 2026-05-25 (Mon, BANK_HOLIDAY)
+<span class="dim">10:01:58</span> DEBUG  skip holiday → cursor=2026-05-26
+<span class="warn">10:01:58 WARN  day[1]=2026-05-26 flagged NON_BUSINESS  ← suspicious</span>
+<span class="dim">10:01:58</span> DEBUG  isBusinessDay(2026-05-26)=<span class="err">false</span>  <span class="dim">// Tue should be true</span>
+<span class="err">10:01:58 ERROR offset applied twice: holiday skip + weekend skip</span></pre>
+    <p>The cursor is advanced by the holiday-skip, then the weekend-skip re-evaluates the <em>original</em> index — applying the offset a second time.</p>
+  </section>
+
+  <section>
+    <h2><span class="ix">C.</span> Hypotheses</h2>
+    <div class="hyp">
+      <div class="branch conf"><span class="v conf">Confirmed</span><div><div class="h">Double-applied offset in <code>BusinessDayCalculator</code></div>Holiday skip mutates the cursor but weekend skip reads the pre-skip index.</div></div>
+      <div class="branch ruled"><span class="v ruled">Ruled out</span><div><div class="h">Bank-holiday reference data is wrong</div>Reference table verified correct for 2026 — the date IS a holiday; the bug is downstream.</div></div>
+      <div class="branch"><span class="v open">Open</span><div><div class="h">Does the same path affect 5-day hearings?</div>Needs a test crossing two holidays in one span.</div></div>
+    </div>
+  </section>
+
+  <footer>DOSSIER TEMPLATE · evidence timeline · annotated log blocks · hypothesis tree · verdict stamps</footer>
+</div>
+</body>
+</html>

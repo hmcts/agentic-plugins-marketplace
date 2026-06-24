@@ -165,6 +165,21 @@ Minimum diagrams to include when relevant:
 - ADR recommended? [yes/no — if yes, suggest title]
 ```
 
+## Export the design as an artifact
+
+This stage produces decisions and surfaces gaps — externalise them as HTML artifacts via skill:
+`skills/export-design-artifact/`, written to `docs/pipeline/artifacts/` and surfaced at the Stage 2
+human gate. Pick the template that fits:
+
+- **A decision between options** → `07-decision-record-adr.html` (3+ / weighted) or
+  `10-comparison-versus.html` (exactly two). This complements, and can replace, an inline ADR.
+- **The system structure / a design gap** → `08-architecture-blueprint.html` (boxes + flows) or, when
+  the gap was found by digging through existing behaviour, `04-investigation-dossier.html`.
+- **A critical request/event sequence** → `11-event-flow-signal-trace.html`.
+
+Always surface the artifact path in your output (see the `Follow-ups` block). The design here feeds the
+**implementation-plan** artifact (`03-implementation-plan-roadmap.html`) that is mandatory before Stage 5.
+
 ## Principles
 
 1. **Fit the platform.** Don't invent new patterns when an existing one works. Read neighbouring services before proposing.

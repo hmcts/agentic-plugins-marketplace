@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=report -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal Trace — Event Flow / Sequence Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#05080c; --panel:#0a121c; --panel-2:#0e1a28; --edge:#16314a;
+    --txt:#8fb6cf; --txt-hi:#dcf0fb; --muted:#4f7488;
+    --cyan:#28e0ff; --mag:#ff4d9d; --green:#3df0b0; --amber:#ffc14d; --vio:#9d8bff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:radial-gradient(900px 420px at 50% -10%,rgba(40,224,255,.07),transparent),var(--bg);
+    color:var(--txt);font-family:'Rajdhani',system-ui,sans-serif;font-size:15.5px;line-height:1.6}
+  .wrap{max-width:960px;margin:0 auto;padding:42px 24px 110px}
+  .mono{font-family:'Share Tech Mono',monospace}
+
+  .kicker{font:600 11px 'Share Tech Mono',monospace;letter-spacing:3px;text-transform:uppercase;color:var(--cyan)}
+  h1{color:var(--txt-hi);font-size:clamp(24px,4.2vw,38px);font-weight:700;letter-spacing:.5px;margin:10px 0 6px;text-transform:uppercase}
+  .sub{color:var(--muted);max-width:64ch;margin-bottom:30px}
+  h2{color:var(--cyan);font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;margin:32px 0 14px;
+    text-shadow:0 0 10px rgba(40,224,255,.3)}
+
+  /* sequence diagram (HERO COMPONENT) */
+  .trace{border:1px solid var(--edge);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--bg));padding:10px;overflow-x:auto}
+  .trace svg{display:block;margin:0 auto;min-width:780px}
+  .ll-box{fill:var(--panel-2);stroke:var(--cyan);stroke-width:1.3}
+  .ll-box.ev{stroke:var(--mag)} .ll-box.store{stroke:var(--amber)}
+  .ll-t{fill:var(--txt-hi);font:600 13px 'Rajdhani';text-anchor:middle;letter-spacing:.5px}
+  .ll-line{stroke:var(--edge);stroke-width:1.4;stroke-dasharray:2 5}
+  .act{fill:rgba(40,224,255,.08);stroke:var(--cyan);stroke-width:1;opacity:.6}
+  .msg{stroke:var(--cyan);stroke-width:1.8;fill:none;marker-end:url(#ac)}
+  .msg.ev{stroke:var(--mag);stroke-dasharray:7 5;marker-end:url(#am);animation:flow 1s linear infinite}
+  .msg.ret{stroke:var(--muted);stroke-width:1.4;stroke-dasharray:3 4;marker-end:url(#ad)}
+  @keyframes flow{to{stroke-dashoffset:-24}}
+  .msg-t{fill:var(--txt-hi);font:12px 'Share Tech Mono';letter-spacing:.5px}
+  .msg-t.ev{fill:var(--mag)} .msg-t.ret{fill:var(--muted)}
+  .pulse{fill:#fff;filter:drop-shadow(0 0 5px var(--cyan))}
+
+  .legend{display:flex;gap:22px;flex-wrap:wrap;margin-top:14px;font:11px 'Share Tech Mono',monospace;letter-spacing:1px}
+  .legend span{display:flex;align-items:center;gap:7px;text-transform:uppercase;color:var(--txt)}
+  .legend i{width:24px;height:0;border-top:2px solid var(--cyan)}
+  .legend i.ev{border-top:2px dashed var(--mag)} .legend i.ret{border-top:2px dashed var(--muted)}
+
+  /* event payload bubbles */
+  .payloads{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:8px}
+  .pl{border:1px solid var(--edge);border-left:3px solid var(--mag);border-radius:0 10px 10px 0;background:var(--panel);padding:14px 16px}
+  .pl .top{font:600 12px 'Share Tech Mono',monospace;color:var(--mag);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase}
+  .pl pre{font:12px 'Share Tech Mono',monospace;line-height:1.6;color:var(--txt);white-space:pre-wrap}
+  .pl .k{color:var(--cyan)} .pl .s{color:var(--green)} .pl .n{color:var(--amber)}
+
+  footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--edge);color:var(--muted);font:500 12px 'Share Tech Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="kicker">Event Flow · public.scheduler.reservation-made</div>
+  <h1>Reservation command → event → view</h1>
+  <p class="sub">How a single command propagates through the write side, onto the event backbone, and into the read model — with the asynchronous hops highlighted.</p>
+
+  <h2>Sequence trace</h2>
+  <div class="trace">
+    <svg viewBox="0 0 800 410" width="800" height="410" role="img" aria-label="Event sequence diagram">
+      <defs>
+        <marker id="ac" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#28e0ff"/></marker>
+        <marker id="am" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#ff4d9d"/></marker>
+        <marker id="ad" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#4f7488"/></marker>
+      </defs>
+
+      <!-- lifelines -->
+      <g><rect class="ll-box" x="40" y="22" width="120" height="40" rx="7"/><text class="ll-t" x="100" y="47">Command API</text><line class="ll-line" x1="100" y1="62" x2="100" y2="390"/></g>
+      <g><rect class="ll-box" x="260" y="22" width="120" height="40" rx="7"/><text class="ll-t" x="320" y="47">Handler</text><line class="ll-line" x1="320" y1="62" x2="320" y2="390"/></g>
+      <g><rect class="ll-box store" x="460" y="22" width="120" height="40" rx="7"/><text class="ll-t" x="520" y="47">Event Store</text><line class="ll-line" x1="520" y1="62" x2="520" y2="390"/></g>
+      <g><rect class="ll-box ev" x="640" y="22" width="130" height="40" rx="7"/><text class="ll-t" x="705" y="47">Listener→View</text><line class="ll-line" x1="705" y1="62" x2="705" y2="390"/></g>
+
+      <!-- activation bars -->
+      <rect class="act" x="314" y="100" width="12" height="250"/>
+      <rect class="act" x="514" y="150" width="12" height="90"/>
+      <rect class="act" x="699" y="220" width="12" height="90"/>
+
+      <!-- messages -->
+      <path class="msg" d="M100,110 L312,110"/><text class="msg-t" x="110" y="102">1 · POST /reservations</text>
+      <circle class="pulse" cx="0" cy="110" r="4"><animate attributeName="cx" from="100" to="312" dur="1.4s" repeatCount="indefinite"/></circle>
+
+      <path class="msg ev" d="M326,160 L512,160"/><text class="msg-t ev" x="334" y="152">2 · append ReservationMade</text>
+
+      <path class="msg ev" d="M526,210 L697,210"/><text class="msg-t ev" x="534" y="202">3 · publish public.* event</text>
+      <circle class="pulse" cx="0" cy="210" r="4" style="filter:drop-shadow(0 0 5px #ff4d9d)"><animate attributeName="cx" from="526" to="697" dur="1.6s" repeatCount="indefinite"/></circle>
+
+      <!-- self message -->
+      <path class="msg ev" d="M711,260 h44 v26 h-46" marker-end="url(#am)"/><text class="msg-t ev" x="718" y="252">4 · upsert viewstore</text>
+
+      <!-- return -->
+      <path class="msg ret" d="M312,330 L108,330"/><text class="msg-t ret" x="120" y="322">5 · 202 Accepted (async)</text>
+    </svg>
+  </div>
+  <div class="legend">
+    <span><i></i>Sync call / return</span>
+    <span><i class="ev"></i>Async event (flowing)</span>
+    <span><i class="ret"></i>Acknowledgement</span>
+  </div>
+
+  <h2>Event payloads on the wire</h2>
+  <div class="payloads">
+    <div class="pl"><div class="top">▸ ReservationMade (private)</div>
+      <pre>{
+  <span class="k">"reservationId"</span>: <span class="s">"r-8821"</span>,
+  <span class="k">"slotId"</span>: <span class="s">"s-4471"</span>,
+  <span class="k">"days"</span>: <span class="n">3</span>
+}</pre></div>
+    <div class="pl"><div class="top">▸ public.scheduler.reservation-made</div>
+      <pre>{
+  <span class="k">"caseId"</span>: <span class="s">"C-2240"</span>,
+  <span class="k">"court"</span>: <span class="s">"Crown-07"</span>,
+  <span class="k">"effectiveFrom"</span>: <span class="s">"2026-05-26"</span>
+}</pre></div>
+  </div>
+
+  <footer>SIGNAL TRACE TEMPLATE · sequence lifelines · activation bars · flowing async wires · traveling pulses · payload bubbles</footer>
+</div>
+</body>
+</html>

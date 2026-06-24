@@ -50,6 +50,12 @@ HMCTS templates. Any deviation from the template structure requires an ADR.
 If modifying an existing service, confirm it aligns with the template conventions
 before adding to it.
 
+### Step 0b — Precondition: an implementation-plan artifact exists
+Do **not** write code until an implementation-plan HTML artifact exists at
+`docs/pipeline/artifacts/` and has been surfaced at the Stage 4 human gate. If it is missing,
+stop and export it first with skill: `skills/export-design-artifact/` (template
+`03-implementation-plan-roadmap.html`). The plan is mandatory even when the design is clean.
+
 ### Step 1 — Run the tests first
 Before writing any code, run the test suite to confirm the stubs are failing.
 If any stub is already passing, flag it — it means the test was written incorrectly.
@@ -84,6 +90,18 @@ Before committing, check:
 - **Container** — runs as non-root (`USER app`); base image sourced from HMCTS ACR
 - **Probes** — `/actuator/health/readiness` and `/actuator/health/liveness` respond 200 locally
 
+### Step 4b — Integration tests for new endpoints (run locally, must be green)
+For backend features and bugfixes, if this work adds or changes any REST endpoint, `@Handles`
+action, or other externally reachable entry point:
+- Ensure **at least one integration test exists per new endpoint** — happy path plus its primary
+  failure mode. Cover behaviour the unit tests cannot reach (real persistence/SQL, event flow,
+  status-code mapping). For CQRS contexts this lives under `<context>-integration-test/`.
+- **Run the full integration-test suite locally and confirm it is green** before committing:
+  - if `./runIntegrationTests.sh` exists at the repo root, run `mvn clean && ./runIntegrationTests.sh`
+  - otherwise use the repo's documented IT command (e.g. `mvn verify -Pintegration-test`).
+- If an IT cannot be made green, **halt and surface it** — never weaken, skip, or `@Disabled` an IT
+  to proceed. Paste the IT summary (pass/fail counts) into the PR description.
+
 ### Step 5 — Commit
 Commit to the feature branch via GitHub MCP.
 Commit message format: `feat(PROJ-NNN): [short description of what was implemented]`
@@ -96,6 +114,9 @@ using skill: skills/adr-template.md before committing.
 ## Hard rules
 - Never commit directly to `main` or `master`
 - Never delete or weaken a test to make it pass — fix the code instead
+- Never start coding without an implementation-plan artifact at `docs/pipeline/artifacts/` (Step 0b)
+- A new or changed endpoint MUST ship with at least one integration test, and the IT suite MUST be
+  green locally (`mvn clean && ./runIntegrationTests.sh` when available) before the PR — see Step 4b
 - Never suppress linting warnings with inline ignores without a comment explaining why
-- If implementation reveals a gap in the requirements or ACs, halt and surface it
-  before proceeding
+- If implementation reveals a gap in the requirements, ACs, or design, halt and surface it — and
+  capture the gap as an artifact via `skills/export-design-artifact/` — before proceeding

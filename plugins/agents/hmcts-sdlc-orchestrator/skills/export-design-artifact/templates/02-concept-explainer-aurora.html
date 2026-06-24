@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=mockup -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aurora — Concept Explainer Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a14; --bg2:#0f1024; --panel:rgba(255,255,255,.035); --edge:rgba(140,130,255,.18);
+    --txt:#c3c0e0; --txt-hi:#f3f1ff; --muted:#8480ad;
+    --v1:#9d7bff; --v2:#5ad6ff; --v3:#ff7bd0; --glow:rgba(157,123,255,.35);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{color:var(--txt);font-family:'Sora',system-ui,sans-serif;font-size:16px;line-height:1.75;
+    background:
+      radial-gradient(900px 500px at 12% -5%,rgba(157,123,255,.16),transparent),
+      radial-gradient(800px 500px at 95% 8%,rgba(90,214,255,.12),transparent),
+      radial-gradient(700px 600px at 60% 110%,rgba(255,123,208,.10),transparent),
+      var(--bg)}
+  .wrap{max-width:860px;margin:0 auto;padding:56px 24px 120px}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  .kicker{font:600 12px/1 'JetBrains Mono',monospace;letter-spacing:3px;text-transform:uppercase;
+    color:var(--v2);margin-bottom:18px}
+  h1{font-size:clamp(30px,5.5vw,50px);font-weight:700;line-height:1.08;color:var(--txt-hi);letter-spacing:-1px;
+    margin-bottom:18px;background:linear-gradient(120deg,#fff,var(--v1) 60%,var(--v3));-webkit-background-clip:text;
+    background-clip:text;-webkit-text-fill-color:transparent}
+  .lede{font-size:19px;color:var(--txt);max-width:62ch;margin-bottom:48px}
+
+  section{margin-bottom:54px;opacity:0;transform:translateY(16px);animation:rise .7s ease forwards}
+  section:nth-of-type(2){animation-delay:.1s} section:nth-of-type(3){animation-delay:.2s}
+  section:nth-of-type(4){animation-delay:.3s}
+  @keyframes rise{to{opacity:1;transform:none}}
+  h2{font-size:24px;font-weight:600;color:var(--txt-hi);margin-bottom:16px;display:flex;align-items:center;gap:12px}
+  h2 .num{font:700 15px/1 'JetBrains Mono',monospace;color:var(--bg);background:linear-gradient(135deg,var(--v1),var(--v2));
+    width:30px;height:30px;border-radius:9px;display:grid;place-items:center}
+  p{margin-bottom:16px}
+  strong{color:var(--txt-hi);font-weight:600}
+
+  /* glossary chip with tooltip (HERO COMPONENT A) */
+  .term{position:relative;color:var(--v2);border-bottom:1px dashed var(--v2);cursor:help;font-weight:500}
+  .term .tip{position:absolute;left:50%;bottom:140%;transform:translateX(-50%) translateY(6px);width:260px;
+    background:var(--bg2);border:1px solid var(--edge);border-radius:10px;padding:12px 14px;font-size:13px;
+    line-height:1.5;color:var(--txt);opacity:0;pointer-events:none;transition:.25s;z-index:5;
+    box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  .term .tip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);
+    border:6px solid transparent;border-top-color:var(--edge)}
+  .term:hover .tip{opacity:1;transform:translateX(-50%)}
+
+  /* concept visualisation — orbit diagram (HERO COMPONENT B) */
+  .orbit{display:grid;place-items:center;margin:30px 0 36px}
+  .orbit svg{max-width:100%;height:auto;filter:drop-shadow(0 0 24px var(--glow))}
+  .spin{transform-origin:230px 170px;animation:spin 26s linear infinite}
+  .spin.rev{animation-direction:reverse;animation-duration:34s}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .node-c{fill:var(--bg2);stroke:var(--v1);stroke-width:1.5}
+  .node-t{fill:var(--txt-hi);font:600 13px 'Sora';text-anchor:middle}
+  .orbit-ring{fill:none;stroke:var(--edge);stroke-width:1;stroke-dasharray:3 6}
+
+  /* analogy / aside panel */
+  .aside{display:flex;gap:16px;background:var(--panel);border:1px solid var(--edge);border-radius:16px;
+    padding:20px 22px;margin:22px 0;backdrop-filter:blur(6px)}
+  .aside .ico{font-size:26px;line-height:1.2;flex-shrink:0}
+  .aside .h{font-weight:600;color:var(--txt-hi);margin-bottom:4px}
+  .aside.tip2{border-color:rgba(90,214,255,.35)} .aside.warn{border-color:rgba(255,123,208,.35)}
+
+  code{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--v2);background:rgba(90,214,255,.08);
+    padding:2px 7px;border-radius:6px}
+
+  footer{margin-top:60px;color:var(--muted);font:500 12px 'JetBrains Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="kicker">Concept · Event Sourcing</div>
+  <h1>Why CQRS splits your reads from your writes</h1>
+  <p class="lede">A mental model for the pattern every <code>cpp-context-*</code> service is built on — and the one idea that makes the rest of the architecture click.</p>
+
+  <section>
+    <h2><span class="num">1</span> The core idea</h2>
+    <p>In a traditional service, one model both <strong>accepts changes</strong> and <strong>answers questions</strong>.
+    <span class="term">CQRS<span class="tip"><b>Command Query Responsibility Segregation</b> — separate the write model (commands that change state) from the read model (queries that return it).</span></span>
+    says: stop forcing one shape to do both jobs. Commands go through a write side optimised for <em>validity</em>; queries hit a read side optimised for <em>speed</em>.</p>
+
+    <!-- ORBIT CONCEPT VISUALISATION -->
+    <div class="orbit">
+      <svg viewBox="0 0 460 340" width="460" height="340" role="img" aria-label="CQRS orbit diagram">
+        <circle class="orbit-ring" cx="230" cy="170" r="120"/>
+        <circle class="orbit-ring" cx="230" cy="170" r="78"/>
+        <!-- core -->
+        <circle cx="230" cy="170" r="46" fill="url(#g)" opacity=".9"/>
+        <text class="node-t" x="230" y="166">Domain</text>
+        <text class="node-t" x="230" y="184" style="font-size:11px;fill:#c3c0e0">aggregate</text>
+        <defs><radialGradient id="g"><stop offset="0" stop-color="#5ad6ff"/><stop offset="1" stop-color="#9d7bff"/></radialGradient></defs>
+        <!-- outer orbit nodes -->
+        <g class="spin">
+          <g transform="translate(110,170)"><circle class="node-c" r="30"/><text class="node-t" y="4">Command</text></g>
+          <g transform="translate(350,170)"><circle class="node-c" r="30"/><text class="node-t" y="4">Query</text></g>
+        </g>
+        <!-- inner orbit nodes -->
+        <g class="spin rev">
+          <g transform="translate(230,92)"><circle class="node-c" r="26" style="stroke:#5ad6ff"/><text class="node-t" y="4" style="font-size:11px">Event</text></g>
+          <g transform="translate(230,248)"><circle class="node-c" r="26" style="stroke:#ff7bd0"/><text class="node-t" y="4" style="font-size:11px">View</text></g>
+        </g>
+      </svg>
+    </div>
+    <p>Commands and queries <em>orbit</em> the same domain but never share a path. An event is the only thing that crosses between them — the write side emits it, the read side rebuilds a <span class="term">viewstore<span class="tip"><b>Viewstore</b> — a denormalised read database, rebuilt by replaying events. Queries hit this, never the event store.</span></span> from it.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">2</span> An analogy</h2>
+    <div class="aside tip2">
+      <div class="ico">📒</div>
+      <div><div class="h">Think of a bank ledger</div>
+      You never edit a past balance. You <strong>append</strong> a transaction (a command → event), and your "current balance" (the view) is just a running total derived from the log. Lose the balance? Replay the ledger and it's back.</div>
+    </div>
+    <p>That append-only log is your <strong>event store</strong>. The "current balance" page your teller sees is the <strong>viewstore</strong>. They are deliberately different shapes.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">3</span> Why it's worth the cost</h2>
+    <p>CQRS adds moving parts, so it earns its keep only when reads and writes have <strong>genuinely different needs</strong> — which they do in a case-management platform.</p>
+    <div class="aside warn">
+      <div class="ico">⚠️</div>
+      <div><div class="h">The trap to avoid</div>
+      Don't query the write model "just this once" inside a command handler. That couples the sides back together and is the anti-pattern most CPP review comments flag.</div>
+    </div>
+  </section>
+
+  <footer>AURORA TEMPLATE · orbit concept-viz · glossary tooltips · analogy panels · staggered reveal</footer>
+</div>
+</body>
+</html>

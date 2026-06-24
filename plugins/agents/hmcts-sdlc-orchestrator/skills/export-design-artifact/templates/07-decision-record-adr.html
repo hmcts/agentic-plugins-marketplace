@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=report -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decision Record — ADR Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e16; --panel:#101723; --panel-2:#16202f; --edge:#243246;
+    --txt:#a9b8cc; --txt-hi:#eef4fc; --muted:#647489;
+    --blue:#5b9dff; --teal:#3fd9c9; --green:#4cd98a; --amber:#ffc24d; --red:#ff6573; --vio:#a78bff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:radial-gradient(1000px 480px at 85% -10%,rgba(91,157,255,.07),transparent),var(--bg);
+    color:var(--txt);font-family:'Source Sans 3',system-ui,sans-serif;font-size:15px;line-height:1.65}
+  .wrap{max-width:920px;margin:0 auto;padding:42px 24px 110px}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  header{margin-bottom:30px}
+  .adrno{font:700 12px 'JetBrains Mono',monospace;letter-spacing:2px;color:var(--blue)}
+  h1{color:var(--txt-hi);font-size:clamp(24px,4vw,36px);font-weight:700;margin:10px 0;letter-spacing:-.4px}
+  .status{display:inline-flex;align-items:center;gap:8px;padding:6px 13px;border-radius:999px;font:600 12px 'JetBrains Mono',monospace;
+    letter-spacing:1px;text-transform:uppercase;background:rgba(76,217,138,.12);color:var(--green);border:1px solid var(--green)}
+  .status .dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+
+  h2{color:var(--txt-hi);font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;
+    margin:34px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--edge)}
+  h2 .ix{color:var(--blue);font-family:'JetBrains Mono',monospace;margin-right:8px}
+  p{margin-bottom:12px}
+  strong{color:var(--txt-hi)}
+  code{font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--panel-2);color:var(--teal);padding:2px 6px;border-radius:5px}
+
+  /* options comparison matrix (HERO COMPONENT A) */
+  .matrix{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;margin-top:6px;
+    border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+  .matrix th,.matrix td{padding:13px 16px;text-align:left;border-bottom:1px solid var(--edge)}
+  .matrix thead th{background:var(--panel-2);color:var(--muted);font:600 11px 'JetBrains Mono',monospace;
+    letter-spacing:1.5px;text-transform:uppercase}
+  .matrix tbody tr:last-child td{border-bottom:none}
+  .matrix td:first-child{font-weight:600;color:var(--txt-hi)}
+  .opt-win{background:rgba(76,217,138,.07)}
+  .opt-win td:first-child{box-shadow:inset 3px 0 var(--green)}
+  .pill{font:600 11px 'JetBrains Mono',monospace;padding:3px 9px;border-radius:20px;border:1px solid currentColor}
+  .pill.y{color:var(--green)} .pill.n{color:var(--red)} .pill.m{color:var(--amber)}
+
+  /* weighted scoring bars (HERO COMPONENT B) */
+  .score{margin-top:8px}
+  .score .opt{margin-bottom:18px}
+  .score .opt .top{display:flex;justify-content:space-between;margin-bottom:7px}
+  .score .opt .top b{color:var(--txt-hi)} .score .opt .top .n{font:700 14px 'JetBrains Mono',monospace}
+  .score .stack{display:flex;height:24px;border-radius:6px;overflow:hidden;border:1px solid var(--edge);background:#0a0e16}
+  .seg{display:flex;align-items:center;justify-content:center;font:600 10px 'JetBrains Mono',monospace;color:#0a0e16;
+    width:0;animation:fillseg 1.1s ease forwards}
+  @keyframes fillseg{to{width:var(--w)}}
+  .seg.s1{background:var(--blue)} .seg.s2{background:var(--teal)} .seg.s3{background:var(--vio)} .seg.s4{background:var(--amber)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
+  .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+  .legend .l1::before{background:var(--blue)} .legend .l2::before{background:var(--teal)}
+  .legend .l3::before{background:var(--vio)} .legend .l4::before{background:var(--amber)}
+
+  /* pros/cons split */
+  .pc{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+  .pc .box{border:1px solid var(--edge);border-radius:10px;padding:14px 16px;background:var(--panel)}
+  .pc .pros{border-top:2px solid var(--green)} .pc .cons{border-top:2px solid var(--red)}
+  .pc h4{font:700 12px 'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+  .pc .pros h4{color:var(--green)} .pc .cons h4{color:var(--red)}
+  .pc ul{list-style:none;font-size:14px}
+  .pc li{padding:5px 0 5px 20px;position:relative}
+  .pc .pros li::before{content:"+";position:absolute;left:0;color:var(--green);font-weight:700}
+  .pc .cons li::before{content:"−";position:absolute;left:0;color:var(--red);font-weight:700}
+
+  /* decision verdict banner */
+  .verdict{margin-top:8px;border:1px solid var(--green);background:linear-gradient(180deg,rgba(76,217,138,.1),rgba(76,217,138,.03));
+    border-radius:12px;padding:18px 22px}
+  .verdict .h{color:var(--green);font:700 13px 'JetBrains Mono',monospace;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+  .verdict .h::before{content:"✓ DECISION · "}
+  .verdict b{color:var(--txt-hi)}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--edge);color:var(--muted);
+    font:500 12px 'JetBrains Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="adrno">ADR-0042</div>
+    <h1>Choosing the read store for reservation queries</h1>
+    <span class="status"><span class="dot"></span>Accepted</span>
+  </header>
+
+  <section>
+    <h2><span class="ix">1.</span> Context</h2>
+    <p>The new reservation flow needs a read model that survives event replay and serves slot-availability queries under listing peak load. We evaluated three options against four weighted criteria: <strong>query speed</strong>, <strong>operational cost</strong>, <strong>replay fit</strong>, and <strong>team familiarity</strong>.</p>
+  </section>
+
+  <section>
+    <h2><span class="ix">2.</span> Options at a glance</h2>
+    <table class="matrix">
+      <thead><tr><th>Option</th><th>Replay-friendly</th><th>Query speed</th><th>Ops burden</th><th>Team knows it</th></tr></thead>
+      <tbody>
+        <tr class="opt-win"><td>PostgreSQL viewstore</td><td><span class="pill y">Yes</span></td><td><span class="pill y">Fast</span></td><td><span class="pill y">Low</span></td><td><span class="pill y">High</span></td></tr>
+        <tr><td>Elasticsearch index</td><td><span class="pill m">Partial</span></td><td><span class="pill y">Fast</span></td><td><span class="pill n">High</span></td><td><span class="pill m">Medium</span></td></tr>
+        <tr><td>Redis cache only</td><td><span class="pill n">No</span></td><td><span class="pill y">Fastest</span></td><td><span class="pill m">Medium</span></td><td><span class="pill m">Medium</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="ix">3.</span> Weighted score</h2>
+    <div class="score">
+      <div class="opt"><div class="top"><b>PostgreSQL viewstore</b><span class="n" style="color:var(--green)">8.6</span></div>
+        <div class="stack"><div class="seg s1" style="--w:34%">spd</div><div class="seg s2" style="--w:30%">cost</div><div class="seg s3" style="--w:22%">replay</div><div class="seg s4" style="--w:14%">fam</div></div></div>
+      <div class="opt"><div class="top"><b>Elasticsearch</b><span class="n" style="color:var(--amber)">6.1</span></div>
+        <div class="stack"><div class="seg s1" style="--w:30%">spd</div><div class="seg s2" style="--w:14%">cost</div><div class="seg s3" style="--w:14%">replay</div><div class="seg s4" style="--w:10%">fam</div></div></div>
+      <div class="opt"><div class="top"><b>Redis only</b><span class="n" style="color:var(--red)">4.4</span></div>
+        <div class="stack"><div class="seg s1" style="--w:38%">spd</div><div class="seg s2" style="--w:8%">cost</div><div class="seg s3" style="--w:0%"></div><div class="seg s4" style="--w:10%">fam</div></div></div>
+      <div class="legend"><span class="l1">Query speed</span><span class="l2">Ops cost</span><span class="l3">Replay fit</span><span class="l4">Familiarity</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="ix">4.</span> Trade-offs of the leading option</h2>
+    <div class="pc">
+      <div class="box pros"><h4>Pros</h4><ul><li>Already the platform's standard viewstore pattern</li><li>Liquibase-managed, replayable schema</li><li>No new infra to operate</li></ul></div>
+      <div class="box cons"><h4>Cons</h4><ul><li>Free-text search weaker than ES</li><li>Needs index tuning at peak</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="ix">5.</span> Decision</h2>
+    <div class="verdict"><div class="h">PostgreSQL viewstore</div>
+      Adopt the standard <b>PostgreSQL viewstore</b> rebuilt by the event listener. Revisit Elasticsearch only if free-text slot search becomes a product requirement. Redis is rejected — it can't be rebuilt from events alone.</div>
+  </section>
+
+  <footer>DECISION RECORD TEMPLATE · options matrix · weighted score stacks · pros/cons · verdict banner</footer>
+</div>
+</body>
+</html>

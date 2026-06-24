@@ -50,7 +50,8 @@ Determine the repo type from the directory name and build files:
 - [ ] Event handlers are idempotent
 - [ ] JSON schemas follow naming convention: `{context}.{type}.{name}.json`
 - [ ] RAML API definitions are updated for new/changed endpoints
-- [ ] Integration tests cover the new functionality
+- [ ] **At least one integration test per new/changed endpoint** (`<context>-integration-test/`), exercising the real persistence/SQL + event path — not just unit tests that mock the repository
+- [ ] Integration-test suite is green locally (`mvn clean && ./runIntegrationTests.sh` when present); summary pasted in the PR
 - [ ] No domain logic in controllers or repositories (belongs in aggregates/handlers)
 - [ ] Framework interceptors not bypassed without justification
 
@@ -118,6 +119,8 @@ Always check regardless of repo type:
 - [ ] Breaking changes to APIs are clearly documented
 - [ ] Changes are backward compatible (or migration path documented)
 - [ ] Test coverage is adequate for the change
+- [ ] New endpoints (any repo type) ship with at least one integration test, and the IT suite is green
+- [ ] An implementation-plan artifact exists at `docs/pipeline/artifacts/` and the change matches it
 - [ ] Commit messages are meaningful
 
 ### Step 5: Generate Review

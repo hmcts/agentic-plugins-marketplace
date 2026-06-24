@@ -55,6 +55,8 @@ Mark each item: PASS / FAIL / N/A with a brief note.
 - Does the implementation match all ACs in the story?
 - Are there untested code paths?
 - Are edge cases handled?
+- Does an implementation-plan artifact exist at `docs/pipeline/artifacts/`, and does the delivered
+  code match it? (No plan artifact is itself a finding.)
 
 **Security (HMCTS-specific)**
 - No secrets or credentials in code or comments
@@ -79,6 +81,11 @@ Mark each item: PASS / FAIL / N/A with a brief note.
 - Tests assert behaviour, not implementation detail
 - No tests that always pass regardless of code changes
 - Test data does not contain real PII or court reference numbers
+- **Integration coverage** — every new/changed endpoint (REST resource, `@Handles` action,
+  message-driven entry point) has at least one integration test, and the IT suite is green locally
+  (evidence: `mvn clean && ./runIntegrationTests.sh` summary in the PR). A new endpoint whose only
+  coverage is unit tests that mock the repository is a **FAIL** — the real persistence/SQL path is
+  untested.
 
 **Spring Boot template alignment**
 - `build.gradle`, `gradle/*.gradle`, `Dockerfile`, `logback.xml`, and `.github/workflows/` have not diverged from the HMCTS templates without an ADR

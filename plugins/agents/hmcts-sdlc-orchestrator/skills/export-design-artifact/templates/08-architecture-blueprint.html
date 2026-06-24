@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=report -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blueprint — Architecture / System Map Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#04080f; --panel:#081120; --panel-2:#0a1628; --grid:rgba(40,150,220,.08);
+    --cyan:#2bd9fe; --cyan-dim:#1a7c95; --mag:#ff3d81; --mag-dim:#8a2c50;
+    --amber:#ffb84d; --green:#4ce6a1; --txt:#9fc3d8; --txt-bright:#d9eefa; --edge:#14304a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+    linear-gradient(rgba(40,150,220,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(40,150,220,.03) 1px,transparent 1px),var(--void);
+    background-size:120px 120px,120px 120px,24px 24px,24px 24px;
+    color:var(--txt);font-family:'Chakra Petch',sans-serif;font-size:15px;line-height:1.7}
+  .frame{max-width:1040px;margin:0 auto;padding:44px 24px 120px}
+  .mono{font-family:'Share Tech Mono',monospace}
+
+  .tb-top{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;border:1px solid var(--edge);border-bottom:none;
+    background:var(--panel);padding:10px 22px;font:11.5px 'Share Tech Mono',monospace;color:var(--cyan-dim);
+    text-transform:uppercase;letter-spacing:2px}
+  h1{border:1px solid var(--cyan-dim);background:var(--panel);padding:26px 22px;margin-bottom:48px;
+    font-size:clamp(24px,4.4vw,40px);font-weight:700;letter-spacing:1px;color:var(--txt-bright);text-transform:uppercase;line-height:1.12}
+  h1 .hl{color:var(--cyan);text-shadow:0 0 18px rgba(43,217,254,.6)}
+  h1 small{display:block;font:400 13px 'Share Tech Mono',monospace;letter-spacing:1px;color:var(--cyan-dim);
+    text-transform:none;margin-top:10px}
+
+  section{position:relative;margin-bottom:56px;padding:32px 30px 26px;background:rgba(8,17,32,.78);border:1px solid var(--edge)}
+  section::before,section::after,section .tick::before,section .tick::after{content:"";position:absolute;width:14px;height:14px;border-color:var(--cyan);border-style:solid}
+  section::before{top:-1px;left:-1px;border-width:2px 0 0 2px} section::after{top:-1px;right:-1px;border-width:2px 2px 0 0}
+  section .tick::before{bottom:-1px;left:-1px;border-width:0 0 2px 2px} section .tick::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0}
+  .sec-id{position:absolute;top:-11px;left:24px;background:var(--void);font:11px 'Share Tech Mono',monospace;
+    letter-spacing:3px;color:var(--cyan-dim);padding:0 10px;text-transform:uppercase}
+  h2{color:var(--cyan);font-size:19px;font-weight:600;text-transform:uppercase;letter-spacing:3px;margin-bottom:18px;
+    text-shadow:0 0 12px rgba(43,217,254,.35)}
+  p{max-width:84ch;margin-bottom:12px}
+  code{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--cyan);background:rgba(43,217,254,.07);padding:1px 6px;border:1px solid rgba(43,217,254,.15)}
+
+  /* component diagram (HERO COMPONENT) */
+  .diagram{margin:6px 0 8px;overflow-x:auto}
+  .diagram svg{display:block;margin:0 auto;min-width:640px}
+  .box{fill:var(--panel-2);stroke:var(--cyan-dim);stroke-width:1.4}
+  .box.cmd{stroke:var(--mag)} .box.store{stroke:var(--amber)} .box.ext{stroke:var(--green);stroke-dasharray:5 4}
+  .lbl{fill:var(--txt-bright);font:600 13px 'Chakra Petch';text-anchor:middle}
+  .sub{fill:var(--cyan-dim);font:10px 'Share Tech Mono';text-anchor:middle;letter-spacing:1px}
+  .lane-bg{fill:rgba(43,217,254,.03);stroke:var(--edge);stroke-width:1;stroke-dasharray:2 4}
+  .lane-t{fill:var(--cyan-dim);font:10px 'Share Tech Mono';letter-spacing:2px;text-transform:uppercase}
+  .wire{stroke:var(--cyan);stroke-width:1.6;fill:none;marker-end:url(#ah)}
+  .wire.event{stroke:var(--mag);stroke-dasharray:6 5;animation:dash 1s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-22}}
+  .wire-t{fill:var(--txt);font:10px 'Share Tech Mono';text-anchor:middle}
+
+  .legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:14px;font:11px 'Share Tech Mono',monospace;letter-spacing:1px}
+  .legend span{display:flex;align-items:center;gap:7px;text-transform:uppercase;color:var(--txt)}
+  .legend i{width:22px;height:0;border-top:2px solid var(--cyan)}
+  .legend i.ev{border-top:2px dashed var(--mag)} .legend i.bx{height:12px;width:12px;border:1.5px solid var(--cyan-dim);border-top:none}
+  .legend i.bx.cmd{border-color:var(--mag)} .legend i.bx.store{border-color:var(--amber)} .legend i.bx.ext{border-color:var(--green)}
+
+  footer{font:11.5px 'Share Tech Mono',monospace;color:var(--cyan-dim);text-transform:uppercase;letter-spacing:2px;
+    border-top:1px solid var(--edge);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <div class="tb-top"><span>HMCTS // COMMON PLATFORM</span><span>DWG CP-ARCH-014 · REV 2026-06-17</span><span>SHEET 1/1</span></div>
+  <h1><span class="hl">Scheduler</span> context — CQRS topology<small>Command → event → viewstore, with cross-context public event consumption</small></h1>
+
+  <section>
+    <span class="sec-id">§ 01 · Component map</span><span class="tick"></span>
+    <h2>System diagram</h2>
+    <div class="diagram">
+      <svg viewBox="0 0 720 360" width="720" height="360" role="img" aria-label="CQRS component diagram">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2bd9fe"/></marker>
+          <marker id="ahm" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#ff3d81"/></marker>
+        </defs>
+        <!-- lanes -->
+        <rect class="lane-bg" x="10" y="40" width="700" height="90" rx="6"/>
+        <text class="lane-t" x="22" y="58">Write side</text>
+        <rect class="lane-bg" x="10" y="160" width="700" height="90" rx="6"/>
+        <text class="lane-t" x="22" y="178">Event backbone</text>
+        <rect class="lane-bg" x="10" y="270" width="700" height="80" rx="6"/>
+        <text class="lane-t" x="22" y="288">Read side</text>
+
+        <!-- write side -->
+        <g><rect class="box cmd" x="60" y="68" width="150" height="50" rx="8"/><text class="lbl" x="135" y="90">Command API</text><text class="sub" x="135" y="106">RAML · schema</text></g>
+        <g><rect class="box cmd" x="290" y="68" width="150" height="50" rx="8"/><text class="lbl" x="365" y="90">Command Handler</text><text class="sub" x="365" y="106">@Handles · sender</text></g>
+        <g><rect class="box" x="520" y="68" width="150" height="50" rx="8"/><text class="lbl" x="595" y="90">Aggregate</text><text class="sub" x="595" y="106">consistency</text></g>
+
+        <!-- event backbone -->
+        <g><rect class="box store" x="290" y="186" width="150" height="48" rx="8"/><text class="lbl" x="365" y="208">Event Store</text><text class="sub" x="365" y="223">append-only</text></g>
+        <g><rect class="box ext" x="520" y="186" width="150" height="48" rx="8"/><text class="lbl" x="595" y="208">public.* topic</text><text class="sub" x="595" y="223">cross-context</text></g>
+
+        <!-- read side -->
+        <g><rect class="box" x="60" y="290" width="150" height="46" rx="8"/><text class="lbl" x="135" y="312">Event Listener</text><text class="sub" x="135" y="327">→ viewstore</text></g>
+        <g><rect class="box store" x="290" y="290" width="150" height="46" rx="8"/><text class="lbl" x="365" y="312">Viewstore (PG)</text><text class="sub" x="365" y="327">denormalised</text></g>
+        <g><rect class="box" x="520" y="290" width="150" height="46" rx="8"/><text class="lbl" x="595" y="312">Query API</text><text class="sub" x="595" y="327">REST</text></g>
+
+        <!-- wires -->
+        <path class="wire" d="M210,93 L288,93"/>
+        <path class="wire" d="M440,93 L518,93"/>
+        <path class="wire event" d="M365,118 L365,184" marker-end="url(#ahm)"/><text class="wire-t" x="408" y="155">emit event</text>
+        <path class="wire event" d="M440,210 L518,210" marker-end="url(#ahm)"/>
+        <path class="wire event" d="M290,210 C150,210 135,250 135,288" marker-end="url(#ahm)"/><text class="wire-t" x="180" y="262">replay</text>
+        <path class="wire" d="M210,313 L288,313"/>
+        <path class="wire" d="M440,313 L518,313"/>
+      </svg>
+    </div>
+    <div class="legend">
+      <span><i class="bx cmd"></i>Write</span>
+      <span><i class="bx store"></i>Store</span>
+      <span><i class="bx ext"></i>External</span>
+      <span><i></i>Sync call</span>
+      <span><i class="ev"></i>Event (async)</span>
+    </div>
+  </section>
+
+  <section>
+    <span class="sec-id">§ 02 · Notes</span><span class="tick"></span>
+    <h2>Data ownership</h2>
+    <p>The <code>scheduler</code> context owns reservation state end-to-end. The write side never reads from the viewstore; the read side is rebuilt purely by replaying the event store. Only <code>public.scheduler.*</code> events cross the boundary — private events stay internal per <code>subscriptions-descriptor.yaml</code>.</p>
+  </section>
+
+  <footer>BLUEPRINT TEMPLATE · SVG component map · swimlane bands · animated event wires · legend · corner-tick panels</footer>
+</div>
+</body>
+</html>

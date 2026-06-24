@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- claude-artifact: created=2026-06-17 project=gitrepos kind=playground -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playground Skills — what's available &amp; what each is best for</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0b11; --panel:#11131d; --panel-2:#171a26; --edge:#262b3c;
+    --txt:#a7b0c4; --txt-hi:#f2f5fc; --muted:#67718a;
+    --lime:#b6ff45; --cyan:#46e0ff; --violet:#a06bff; --rose:#ff5d8f; --amber:#ffc24d; --green:#46d98a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:radial-gradient(1000px 480px at 15% -10%,rgba(182,255,69,.06),transparent),
+    radial-gradient(900px 460px at 90% 0%,rgba(70,224,255,.07),transparent),var(--bg);
+    color:var(--txt);font-family:'Space Grotesk',system-ui,sans-serif;font-size:15px;line-height:1.6}
+  .wrap{max-width:1060px;margin:0 auto;padding:46px 24px 110px}
+  .mono{font-family:'JetBrains Mono',monospace}
+  a{color:var(--cyan);text-decoration:none}
+
+  header{margin-bottom:38px}
+  .kicker{font:600 11px 'JetBrains Mono',monospace;letter-spacing:3px;text-transform:uppercase;color:var(--lime)}
+  h1{font-size:clamp(28px,5vw,46px);font-weight:700;color:var(--txt-hi);letter-spacing:-.8px;margin:12px 0 10px;
+    background:linear-gradient(110deg,#fff,var(--lime) 55%,var(--cyan));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .lede{color:var(--txt);max-width:66ch;font-size:17px}
+  h2{color:var(--txt-hi);font-size:20px;font-weight:600;margin:46px 0 16px;display:flex;align-items:center;gap:10px}
+  h2 .b{font:700 14px 'JetBrains Mono',monospace;color:var(--lime)}
+  p{margin-bottom:12px} strong{color:var(--txt-hi)}
+  code{font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--panel-2);color:var(--cyan);padding:2px 6px;border-radius:5px;border:1px solid var(--edge)}
+
+  /* anatomy: the loop */
+  .loop{display:grid;grid-template-columns:1fr 36px 1fr 36px 1fr;align-items:stretch;gap:0;margin:10px 0}
+  .lp{border:1px solid var(--edge);border-radius:14px;background:linear-gradient(180deg,var(--panel-2),var(--panel));padding:18px 20px}
+  .lp .ic{font-size:24px;margin-bottom:8px}
+  .lp h3{color:var(--txt-hi);font-size:15px;font-weight:600;margin-bottom:5px}
+  .lp p{font-size:13px;margin:0}
+  .lp.c1{border-top:3px solid var(--lime)} .lp.c2{border-top:3px solid var(--cyan)} .lp.c3{border-top:3px solid var(--violet)}
+  .lparr{display:grid;place-items:center;color:var(--muted);font-size:22px}
+  .lparr::after{content:"→";animation:slide 1.8s ease-in-out infinite}
+  @keyframes slide{50%{transform:translateX(4px);color:var(--cyan)}}
+  .loopback{text-align:center;margin-top:14px;font:600 12px 'JetBrains Mono',monospace;color:var(--violet)}
+  .loopback::before{content:"↩ "}
+
+  /* ===== LIVE DEMO PLAYGROUND ===== */
+  .demo{border:1px solid var(--edge);border-radius:18px;overflow:hidden;background:var(--panel);margin-top:8px}
+  .demo .bar{display:flex;align-items:center;gap:8px;padding:11px 18px;background:var(--panel-2);border-bottom:1px solid var(--edge);
+    font:600 12px 'JetBrains Mono',monospace;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+  .demo .bar .dots{display:flex;gap:6px;margin-right:6px}
+  .demo .bar .dots i{width:10px;height:10px;border-radius:50%;background:var(--edge)}
+  .demo .bar .dots i:nth-child(1){background:var(--rose)} .demo .bar .dots i:nth-child(2){background:var(--amber)} .demo .bar .dots i:nth-child(3){background:var(--green)}
+  .demo .body{display:grid;grid-template-columns:300px 1fr}
+  @media(max-width:740px){.demo .body{grid-template-columns:1fr}}
+
+  .controls{padding:20px;border-right:1px solid var(--edge)}
+  @media(max-width:740px){.controls{border-right:none;border-bottom:1px solid var(--edge)}}
+  .ctl{margin-bottom:20px}
+  .ctl label{display:flex;justify-content:space-between;font:600 11px 'JetBrains Mono',monospace;letter-spacing:1px;
+    text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+  .ctl label b{color:var(--lime)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:4px;background:var(--edge);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--lime);
+    cursor:pointer;box-shadow:0 0 10px rgba(182,255,69,.5)}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border:none;border-radius:50%;background:var(--lime);cursor:pointer}
+  .swatches{display:flex;gap:8px}
+  .swatches button{width:30px;height:30px;border-radius:8px;border:2px solid transparent;cursor:pointer}
+  .swatches button.on{border-color:var(--txt-hi);box-shadow:0 0 0 2px var(--bg),0 0 12px currentColor}
+  .seg{display:flex;border:1px solid var(--edge);border-radius:9px;overflow:hidden}
+  .seg button{flex:1;background:transparent;border:none;color:var(--muted);padding:8px 6px;cursor:pointer;
+    font:600 12px 'Space Grotesk';border-right:1px solid var(--edge)}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:var(--cyan);color:var(--bg)}
+  .presets{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px}
+  .presets button{background:var(--panel-2);border:1px solid var(--edge);color:var(--txt);padding:6px 11px;border-radius:20px;
+    cursor:pointer;font:600 12px 'JetBrains Mono',monospace}
+  .presets button:hover{border-color:var(--lime);color:var(--lime)}
+
+  .preview{padding:30px;display:grid;place-items:center;background:repeating-linear-gradient(45deg,transparent 0 14px,rgba(255,255,255,.012) 14px 15px)}
+  #pvCard{width:100%;max-width:300px;background:var(--panel-2);border:1px solid var(--edge);padding:22px;transition:.18s}
+  #pvCard .badge{display:inline-block;font:600 10px 'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;
+    padding:4px 10px;border-radius:20px;margin-bottom:12px;color:var(--bg)}
+  #pvCard h4{color:var(--txt-hi);font-size:18px;margin-bottom:6px}
+  #pvCard p{font-size:13px;color:var(--muted);margin-bottom:16px}
+  #pvCard .btn{display:inline-block;padding:9px 16px;border-radius:8px;font:600 13px 'Space Grotesk';color:var(--bg)}
+
+  .promptbar{border-top:1px solid var(--edge);background:var(--bg);padding:16px 18px;display:flex;align-items:center;gap:14px}
+  .promptbar .lbl{font:600 10px 'JetBrains Mono',monospace;letter-spacing:1.5px;text-transform:uppercase;color:var(--violet);flex-shrink:0}
+  #promptOut{flex:1;font:14px 'JetBrains Mono',monospace;color:var(--txt-hi);line-height:1.5}
+  #copyBtn{flex-shrink:0;background:var(--lime);color:var(--bg);border:none;padding:9px 16px;border-radius:9px;
+    font:700 13px 'Space Grotesk';cursor:pointer;transition:.15s}
+  #copyBtn:hover{box-shadow:0 0 16px rgba(182,255,69,.4)}
+  #copyBtn.done{background:var(--green)}
+
+  /* type cards */
+  .types{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px}
+  .tc{border:1px solid var(--edge);border-radius:14px;background:linear-gradient(180deg,var(--panel-2),var(--panel));padding:20px;position:relative}
+  .tc::before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:3px;border-radius:3px;background:var(--ac,var(--cyan))}
+  .tc .nm{font:600 12px 'JetBrains Mono',monospace;color:var(--ac,var(--cyan));letter-spacing:.5px;margin-bottom:4px}
+  .tc h3{color:var(--txt-hi);font-size:17px;font-weight:600;margin-bottom:8px}
+  .tc .for{font-size:13.5px;color:var(--txt);margin-bottom:12px}
+  .tc .best{font-size:12.5px;color:var(--muted);border-top:1px solid var(--edge);padding-top:10px}
+  .tc .best b{color:var(--txt-hi);font-weight:600}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px;border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+  th{text-align:left;font:600 11px 'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:11px 14px;background:var(--panel-2);border-bottom:1px solid var(--edge)}
+  td{padding:11px 14px;border-bottom:1px solid var(--edge);vertical-align:top}
+  td:first-child{color:var(--txt-hi);font-weight:600}
+  tr:last-child td{border-bottom:none}
+
+  .when{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+  @media(max-width:680px){.when{grid-template-columns:1fr}}
+  .when .box{border:1px solid var(--edge);border-radius:12px;padding:16px 18px;background:var(--panel)}
+  .when .play{border-top:2px solid var(--lime)} .when .stat{border-top:2px solid var(--violet)}
+  .when h4{font:700 12px 'JetBrains Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+  .when .play h4{color:var(--lime)} .when .stat h4{color:var(--violet)}
+  .when ul{list-style:none;font-size:13.5px}
+  .when li{padding:5px 0 5px 18px;position:relative}
+  .when li::before{content:"▸";position:absolute;left:0;color:var(--muted)}
+
+  .ask{border:1px dashed var(--cyan);border-radius:12px;background:rgba(70,224,255,.05);padding:16px 20px;margin-top:6px}
+  .ask .q{font-style:italic;color:var(--txt-hi);font-size:15px;margin:6px 0}
+  .ask .q::before{content:"“";color:var(--cyan)} .ask .q::after{content:"”";color:var(--cyan)}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--edge);color:var(--muted);font:500 12px 'JetBrains Mono',monospace;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">superpowers · playground skill</div>
+    <h1>Playground Skills</h1>
+    <p class="lede">A <strong>playground</strong> is a single interactive HTML file: controls on one side, a live preview on the other, and a generated prompt at the bottom with a copy button. You explore visually, then paste the prompt back to Claude. The output isn't the page — it's the instruction it writes for you.</p>
+  </header>
+
+  <h2><span class="b">01</span> The loop</h2>
+  <div class="loop">
+    <div class="lp c1"><div class="ic">🎛️</div><h3>1 · Controls</h3><p>Sliders, swatches, toggles, presets — adjust the input space directly.</p></div>
+    <div class="lparr"></div>
+    <div class="lp c2"><div class="ic">👁️</div><h3>2 · Live preview</h3><p>Updates instantly on every change. No "Apply" button, ever.</p></div>
+    <div class="lparr"></div>
+    <div class="lp c3"><div class="ic">📋</div><h3>3 · Prompt + copy</h3><p>A natural-language instruction (only your non-default choices) — copied with one click.</p></div>
+  </div>
+  <div class="loopback">paste the prompt back into Claude to act on it</div>
+
+  <h2><span class="b">02</span> Try it — a live mini-playground</h2>
+  <p>This is a real playground (a tiny <em>design</em> one) embedded to show the mechanic. Adjust the controls and watch the preview <em>and</em> the prompt at the bottom change. Hit a preset, then <strong>Copy</strong>.</p>
+  <div class="demo">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span>card-design · playground</div>
+    <div class="body">
+      <div class="controls">
+        <div class="ctl"><label>Corner radius <b id="vRad">8px</b></label>
+          <input type="range" id="rad" min="0" max="28" value="8"></div>
+        <div class="ctl"><label>Shadow depth <b id="vSha">8</b></label>
+          <input type="range" id="sha" min="0" max="40" value="8"></div>
+        <div class="ctl"><label>Accent</label>
+          <div class="swatches" id="acc"></div></div>
+        <div class="ctl"><label>Spacing</label>
+          <div class="seg" id="den">
+            <button data-v="compact">Compact</button><button data-v="cozy">Cozy</button><button data-v="spacious">Spacious</button>
+          </div></div>
+        <div class="ctl"><label>Presets</label>
+          <div class="presets" id="pre"></div></div>
+      </div>
+      <div class="preview">
+        <div id="pvCard">
+          <span class="badge">Component</span>
+          <h4>Reservation card</h4>
+          <p>Crown · Court-07 · 3 days</p>
+          <span class="btn">Confirm slot</span>
+        </div>
+      </div>
+    </div>
+    <div class="promptbar">
+      <span class="lbl">prompt →</span>
+      <div id="promptOut"></div>
+      <button id="copyBtn">Copy</button>
+    </div>
+  </div>
+
+  <h2><span class="b">03</span> What's available — the 6 types</h2>
+  <div class="types">
+    <div class="tc" style="--ac:var(--lime)"><div class="nm">design-playground</div><h3>Visual design</h3>
+      <div class="for">Components, layouts, spacing, colour, typography — anything you'd rather <em>see</em> than describe.</div>
+      <div class="best"><b>Best for:</b> dialling in a card/button, picking a palette, tuning a layout before asking for code.</div></div>
+
+    <div class="tc" style="--ac:var(--cyan)"><div class="nm">data-explorer</div><h3>Data &amp; queries</h3>
+      <div class="for">Build SQL, API calls, pipelines or regex with live results from sample inputs.</div>
+      <div class="best"><b>Best for:</b> shaping a query, testing a regex, designing an API request without round-tripping.</div></div>
+
+    <div class="tc" style="--ac:var(--violet)"><div class="nm">concept-map</div><h3>Learning &amp; scope</h3>
+      <div class="for">Concept maps, knowledge-gap explorers, scope maps — navigate a topic and mark what to dig into.</div>
+      <div class="best"><b>Best for:</b> onboarding to a domain, scoping a feature, surfacing what you don't yet know.</div></div>
+
+    <div class="tc" style="--ac:var(--amber)"><div class="nm">document-critique</div><h3>Document review</h3>
+      <div class="for">Inline suggestions with an approve / reject / comment workflow over a draft.</div>
+      <div class="best"><b>Best for:</b> triaging edits on a spec, RFC or README — decide per-suggestion, emit a clean instruction set.</div></div>
+
+    <div class="tc" style="--ac:var(--rose)"><div class="nm">diff-review</div><h3>Code review</h3>
+      <div class="for">Git diffs, commits or PRs with line-by-line commenting.</div>
+      <div class="best"><b>Best for:</b> walking a diff and attaching comments, then handing the consolidated review back to Claude.</div></div>
+
+    <div class="tc" style="--ac:var(--green)"><div class="nm">code-map</div><h3>Codebase architecture</h3>
+      <div class="for">Component relationships, data flow and layer diagrams of a codebase you can explore.</div>
+      <div class="best"><b>Best for:</b> understanding an unfamiliar service (e.g. a <code>cpp-context-*</code>), picking where a change lands.</div></div>
+  </div>
+  <p style="margin-top:14px;color:var(--muted);font-size:13.5px">If a topic doesn't fit cleanly, the skill adapts the closest type. Every type still obeys the same rules: single file, live preview, copyable prompt, dark theme, 3–5 presets.</p>
+
+  <h2><span class="b">04</span> Playground or static template?</h2>
+  <p>These complement the <a href="index.html">theme gallery</a>. The distinction is <strong>read vs. manipulate</strong>:</p>
+  <div class="when">
+    <div class="box play"><h4>Reach for a playground</h4>
+      <ul>
+        <li>The input space is large, visual or structural</li>
+        <li>You'll iterate — try, see, adjust, repeat</li>
+        <li>The goal is to <b style="color:var(--txt-hi)">produce a better prompt</b></li>
+        <li>"I'll know it when I see it"</li>
+      </ul></div>
+    <div class="box stat"><h4>Reach for a static template</h4>
+      <ul>
+        <li>The content is settled and meant to be read</li>
+        <li>It's a deliverable: report, plan, ADR, dashboard</li>
+        <li>You want it shared/archived, not tweaked</li>
+        <li>No decision loop — just communicate</li>
+      </ul></div>
+  </div>
+
+  <h2><span class="b">05</span> How to get one</h2>
+  <div class="ask">
+    Just ask for an interactive tool for your topic. The skill triggers on words like <em>playground</em>, <em>explorer</em>, <em>visual tool</em>, <em>tweak</em>, <em>let me adjust</em>:
+    <div class="q">Build me a playground to tune the spacing and colours of this card</div>
+    <div class="q">Give me a data-explorer to draft the slot-availability SQL</div>
+    <div class="q">Make a code-map of cpp-context-scheduler so I can see the layers</div>
+  </div>
+  <table>
+    <thead><tr><th>You get</th><th>Always</th></tr></thead>
+    <tbody>
+      <tr><td>One HTML file</td><td>Inlined CSS + JS, zero external deps — works offline, opens with a double-click</td></tr>
+      <tr><td>Instant preview</td><td>Every control re-renders immediately; no apply step</td></tr>
+      <tr><td>A real prompt</td><td>Natural language, only your non-default choices, enough context to act on</td></tr>
+      <tr><td>Presets + defaults</td><td>Looks good on first load; 3–5 named combos to jump between</td></tr>
+    </tbody>
+  </table>
+
+  <footer>PLAYGROUND SKILLS · 6 types · controls → live preview → copyable prompt · live demo above is itself a playground</footer>
+</div>
+
+<script>
+  const ACCENTS = { lime:'#b6ff45', cyan:'#46e0ff', violet:'#a06bff', rose:'#ff5d8f', amber:'#ffc24d' };
+  const ACCENT_NAMES = { lime:'lime', cyan:'cyan', violet:'violet', rose:'rose', amber:'amber' };
+  const DEFAULTS = { radius:8, shadow:8, accent:'cyan', density:'cozy' };
+  const PRESETS = {
+    Soft:     { radius:18, shadow:22, accent:'cyan',   density:'spacious' },
+    Sharp:    { radius:0,  shadow:4,  accent:'lime',   density:'compact'  },
+    Neon:     { radius:12, shadow:36, accent:'violet', density:'cozy'     },
+    Flat:     { radius:6,  shadow:0,  accent:'rose',   density:'cozy'     },
+  };
+  const PAD = { compact:'14px', cozy:'22px', spacious:'32px' };
+  const state = { ...DEFAULTS };
+
+  // build accent swatches
+  const accWrap = document.getElementById('acc');
+  Object.keys(ACCENTS).forEach(k => {
+    const b = document.createElement('button');
+    b.style.background = ACCENTS[k]; b.style.color = ACCENTS[k]; b.dataset.v = k;
+    b.onclick = () => { state.accent = k; updateAll(); };
+    accWrap.appendChild(b);
+  });
+  // build presets
+  const preWrap = document.getElementById('pre');
+  Object.keys(PRESETS).forEach(name => {
+    const b = document.createElement('button'); b.textContent = name;
+    b.onclick = () => { Object.assign(state, PRESETS[name]); updateAll(); };
+    preWrap.appendChild(b);
+  });
+  // density segmented
+  document.querySelectorAll('#den button').forEach(b => {
+    b.onclick = () => { state.density = b.dataset.v; updateAll(); };
+  });
+  // ranges
+  document.getElementById('rad').addEventListener('input', e => { state.radius = +e.target.value; updateAll(); });
+  document.getElementById('sha').addEventListener('input', e => { state.shadow = +e.target.value; updateAll(); });
+
+  function syncControls(){
+    document.getElementById('rad').value = state.radius;
+    document.getElementById('sha').value = state.shadow;
+    document.getElementById('vRad').textContent = state.radius + 'px';
+    document.getElementById('vSha').textContent = state.shadow;
+    document.querySelectorAll('#acc button').forEach(b => b.classList.toggle('on', b.dataset.v === state.accent));
+    document.querySelectorAll('#den button').forEach(b => b.classList.toggle('on', b.dataset.v === state.density));
+  }
+  function renderPreview(){
+    const c = document.getElementById('pvCard');
+    const ac = ACCENTS[state.accent];
+    c.style.borderRadius = state.radius + 'px';
+    c.style.borderTop = '3px solid ' + ac;
+    c.style.padding = PAD[state.density];
+    c.style.boxShadow = state.shadow === 0 ? 'none'
+      : `0 ${Math.round(state.shadow/2)}px ${state.shadow}px rgba(0,0,0,.55), 0 0 ${Math.round(state.shadow*0.6)}px ${ac}22`;
+    c.querySelector('.badge').style.background = ac;
+    c.querySelector('.btn').style.background = ac;
+  }
+  function updatePrompt(){
+    const parts = [];
+    if (state.radius !== DEFAULTS.radius) parts.push(`a corner radius of ${state.radius}px`);
+    if (state.shadow !== DEFAULTS.shadow){
+      if (state.shadow === 0) parts.push('no drop shadow');
+      else if (state.shadow > 24) parts.push('a pronounced drop shadow');
+      else parts.push('a subtle drop shadow');
+    }
+    if (state.accent !== DEFAULTS.accent) parts.push(`a ${ACCENT_NAMES[state.accent]} accent colour`);
+    if (state.density !== DEFAULTS.density) parts.push(`${state.density} internal spacing`);
+    const out = document.getElementById('promptOut');
+    out.textContent = parts.length
+      ? `Update the reservation card component to use ${parts.join(', ')}.`
+      : 'Keep the reservation card at its default styling (no changes).';
+  }
+  function updateAll(){ syncControls(); renderPreview(); updatePrompt(); }
+
+  document.getElementById('copyBtn').onclick = function(){
+    const txt = document.getElementById('promptOut').textContent;
+    navigator.clipboard.writeText(txt).then(() => {
+      this.textContent = 'Copied!'; this.classList.add('done');
+      setTimeout(() => { this.textContent = 'Copy'; this.classList.remove('done'); }, 1400);
+    }).catch(() => { this.textContent = 'Copy failed'; });
+  };
+
+  updateAll();
+</script>
+</body>
+</html>
