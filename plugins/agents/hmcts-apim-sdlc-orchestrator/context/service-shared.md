@@ -86,6 +86,7 @@ Each layer has one responsibility and communicates only with the layer directly 
 - **MapStruct mappers** in `src/main/java/.../mappers/` — never edit generated `*Impl` classes.
 - **Error handling**: `EntityNotFoundException` for 404s; `ResponseStatusException` for business errors; `GlobalExceptionHandler` (`@RestControllerAdvice`) maps everything else.
 - **Input validation**: validate at the earliest boundary — controller (`@Valid`) for HTTP flows, `ServiceBusHandlers` for Service Bus flows. Domain services must not throw `IllegalArgumentException` for input that should have been rejected upstream. Use `org.owasp.encoder.Encode.forJava()` before passing URN or case ID inputs to backend calls.
+  - **Case/entity URN path params**: validate against `CASE_URN_REGEX = "^[0-9a-zA-Z]{1,30}$"` in the controller before any backend call — throw `ResponseStatusException(BAD_REQUEST, ...)` on mismatch (caught by the standard `GlobalExceptionHandler`, logged at `WARN` per the log-level rule). See `service-cp-caseadmin-case-urn-mapper`'s `CaseUrnMapperController` and `service-cp-crime-hearing`'s `HearingController` for the working pattern.
 - **HTTP clients**: build URLs with `UriComponentsBuilder`; set `CJSCPPUID` header on every backend call.
 
 ### Feature Toggle Placement

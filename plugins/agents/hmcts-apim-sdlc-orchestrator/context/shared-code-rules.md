@@ -100,3 +100,17 @@ class across every sibling repo.
 repo's actual Jackson generation (`com.fasterxml.jackson.*` vs `tools.jackson.*`, Jackson 2 vs 3)
 before copying import statements from a sibling; don't assume both repos are on the same Jackson
 major version.
+
+## Test fixture data
+
+- Never use `UUID.randomUUID()` for test fixtures. Use fixed, deterministic `UUID.fromString(...)`
+  constants — failed-assertion output stays readable and stable across reruns. Simple,
+  distinguishable literals are fine (e.g. `00000000-0000-0000-0000-000000000001`,
+  `99999999-9999-9999-9999-999999999999`) — no need for realistic-looking random hex.
+- Don't reach for `lenient()` to silence Mockito's strict-stubbing check without first tracing
+  whether the stub is genuinely exercised by the code path under test. If it is, plain `when(...)`
+  is correct and `lenient()` is just hiding that the stub isn't actually unnecessary.
+- Use contract-realistic fixture values for fields with a defined format, not arbitrary
+  placeholders — e.g. a `caseURN` fixture should match the OpenAPI spec's example format
+  (alphanumeric, no separators), not `"test-case-urn"`. A bad-form placeholder that only happens
+  to pass because nothing validates it yet is a landmine for whenever input validation is added.
