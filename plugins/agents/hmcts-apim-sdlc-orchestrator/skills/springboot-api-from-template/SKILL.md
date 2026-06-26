@@ -185,28 +185,49 @@ Align any open questions against `https://hmcts.github.io/restful-api-standards/
 ### Step 6 — Post-template manual steps
 
 1. Settings → General → enable "Automatically delete head branches".
-2. Import `.github/rulesets/main-branch-protection.json` into repo rulesets,
-   then delete that JSON from the new repo.
+2. Import `.github/rulesets/main-branch-protection.json` into repo rulesets
+   **via the API, not the GitHub UI's "New ruleset" flow**:
+   ```bash
+   gh api --method POST repos/hmcts/{api-name}/rulesets \
+     --input api-hmcts-crime-template/.github/rulesets/main-branch-protection.json
+   ```
+   (Adjust the `--input` path to wherever the template was cloned/checked
+   out.) Clicking through "New ruleset" in the UI instead of importing the
+   file defaults `required_approving_review_count` to `0`, silently leaving
+   the new repo mergeable without review — found live on a freshly-created
+   `service-cp-*` repo despite its template's own ruleset file correctly
+   specifying `1`. Do not hand-recreate the JSON via `-f`/`-F` flags either —
+   `gh api -F` does not reliably build the nested `rules[]` array; always use
+   `--input` against the template's actual file.
+   Then delete that JSON from the new repo.
 3. Delete files only meaningful in the template: `./docs/*` (replace with
    repo-specific docs), `./src/main/resources/openapi/deleteme`.
 4. Rewrite `README.md` for the new API, naming the owning team from Step 1
    (not a generic handle), and add the "New team member setup" section below.
 
-### Step 6.5 — Check the ruleset doesn't deadlock the owning team (new)
+### Step 6.5 — Verify the imported ruleset, not just its presence (new)
 
 After importing the ruleset in Step 6, read it back:
 
 ```bash
 gh api repos/hmcts/{api-name}/rulesets \
-  --jq '.[] | {name, rules: [.rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count]}'
+  --jq '.[] | select(.name=="main-branch-protection") | .rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count'
 ```
 
-Compare the `required_approving_review_count` against the team member count
-from Step 3.5. If the required count is **greater than or equal to** the
-team's member count, flag it to the user: the team cannot approve its own
-PRs without an outside reviewer. Do not silently edit the ruleset — it is
-owned by the org security policy; surface the conflict and let the user
-decide (add a reviewer outside the team, or accept the friction).
+This must print `1` (or whatever non-zero value the template specifies) —
+**never `0`**. If it prints `0`, the import silently dropped or zeroed the
+field; fix it immediately by re-importing
+(`gh api --method PUT repos/hmcts/{api-name}/rulesets/{id} --input
+{the-template-json}`) and re-check — a `0` value is always a bug, not a
+policy trade-off, so it's safe to fix without asking first.
+
+Separately, compare the (now-verified-non-zero) `required_approving_review_count`
+against the team member count from Step 3.5. If the required count is
+**greater than or equal to** the team's member count, flag it to the user:
+the team cannot approve its own PRs without an outside reviewer. Do not
+silently edit the ruleset for *this* case — it's a genuine policy trade-off
+the user should decide (add a reviewer outside the team, or accept the
+friction), unlike the `0`-value bug above.
 
 ### Step 7 — Write the OpenAPI spec
 
@@ -262,6 +283,7 @@ grant) and Step 3.5 (team membership) — don't assume it's a tooling problem.
 - [ ] `gh repo view --json visibility` returns `"PUBLIC"`.
 - [ ] Owning team granted `admin` on the repo.
 - [ ] Team membership checked (Step 3.5) — not empty, or the gap was explicitly surfaced.
+- [ ] Branch-protection `required_approving_review_count` confirmed non-zero (Step 6.5) — fixed immediately if it printed `0`.
 - [ ] Branch-protection required-reviewer count checked against team size (Step 6.5) — no deadlock risk, or explicitly flagged.
 - [ ] New-member setup steps (above) documented in the new repo's `README.md`.
 - [ ] Repo name follows naming convention and avoids forbidden tokens.
