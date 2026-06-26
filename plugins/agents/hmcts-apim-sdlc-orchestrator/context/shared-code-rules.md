@@ -114,3 +114,16 @@ major version.
   placeholders — e.g. a `caseURN` fixture should match the OpenAPI spec's example format
   (alphanumeric, no separators), not `"test-case-urn"`. A bad-form placeholder that only happens
   to pass because nothing validates it yet is a landmine for whenever input validation is added.
+- Replace `ArgumentCaptor.forClass(SomeClass.class)` (raw type) with a `@Captor`-annotated field.
+  Mockito infers the generic type from the field declaration, eliminating the unchecked cast and
+  removing the `@SuppressWarnings("unchecked")` that was masking the compiler warning:
+  ```java
+  // Before — raw type, unchecked cast, suppressed warning
+  @SuppressWarnings("unchecked")
+  ArgumentCaptor<HttpEntity<MyRequest>> captor =
+          (ArgumentCaptor<HttpEntity<MyRequest>>) ArgumentCaptor.forClass(HttpEntity.class);
+
+  // After — type-safe, no suppression needed
+  @Captor
+  ArgumentCaptor<HttpEntity<MyRequest>> captor;
+  ```
