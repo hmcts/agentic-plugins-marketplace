@@ -137,6 +137,24 @@ Per `context/service-shared.md` — Controller → Manager (if present) → Serv
 - [ ] Test data does not contain real PII or court reference numbers
 - [ ] Mapper has its own unit test covering field-by-field construction
 - [ ] Integration tests (`@SpringBootTest`) validate controller against the generated interface
+- [ ] **AC-to-layer coverage**: for every AC touched by this PR (happy path, 404/not-found,
+  400/validation, empty-result edge cases), at least one test proves it at the layer where it's
+  actually observable to a consumer — an HTTP response via `@SpringBootTest` + WireMock, not just
+  a unit test on the service/mapper/bare controller method. A controller-unit test calling the
+  Java method directly does not prove the real route returns the right status code; an
+  `@SpringBootTest` integration test does. Flag any endpoint where only unit-level coverage exists.
+- [ ] If this PR adds or changes a 4xx validation rule, an integration test exercises it through
+  `mockMvc.perform(get(...))` against the real route (mirrors `service-cp-caseadmin-case-urn-mapper`'s
+  `ValidationIntegrationTest` pattern) — not only a bare-method unit test.
+
+#### L. Documentation sync
+
+- [ ] If this PR changes a documented or derived value (a default, a status string, a
+  derivation rule, which field a value is sourced from), the repo's `CLAUDE.md` and any
+  `docs/architecture.md` / `docs/pipeline/.../design spec` describing that behaviour are updated
+  in the same PR — not left stating the old value.
+- [ ] No stale references to removed, renamed, or changed config keys, fields, or defaults
+  remain in repo docs after this change.
 
 #### K. `api-cp-*` specific (if PR is in a spec repo)
 
