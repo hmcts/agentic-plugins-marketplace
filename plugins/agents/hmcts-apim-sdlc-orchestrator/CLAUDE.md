@@ -53,6 +53,12 @@ Standalone marketplace skills used as-is: `adr-template`, `bdd-workflow`, `revie
 `conventional-commit` (no bundled PR skill). Cutting the GitHub Release that triggers Path B's
 SIT deploy gate (stage 8, driven by `deployer`) uses the bundled **`release`** skill.
 
+One-time service lifecycle skills (run once per repo, not per feature):
+
+| Skill | When |
+|---|---|
+| `wire-service-deployment` | After Azure provisioning and `cp-vp-aks-deploy` registration — wires `deploy-dev` and `deploy-sit` CI jobs |
+
 ## Pipelines (run stages in order; halt at every human gate)
 
 The orchestrator detects repo type and runs the matching path.
@@ -77,6 +83,7 @@ No code, no deploy. Output of Path A is a published `api-cp-*` artefact register
 | # | Stage | Driver | Gate |
 |---|---|---|---|
 | 0 | Verify the `api-cp-*` artefact is published | **`requirements-analyst`** check | **Blocks if missing** |
+| 0b | Wire deployment CI (one-time, new services only) | **`wire-service-deployment`** skill | Prereq: Azure provisioned + service in `cp-vp-aks-deploy` |
 | 1 | Requirements | **`requirements-analyst`** | Human |
 | 2 | Service design | **`apim-architect`** | Human |
 | 3 | User stories | **`story-writer`** | Human |
