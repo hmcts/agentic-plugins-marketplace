@@ -48,11 +48,11 @@ Each service's `CLAUDE.md` documents which applies and the exact docker-compose 
 src/main/java/uk/gov/hmcts/cp/
   Application.java                        (@SpringBootApplication)
   config/
-    AppConfig.java                        (@Configuration — @Bean RestTemplate)
+    AppConfig.java                        (@Configuration — @Bean RestClient)
     AppPropertiesBackend.java             (@Service — @Value backend URLs and paths)
   controllers/                            (@RestController — implements generated api-cp-* interface)
   services/                               (business logic; called by controllers)
-  clients/                                (RestTemplate HTTP clients to CP backend)
+  clients/                                (RestClient HTTP clients to CP backend)
   filters/
     TracingFilter.java                    (OncePerRequestFilter — X-Correlation-Id header)
     [ServiceSpecificFilter.java]          (auth/client-id filters where applicable)
@@ -87,7 +87,7 @@ Each layer has one responsibility and communicates only with the layer directly 
 - **Error handling**: `EntityNotFoundException` for 404s; `ResponseStatusException` for business errors; `GlobalExceptionHandler` (`@RestControllerAdvice`) maps everything else.
 - **Input validation**: validate at the earliest boundary — controller (`@Valid`) for HTTP flows, `ServiceBusHandlers` for Service Bus flows. Domain services must not throw `IllegalArgumentException` for input that should have been rejected upstream. Use `org.owasp.encoder.Encode.forJava()` before passing URN or case ID inputs to backend calls.
   - **Case/entity URN path params**: validate against `CASE_URN_REGEX = "^[0-9a-zA-Z]{1,30}$"` in the controller before any backend call — throw `ResponseStatusException(BAD_REQUEST, ...)` on mismatch (caught by the standard `GlobalExceptionHandler`, logged at `WARN` per the log-level rule). See `service-cp-caseadmin-case-urn-mapper`'s `CaseUrnMapperController` and `service-cp-crime-hearing`'s `HearingController` for the working pattern.
-- **HTTP clients**: build URLs with `UriComponentsBuilder`; set `CJSCPPUID` header on every backend call.
+- **HTTP clients**: use `RestClient` (Spring 6+) — `RestTemplate` is banned for new code; migrate it on touch. Build URLs with `UriComponentsBuilder`. Declare `CJSCPPUID` as a default header on the `RestClient` `@Bean` in `AppConfig` so every call carries it automatically. `RestClient.retrieve()` throws `HttpClientErrorException` (4xx) and `HttpServerErrorException` (5xx) — same hierarchy as `RestTemplate`, so `GlobalExceptionHandler` handles them identically. See `service-hmcts-springboot-demo/case-urn-mapper-demo` (`CaseUrnMapperConfig`, `CaseUrnMapperClient`) for the canonical wiring pattern.
 
 ### Feature Toggle Placement
 
@@ -222,7 +222,7 @@ Dev deployment is automatic on every push to main. SIT deployment triggers only 
 - **Java 25**, **Spring Boot 4.0.6+** (target; current repos range 4.0.1–4.0.6 — upgrade per cycle)
 - **Jakarta EE** (not `javax`)
 - `-Werror` — compiler warnings fail the build
-- **RestTemplate** for all HTTP clients (RestClient migration is planned but not yet started)
+- **RestClient** for all HTTP clients — `RestTemplate` is banned for new code; existing usages must be migrated on touch
 - No direct DB access from controllers; no business logic in MapStruct mappers
 - New env vars → document in `.envrc.example` before raising a PR
 - `CJSCPPUID` is the standard client identity header for all CP backend calls

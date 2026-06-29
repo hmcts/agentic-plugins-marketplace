@@ -47,8 +47,8 @@ genuine failures (5xx, unhandled exceptions) at `ERROR`, per the log-level rule 
 | Exception | Status | Log level | Source |
 |---|---|---|---|
 | `ResponseStatusException` | passthrough | `WARN` if 4xx, else `ERROR` | explicit business-error throws |
-| `HttpServerErrorException` | passthrough | `ERROR` | upstream 5xx via RestTemplate |
-| `HttpClientErrorException` | passthrough | `WARN` | upstream 4xx via RestTemplate |
+| `HttpServerErrorException` | passthrough | `ERROR` | upstream 5xx via RestClient |
+| `HttpClientErrorException` | passthrough | `WARN` | upstream 4xx via RestClient |
 | `NoResourceFoundException` / `NoHandlerFoundException` | 404 | `WARN` | invalid route on this service |
 | `Exception` (catch-all) | 500 | `ERROR` | anything unhandled |
 
@@ -89,7 +89,7 @@ or logging goes unnoticed for lack of a test:
 | `IntegrationTestBase` (abstract) | `@SpringBootTest @AutoConfigureMockMvc`, exposes `appProperties` and `mockMvc` to subclasses |
 | `SpringLoggingIntegrationTest` | the JSON log line shape (`timestamp`, `logger_name`, `thread_name`, `level`, `message`, MDC fields) under a real Spring context, not just the plain-JUnit logging test |
 | `TracingIntegrationTest` | `TracingFilter` propagates `traceId`/`spanId` from request headers to MDC and response headers, against whichever controller logs on receipt — **adapt the target endpoint to what the repo actually has**: don't port the literal `mockMvc.perform(get("/"))` against a `RootController` if the repo has no `RootController` (several `service-cp-*` repos don't) |
-| `<Controller>IntegrationTest` | the real controller→service→client→`RestTemplate` stack against an in-process `WireMockServer` (port matching `CP_BACKEND_URL`'s default, typically 8081) — happy path, and a 404 from each upstream hop |
+| `<Controller>IntegrationTest` | the real controller→service→client→`RestClient` stack against an in-process `WireMockServer` (port matching `CP_BACKEND_URL`'s default, typically 8081) — happy path, and a 404 from each upstream hop |
 
 `TracingFilter` (`filters/tracing/TracingFilter.java`, `@Component extends OncePerRequestFilter`)
 is a prerequisite — `TracingIntegrationTest` verifies a filter that must already exist. If a repo
