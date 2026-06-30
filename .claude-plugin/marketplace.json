@@ -78,6 +78,14 @@
       "tags": ["onboarding", "documentation", "architecture", "developer-experience"]
     },
     {
+      "name": "hermes-tweet",
+      "source": "./plugins/skills/hermes-tweet",
+      "description": "Guide Hermes Agent X/Twitter workflows through Hermes Tweet with read-first discovery and approval-gated actions",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["hermes", "hermes-agent", "twitter", "x", "social-media", "xquik"]
+    },
+    {
       "name": "marketplace-skill",
       "source": "./plugins/skills/marketplace",
       "description": "Browse and install marketplace plugins conversationally from within Claude Code",
