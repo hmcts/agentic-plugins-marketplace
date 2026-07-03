@@ -88,6 +88,9 @@ AMP-123
 
 Breaking change footer: `BREAKING CHANGE: <description>` — triggers major version bump.
 
+No AI-attribution trailers or mentions — do not add `Co-Authored-By: Claude ...`,
+"Generated with Claude Code", or any similar AI-attribution line/footer to commit messages.
+
 ---
 
 ### Branch naming
