@@ -6,6 +6,22 @@ Keep replies extremely concise. No filler.
 - No multi-line comment blocks or docstrings.
 - No error handling for scenarios that cannot happen. Trust internal code and framework guarantees. Only validate at real system boundaries (user input, external APIs).
 - No features, refactoring, or abstractions beyond what the task requires. Three similar lines > premature abstraction.
+- No repository query methods (e.g. `findByX`, `findByY`) unless a service or test actively calls them. JpaRepository's built-ins (`save`, `findById`, `count`, `deleteAll`) are sufficient until a real use case demands more.
+- When testing a `@Component` that has injected dependencies, prefer `@Spy` + `@InjectMocks` over manual constructor calls. Use `@Spy` for real collaborators where you need controlled state (e.g. `ClockService` with a fixed `Clock`), and `@InjectMocks` for the class under test — Mockito injects the spy automatically:
+  ```java
+  @Spy
+  private ClockService clockService = new ClockService(Clock.fixed(FIXED_NOW, ZoneOffset.UTC));
+
+  @InjectMocks
+  private OnboardingMapper mapper;
+  ```
+  Never write `new OnboardingMapper(new ClockService(...))` inline — it couples the test to the constructor signature and bypasses Mockito's injection mechanism.
+- Prefer `@Mock` field annotations over inline `mock(Foo.class)` calls inside test methods. Annotations are consistent, keep all collaborators visible at the top of the class, and reduce test method size — the test body should contain only the `when`, the call under test, and the assertion.
+- Order fields in a test class chronologically: dependencies of the class under test (`@Mock`) first, then `@InjectMocks`, then any additional mocks used only as test data. This makes the injection boundary immediately visible.
+- One test per code branch. A method with no conditional logic needs exactly one test — multiple tests for the same linear path add noise without adding coverage. Only add a second test when there is a second branch (e.g. null input, exception path, different return value).
+- Don't add `verify(mock).method(...)` after a `when(...).thenReturn(...)` chain that already drives the final assertion. If the return value of a stub is what the test asserts on, the stub being called is already proven — an extra `verify` is redundant noise. Reserve `verify` for void methods or side-effects with no observable return value.
+- Don't populate entity/object fields in tests unless the test actually asserts on them. A service-layer test verifying delegation only needs `Entity.builder().build()` (or `.id(X).build()`) — populating every field swells the test without adding signal. Full field population belongs in mapper tests where every mapping is explicitly asserted.
+- Don't add a test that is already implicitly proven by another. If the Spring context starts and a round-trip save/findById passes, Flyway alignment and schema correctness are already verified — a separate "column alignment" test adds noise without adding coverage.
 - No half-finished implementations. No TODOs left in code.
 - No feature flags or fallbacks for hypothetical future requirements.
 - Bug fix = fix the bug only. Do not clean up surroundings.
@@ -15,7 +31,7 @@ Keep replies extremely concise. No filler.
 - `ERROR` — unexpected failures requiring human attention
 - `WARN` — expected business errors, degraded dependencies
 - `INFO` — lifecycle events, state transitions, idempotency skips (mandatory — see `service-shared.md`)
-- Never log PII, secrets, JWTs, full request/response bodies, or stack traces in HTTP responses
+- Never log PII, secrets, JWTs, full request/response bodies, or stack traces in HTTP responses. PII includes names, email addresses, phone numbers, dates of birth, addresses, and any other personal identifiers — when in doubt, don't log it. Safe to log: IDs, enums, organisation names, environment, API names, counts.
 
 ## Logging guidelines
 
