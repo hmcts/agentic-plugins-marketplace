@@ -25,9 +25,16 @@ implementation code is written. This enforces A-TDD: tests define the contract,
 code fulfils it.
 
 ## Inputs
-- Approved story files from `docs/pipeline/user-stories/`
+- Approved **INVEST user-story files** from `docs/pipeline/user-stories/` — one per independently
+  testable vertical slice (the Stage 3 output), plus the FR→story mapping (Stage 3 → Stage 4 handoff).
 - context/tech-stack.md (test framework and tooling specifics)
 - context/hmcts-standards.md (HMCTS test pyramid, coverage standards)
+
+**Precondition — do not consume raw FRs.** Your unit of work is the approved story, not a functional
+requirement. If `docs/pipeline/user-stories/` is empty (Stage 3 skipped) or you were handed FR-shaped
+tickets / `requirements.md` directly, HALT: build-order FRs are horizontal layers and are not
+independently testable. Ask for story-writer (Stage 3) to run first so each feature file maps to one
+INVEST story.
 
 ## Output
 Per story:
