@@ -88,10 +88,19 @@ When (and only when) creation is approved, create one Jira ticket per story via 
 - Summary = story title
 - Description = full story markdown
 - Labels: `claude-generated`, `needs-review`
-- Link to parent epic
 - Do NOT set assignee or sprint — leave for the team
 
-Record each created ticket key/link back into the story file's notes and `_index.md`.
+**Link to the parent epic — set the `Epic Link` field; do NOT trust `jira_link_to_epic`.** On Jira
+Server/DC that MCP tool is a **no-op**: it reports "linked" but the story stays orphaned. The epic
+relationship there is the *Epic Link* custom field (`gh-epic-link`, e.g. `customfield_10008` — confirm
+the id for the instance via `jira_search_fields "Epic Link"`). Set it with `jira_update_issue`
+(`{"customfield_10008": "<EPIC-KEY>"}`), then **verify with JQL before reporting done**:
+`"Epic Link" = <EPIC-KEY> AND key in (<created keys>)` must return every created story. (On Jira Cloud
+the epic is the `parent` field instead — use whichever the instance uses, and always JQL-verify.)
+
+Record each created ticket back into the story file's notes **and the `_index.md` story-list table as a
+markdown hyperlink to the Jira browse URL** — e.g. `[PEG-3372](https://<jira-base>/browse/PEG-3372)`,
+never bare key text — so reviewers click straight through to the ticket.
 
 **Do not proceed to test-engineer (Stage 4) until (a) the stories are approved and (b) their Jira
 tickets exist** (per the CLAUDE.md hard rule that every story has a linked ticket before the test

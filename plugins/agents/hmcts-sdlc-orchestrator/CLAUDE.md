@@ -171,9 +171,28 @@ Stage 5 — see the Hard rules.
   `docs/pipeline/artifacts/` → do not start coding.
 - **Integration tests for new endpoints (backend features & bugfixes).** Any PR that adds or changes
   a REST endpoint / `@Handles` action / message-driven entry point MUST add **at least one integration
-  test per new endpoint**, and the integration-test suite MUST be green when run locally — via
-  `mvn clean && ./runIntegrationTests.sh` when that script exists at the repo root, otherwise the
-  repo's documented IT command. Never weaken or skip an IT to go green.
+  test per new endpoint**, and the integration-test suite MUST be green when run locally — **MbD
+  (Gradle): `./gradlew test`** (or the service's Gradle integration task); **legacy CQRS (Maven):
+  `mvn clean && ./runIntegrationTests.sh`** (else the repo's documented IT command). Never weaken or
+  skip an IT to go green.
 - For Spring Boot services: the HMCTS templates (`service-hmcts-crime-springboot-template`, `api-hmcts-crime-template`) are the master source. Use `${CLAUDE_PLUGIN_ROOT}/skills/springboot-service-from-template/` or `${CLAUDE_PLUGIN_ROOT}/skills/springboot-api-from-template/` to adopt them — do not scaffold build files, Dockerfile, or logback config from scratch. Deviations require an ADR.
 - JSON logging to stdout is mandatory for Spring Boot services. See `${CLAUDE_PLUGIN_ROOT}/context/logging-standards.md`.
 - Azure integrations use the Azure SDK via Managed Identity. Connection strings, SAS tokens, and account keys are not permitted in code, config, env vars, or Helm values. See `${CLAUDE_PLUGIN_ROOT}/context/azure-sdk-guide.md`.
+
+---
+
+## Testing strategy (all test-authoring & review stages)
+
+The test-engineer authors, and the code-reviewer enforces, four test categories. **Acceptance (BDD)
+tests are orthogonal to the unit/integration pyramid — not a pyramid layer.**
+- **BDD (`.feature`) = business scenarios only** — never technical (no migration / wiring / context-load
+  scenarios). Feature files are cohesive (grouped by business capability, not per-story, not per-AC). **If
+  organisation is unclear, ask the user — do not assume.**
+- **Exactly one** Spring Boot wiring / sanity test (test profile) that **shares the BDD suite's setup**.
+- **Boundary integration tests**, one per boundary (controller / ASB consumer / ASB producer /
+  repository / REST client / …), each starting **only its relevant Testcontainer/mock — not all of
+  them.** Boundary classes so covered are **exempt from unit tests**.
+- **Unit tests for all other classes.** Avoid duplication across levels; prefer the fewest tests that
+  cover behaviour + top failure modes.
+
+Full detail in `${CLAUDE_PLUGIN_ROOT}/agents/test-engineer.md` (§ Test strategy).

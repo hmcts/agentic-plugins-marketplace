@@ -83,9 +83,21 @@ Mark each item: PASS / FAIL / N/A with a brief note.
 - Test data does not contain real PII or court reference numbers
 - **Integration coverage** — every new/changed endpoint (REST resource, `@Handles` action,
   message-driven entry point) has at least one integration test, and the IT suite is green locally
-  (evidence: `mvn clean && ./runIntegrationTests.sh` summary in the PR). A new endpoint whose only
-  coverage is unit tests that mock the repository is a **FAIL** — the real persistence/SQL path is
-  untested.
+  (evidence: the IT-suite summary in the PR — MbD: `./gradlew test`; legacy CQRS:
+  `mvn clean && ./runIntegrationTests.sh`). A new endpoint whose only coverage is unit tests that mock
+  the repository is a **FAIL** — the real persistence/SQL path is untested.
+- **BDD scope** — acceptance `.feature` scenarios are **business behaviour only**; a technical scenario
+  in Gherkin (migration / wiring / context-load) is a **FAIL**. Feature files must be cohesive (grouped
+  by capability, not per-story or per-AC).
+- **Boundary vs unit** — each boundary (controller / ASB consumer / ASB producer / repository / REST
+  client / …) has a boundary integration test starting only its relevant dependency; a test spinning up
+  every Testcontainer, or a unit test duplicating a boundary already covered by an integration test, is
+  a finding. All non-boundary classes carry unit tests.
+- **Wiring/sanity** — exactly one context-boot test under the test profile, sharing the BDD suite's
+  setup; flag per-piece plumbing tests (separate migration / wiring / container tests) for consolidation.
+- **Provisional tests** — any `@provisional`-tagged test that a now-existing broader test supersedes is a
+  finding: it must be deleted or broadened, not left to accumulate. New Gradle source sets / tasks must
+  match the template (divergence needs an ADR) — test files should not hand-roll build config.
 
 **Spring Boot template alignment**
 - `build.gradle`, `gradle/*.gradle`, `Dockerfile`, `logback.xml`, and `.github/workflows/` have not diverged from the HMCTS templates without an ADR

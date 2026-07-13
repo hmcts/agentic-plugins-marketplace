@@ -70,6 +70,29 @@ Order of implementation:
 3. API layer (controllers, request/response mapping)
 4. UI layer (templates, components) — if applicable
 
+When acceptance (BDD) scenarios are in scope, also implement the **Cucumber step definitions + Spring
+glue in the `…/acceptance/` package** (plain Cucumber on JUnit Platform + `cucumber-spring`, **not
+Serenity**) so the scenarios go green — reuse the sanity test's base config. If the Cucumber harness is
+not in the repo yet, add it per test-engineer's "BDD / Cucumber harness (MbD setup)" and record the ADR
+(template divergence); do not hand-roll build config beyond the `testImplementation` deps.
+
+**Step-definition organisation & Cucumber pitfalls (acceptance).** Most Cucumber maintenance pain comes
+from poorly-structured glue — avoid these:
+- **No 1:1 feature→step-def file.** Never one step-definition class per feature. Organise step defs by
+  **domain concept / capability** and **reuse** them across features (Cucumber resolves steps globally
+  from the glue package). Duplicate / near-duplicate steps cause ambiguous-step failures and are the top
+  maintenance cost.
+- **Thin, low-complexity steps.** A step method is simple that delegates to a helper / fixture /
+  service — **no `if`/`else`/`switch`/loops or scenario logic inside step defs** (that cyclomatic
+  complexity is the classic Cucumber overhead). Push logic into plain helpers or the app under test.
+- **Share state via a Spring/Cucumber scenario-scoped bean**, never static fields (statics leak across
+  scenarios and break parallelism).
+- **Declarative Gherkin, imperative glue** — feature steps stay business-language; the API/DB/messaging
+  translation lives in the glue, not the `.feature`. No technical steps in Gherkin.
+- Prefer **parameter types / data tables** over regex-heavy patterns; avoid conjunction ("And"-laden)
+  mega-steps — split into focused, reusable steps. One concern per step (`Then` asserts; `Given`/`When`
+  arrange/act).
+
 ### Step 3 — Refactor
 Once all tests are green, refactor for clarity and maintainability:
 - Extract shared logic into named methods
@@ -97,8 +120,8 @@ action, or other externally reachable entry point:
   failure mode. Cover behaviour the unit tests cannot reach (real persistence/SQL, event flow,
   status-code mapping). For CQRS contexts this lives under `<context>-integration-test/`.
 - **Run the full integration-test suite locally and confirm it is green** before committing:
-  - if `./runIntegrationTests.sh` exists at the repo root, run `mvn clean && ./runIntegrationTests.sh`
-  - otherwise use the repo's documented IT command (e.g. `mvn verify -Pintegration-test`).
+  - **MbD (Gradle):** `./gradlew test` (or the service's Gradle integration task, e.g. `./gradlew integrationTest`, if the build defines one)
+  - **legacy CQRS (Maven):** `mvn clean && ./runIntegrationTests.sh` if it exists at the repo root, otherwise the repo's documented IT command (e.g. `mvn verify -Pintegration-test`).
 - If an IT cannot be made green, **halt and surface it** — never weaken, skip, or `@Disabled` an IT
   to proceed. Paste the IT summary (pass/fail counts) into the PR description.
 
@@ -116,7 +139,7 @@ using skill: skills/adr-template.md before committing.
 - Never delete or weaken a test to make it pass — fix the code instead
 - Never start coding without an implementation-plan artifact at `docs/pipeline/artifacts/` (Step 0b)
 - A new or changed endpoint MUST ship with at least one integration test, and the IT suite MUST be
-  green locally (`mvn clean && ./runIntegrationTests.sh` when available) before the PR — see Step 4b
+  green locally before the PR — MbD: `./gradlew test`; legacy CQRS: `mvn clean && ./runIntegrationTests.sh` — see Step 4b
 - Never suppress linting warnings with inline ignores without a comment explaining why
 - If implementation reveals a gap in the requirements, ACs, or design, halt and surface it — and
   capture the gap as an artifact via `skills/export-design-artifact/` — before proceeding
