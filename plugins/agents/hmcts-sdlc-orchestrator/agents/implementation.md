@@ -143,3 +143,24 @@ using skill: skills/adr-template.md before committing.
 - Never suppress linting warnings with inline ignores without a comment explaining why
 - If implementation reveals a gap in the requirements, ACs, or design, halt and surface it — and
   capture the gap as an artifact via `skills/export-design-artifact/` — before proceeding
+
+---
+
+## Gotchas & hard-won notes
+
+Durable, generalizable, easy-to-miss lessons that don't belong in the linear step flow above — advisory
+reminders to consult while implementing, **not** sequential steps. Only add an entry if it is
+**generalizable** (not a one-off), **non-obvious**, and has a **slow or misleading feedback loop** (fails
+far from its cause). Keep each entry short.
+
+- **Keep every "boots the whole app" surface in sync when you add a startup-required backing service**
+  (database, message broker/emulator, cache, blob store, …). Update *all* of:
+  - **Tests** — the Testcontainers / emulator wiring the integration & acceptance bases use.
+  - **`docker-compose.yml`** — add the service (`healthcheck` + `depends_on: condition: service_healthy`)
+    and point the app at it via env. Compose boots the whole app for **local dev and the CI DAST/ZAP job**;
+    a missing dependency there means the app never becomes healthy and **DAST fails with a misleading
+    `connection refused` (exit 3)** — far from the real cause, and not specific to any one dependency.
+  - **Deploy config** — flag the Helm values / env (managed instance, secrets via Managed Identity) for
+    the ops side; never bake connection strings/secrets into the image.
+  Keep the **Dockerfile app-only** — the dependency comes from compose (local/DAST) and managed services
+  (real envs), never the published image. Stateless apps need none of this.
