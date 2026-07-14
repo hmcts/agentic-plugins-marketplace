@@ -152,10 +152,21 @@ For UI features, the user-facing E2E and accessibility coverage **always lands i
 
 ## Instructions
 
-### Step 1 — Author acceptance (BDD) scenarios — business behaviour only
-Classify every AC first. Only ACs expressing **business-observable behaviour** become Gherkin scenarios
-(skill: skills/generate-bdd-specs.md). Technical / infrastructure ACs are covered by integration tests
-(Steps 2–3), **never** by Gherkin.
+### Step 1 — Author acceptance (BDD) scenarios
+**Decide at the story level first, not AC by AC.** Ask one question of the story *as a whole*: does it
+deliver business value — any outcome observable to a user, a calling system, or the business? If yes, it
+**MUST** have at least one acceptance (BDD) scenario (**happy or negative** — whichever expresses that
+value), even when its ACs individually read as technical. Judge the story's purpose as a whole; never
+conclude "no BDD" just because each AC looks like plumbing — a backend / messaging / integration story
+still has a business outcome (e.g. "the notification is delivered and recorded as SENT", or "an invalid
+request is rejected"). Only a pure enabler/scaffold story with **no** externally-observable behaviour
+(e.g. schema/migration-only, build/CI wiring) may have zero scenarios — and then state that explicitly.
+**If in doubt whether the story warrants BDD scenarios, HALT and ask the user — do not assume either
+way** (defaulting to "no BDD" on an ambiguous story is exactly the failure this rule prevents).
+
+Once BDD is warranted, choose *what* to express: business-observable behaviour becomes Gherkin (skill:
+skills/generate-bdd-specs.md); purely technical / infrastructure ACs (migration, context-load, atomicity,
+message settlement) are covered by integration tests (Steps 2–3), **never** by Gherkin.
 Rules:
 - Organise scenarios into **cohesive feature files by business capability** — each file encapsulates all
   relevant scenarios for that capability; fold related ACs into one scenario with several `Then/And`
