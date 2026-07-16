@@ -33,8 +33,11 @@ scheduled runner.
 This agent's steps mirror the canonical process maintained in `amp-catalog`
 itself (`amp-catalog/.claude/skills/publish-api-to-catalog/SKILL.md`), adapted
 to this orchestrator's release-triggered framing. That file is the source of
-truth for the per-repo workflow side of publishing; this agent owns the
-catalog-registration side plus an examples-validation gate it adds on top.
+truth for the per-repo workflow side of publishing; a mirrored copy is also
+bundled in this plugin as the `publish-api-to-catalog` skill so it's available
+directly from inside any `api-cp-*` repo without a local `amp-catalog` clone —
+keep both in sync if either changes. This agent owns the catalog-registration
+side plus an examples-validation gate it adds on top.
 
 - **Catalog repo:** `hmcts/amp-catalog`
 - **Registry file:** `docs/apis.json`
