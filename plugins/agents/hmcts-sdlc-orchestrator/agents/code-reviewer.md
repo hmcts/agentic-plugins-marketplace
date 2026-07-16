@@ -73,14 +73,37 @@ Mark each item: PASS / FAIL / N/A with a brief note.
 
 **Maintainability**
 - Methods are small and single-purpose
+- **Classes are single-responsibility and cohesive (SOLID/SRP)** — validation, persistence, external
+  calls, mapping, and orchestration live in separate collaborators, not one god class; a class doing
+  several of these (e.g. inline validation + persistence + an external call) is a finding. Seams depend
+  on abstractions (interface + injection). Flag the opposite failure too — anemic one-method classes
+  fragmenting a cohesive unit. See `context/coding-standards.md` § Design principles (SOLID, cohesion).
 - Names reflect domain language from the story
 - No commented-out code
 - No TODO left without a linked Jira ticket
 
-**Test quality**
+**Test quality** (conventions: `skills/test-authoring-conventions/SKILL.md`)
 - Tests assert behaviour, not implementation detail
 - No tests that always pass regardless of code changes
 - Test data does not contain real PII or court reference numbers
+- **Naming/traceability** — no AC / FR / ticket id in any test name (e.g. `..._ac001_...`), and no
+  comments or javadoc in test classes; both are findings.
+- **Granularity** — tests are behaviour-level, not per-AC / per-column / per-field; schema-shape
+  assertions (exact column lists, DDL) in a behaviour test, or per-getter/`existsById`/`count`
+  micro-tests, are findings. A persistence boundary test should be a round-trip (+ optional
+  minimal-fields), not one test per field.
+- **Test infrastructure** — DTOs/entities built via factories/builders (a `new SomeDto(...)` in a test
+  is a finding); DB setup/verification via `*TestRepository` helpers (`JdbcTemplate`/raw SQL in a test
+  class is a finding); external boundaries via fluent stub services composed over container support, not
+  raw WireMock/SDK calls.
+- **Per-class coverage** — every production class the PR adds/changes has a test: a unit test
+  (collaborators mocked) for non-boundary classes, or a boundary test for a boundary class. A service /
+  orchestration class with **no** test is a **FAIL** (a service class shipped without its own unit test,
+  on the assumption a higher-level test covers it).
+- **Boundary tests mock immediate collaborators** — a boundary test asserts consume/validate/delegate/
+  settle against the real boundary while **mocking** the services/repositories it delegates to; a
+  boundary test that instead drives a real collaborator (e.g. a consumer test asserting real DB rows) is
+  a finding — that verification belongs to the collaborator's own test.
 - **Integration coverage** — every new/changed endpoint (REST resource, `@Handles` action,
   message-driven entry point) has at least one integration test, and the IT suite is green locally
   (evidence: the IT-suite summary in the PR — MbD: `./gradlew test`; legacy CQRS:

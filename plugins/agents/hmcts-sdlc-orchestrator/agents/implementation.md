@@ -32,6 +32,8 @@ red → green → refactor cycle. Never write code ahead of a failing test.
 - context/azure-cloud-native.md (Cloud-Native posture on Azure)
 - context/logging-standards.md (mandatory JSON logging)
 - context/azure-sdk-guide.md (load when the work touches any Azure integration)
+- context/springboot-mbd-gotchas.md (load for MbD `cp-*`/`cpp-mbd-*` work — cp-task-manager, Azure SDK
+  credential switching, Jackson 3, Testcontainers/Awaitility pitfalls)
 
 ## Output
 - Production code committed to the feature branch
@@ -73,28 +75,25 @@ Order of implementation:
 When acceptance (BDD) scenarios are in scope, also implement the **Cucumber step definitions + Spring
 glue in the `…/acceptance/` package** (plain Cucumber on JUnit Platform + `cucumber-spring`, **not
 Serenity**) so the scenarios go green — reuse the sanity test's base config. If the Cucumber harness is
-not in the repo yet, add it per test-engineer's "BDD / Cucumber harness (MbD setup)" and record the ADR
+not in the repo yet, add it per skill: `skills/bdd-test-strategy/SKILL.md` (§5) and record the ADR
 (template divergence); do not hand-roll build config beyond the `testImplementation` deps.
 
-**Step-definition organisation & Cucumber pitfalls (acceptance).** Most Cucumber maintenance pain comes
-from poorly-structured glue — avoid these:
-- **No 1:1 feature→step-def file.** Never one step-definition class per feature. Organise step defs by
-  **domain concept / capability** and **reuse** them across features (Cucumber resolves steps globally
-  from the glue package). Duplicate / near-duplicate steps cause ambiguous-step failures and are the top
-  maintenance cost.
-- **Thin, low-complexity steps.** A step method is simple that delegates to a helper / fixture /
-  service — **no `if`/`else`/`switch`/loops or scenario logic inside step defs** (that cyclomatic
-  complexity is the classic Cucumber overhead). Push logic into plain helpers or the app under test.
-- **Share state via a Spring/Cucumber scenario-scoped bean**, never static fields (statics leak across
-  scenarios and break parallelism).
-- **Declarative Gherkin, imperative glue** — feature steps stay business-language; the API/DB/messaging
-  translation lives in the glue, not the `.feature`. No technical steps in Gherkin.
-- Prefer **parameter types / data tables** over regex-heavy patterns; avoid conjunction ("And"-laden)
-  mega-steps — split into focused, reusable steps. One concern per step (`Then` asserts; `Given`/`When`
-  arrange/act).
+Follow skill: `skills/bdd-test-strategy/SKILL.md` (§6) for step-definition glue organisation (no 1:1
+feature→step-def class, thin steps, scenario-scoped state not statics, declarative Gherkin / imperative
+glue). Drive stubbed boundaries (HTTP providers, blob, message brokers) through fluent, fixture-backed
+stub services per skill: `skills/test-stub-dsl/SKILL.md` — never raw WireMock/SDK calls in the glue.
+
+Any test code you write or adjust to reach green follows skill:
+`skills/test-authoring-conventions/SKILL.md` — behaviour-level granularity (no per-AC/per-column tests),
+no AC/ticket ids in test names, no comments/javadoc in tests, DTOs via factories/builders, DB access via
+`*TestRepository` helpers (no `JdbcTemplate` in test classes).
 
 ### Step 3 — Refactor
 Once all tests are green, refactor for clarity and maintainability:
+- **Apply SRP & cohesion** — each class does one thing; extract distinct responsibilities (validation →
+  validator, persistence → repository, external calls → client, mapping → mapper, orchestration →
+  service) into their own collaborators, depending on abstractions at seams. Don't over-fragment into
+  anemic classes. See `context/coding-standards.md` § Design principles (SOLID, cohesion).
 - Extract shared logic into named methods
 - Remove duplication
 - Ensure naming matches the domain language from the story (ubiquitous language)
@@ -152,6 +151,11 @@ Durable, generalizable, easy-to-miss lessons that don't belong in the linear ste
 reminders to consult while implementing, **not** sequential steps. Only add an entry if it is
 **generalizable** (not a one-off), **non-obvious**, and has a **slow or misleading feedback loop** (fails
 far from its cause). Keep each entry short.
+
+**Stack-specific MbD gotchas** (cp-task-manager, Azure SDK credential switching, Jackson 3,
+Testcontainers/Awaitility) live in `context/springboot-mbd-gotchas.md` — consult it for MbD work rather
+than growing this section with stack-specific detail. Keep entries below to cross-stack, generalizable
+lessons.
 
 - **Keep every "boots the whole app" surface in sync when you add a startup-required backing service**
   (database, message broker/emulator, cache, blob store, …). Update *all* of:

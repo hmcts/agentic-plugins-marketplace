@@ -30,11 +30,11 @@ Author tests in four categories. **Acceptance (BDD) tests are orthogonal to the 
 pyramid — they are not a pyramid layer** — but still avoid duplicating at the acceptance level what
 boundary or unit tests already cover.
 
-1. **Acceptance / BDD (`.feature`) — business scenarios only.** Never put a technical concern in Gherkin
-   (no "migration applies", "context loads", "bean wired", "container starts"). Feature files must be
-   **cohesive**: one file encapsulates all scenarios for a business capability, grouped meaningfully —
-   never anemic one-scenario-per-file fragments, never one-file-per-story. **If the feature-file /
-   scenario organisation is at all unclear, STOP and ask the user to finalise it — do not assume.**
+1. **Acceptance / BDD (`.feature`) — business scenarios only, and the sole home for end-to-end
+   behaviour** (never a JUnit end-to-end test). Decide scope at the story level, keep feature files
+   cohesive by capability, and follow the anti-patterns in skill:
+   `skills/bdd-test-strategy/SKILL.md`. **If the feature-file / scenario organisation is at all unclear,
+   STOP and ask the user to finalise it — do not assume.**
 2. **Spring Boot wiring / sanity integration test — exactly one.** Boots the application context under
    the **test profile** and asserts it initialises as expected. The BDD suite and this test **share the
    exact same test setup**, so this one test is the context sanity check for the whole suite. It is also
@@ -45,13 +45,27 @@ boundary or unit tests already cover.
    repository, REST/HTTP client, blob client, …), asserting observable boundary behaviour and starting
    **only the dependency relevant to that boundary** (WireMock / embedded server for a REST client;
    Postgres Testcontainer for a repository; ASB emulator for a consumer/producer) — **never spin up
-   every Testcontainer for every test.** Where a boundary class is sufficiently covered here, **do NOT
-   also unit-test it.**
+   every Testcontainer for every test.** Wire each with the **narrowest mechanism that still exercises the
+   real dependency — never a full `@SpringBootTest`**: no Spring where the class can be constructed
+   directly; a slice (`@DataJpaTest`/`@WebMvcTest`) where one exists; else a minimal `@Import` context
+   (boundary config + `@MockitoBean` collaborators + only the needed `@ImportAutoConfiguration`), giving a
+   live-consumer boundary its own isolated resource (e.g. a dedicated queue). A full-application
+   `@SpringBootTest` is only the single wiring/sanity test (item 2), which shares one cached context with
+   the BDD suite. Where a boundary class is sufficiently covered here, **do NOT also unit-test it.**
 4. **Unit tests — for all other classes** (domain/business logic, services, validators, transformers,
    mappers) not already covered by a boundary integration test.
 
 Prefer the fewest tests that fully cover behaviour + top failure modes; extend an existing cohesive
 test/feature before creating a new one.
+
+**Authoring conventions (mandatory) — skill: `skills/test-authoring-conventions/SKILL.md`.** Test at a
+behaviour granularity, not per-AC / per-column / per-field, and do not assert schema shape in behaviour
+tests (a repository test is a save→fetch round-trip plus, optionally, a minimal-required-fields persist
+— nothing more). Name tests after behaviour in domain language and **never** embed an AC / FR / ticket
+id in a test name (or anywhere — tests carry no comments and no javadoc). Build DTOs/entities through
+factories/builders (never `new` in a test); do all DB setup/verification through `*TestRepository`
+helpers (never `JdbcTemplate`/raw SQL in a test class); drive external boundaries through fluent stub
+services over reusable container support (skill: `skills/test-stub-dsl/SKILL.md`).
 
 ## Test source sets & naming (grounded in the actual template)
 
@@ -68,9 +82,8 @@ Placement / naming — match the template's own exemplars:
 - **integration** — the one wiring/sanity test **and** the boundary tests → **`*IntegrationTest` in a
   `…/integration/` package** in the same `src/test/java`, same `test` task (template exemplar:
   `integration/ActuatorIntegrationTest`, a `@SpringBootTest` context boot — that *is* the sanity test).
-  Boundary tests: `NotificationControllerIntegrationTest`, `SendEmailConsumerIntegrationTest`,
-  `ResultEventPublisherIntegrationTest`, `NotificationRepositoryIntegrationTest`,
-  `GovNotifyClientIntegrationTest`, … each starting only its own dependency (WireMock / Postgres
+  Boundary tests: `<Boundary>IntegrationTest` — one per controller / message consumer / message
+  producer / repository / REST client, … each starting only its own dependency (WireMock / Postgres
   Testcontainer / ASB emulator, added as `testImplementation`).
 - **acceptance (BDD)** → all BDD code in an **`…/acceptance/` package** in `src/test/java` (Cucumber
   runner + Spring glue + step definitions — parallel to the `…/integration/` package), feature files
@@ -87,30 +100,12 @@ is a Gradle MbD service, **not** `mvn … runIntegrationTests.sh` (that is the l
 
 ## BDD / Cucumber harness (MbD setup)
 
-The template **provides a Cucumber acceptance harness** — use it as-is; on an older template version
-that lacks it, add it per below and raise an ADR. **Plain Cucumber on JUnit Platform + Spring — not
-Serenity** (validated on Spring Boot 4.1 / Java 25 with Cucumber 7.20.x):
-- **Dependencies** (`build.gradle`, `testImplementation`): `io.cucumber:cucumber-bom` (platform) +
-  `cucumber-java`, `cucumber-junit-platform-engine`, `cucumber-spring`, and
-  `org.junit.platform:junit-platform-suite`.
-- **Layout** (single `test` source set — mirror the `integration` package convention): **all BDD code in
-  an `…/acceptance/` package** in `src/test/java` (runner + Spring glue + step definitions); feature
-  files under `src/test/resources/features/<capability>.feature`.
-- **Runner (required for Gradle):** a JUnit-Platform `@Suite` in `…/acceptance/` named **`AcceptanceTest`**
-  (template exemplar) — `@Suite`, `@IncludeEngines("cucumber")`, `@SelectClasspathResource("features")`.
-  Name it with the **`*Test` suffix** (not `*Suite`/`*AT`) so the `test` task discovers it under any name
-  filter, paralleling the integration convention `*IntegrationTest`. Gradle discovers tests by **class**,
-  so without this suite the Cucumber engine never runs (features are silently skipped). One suite runs
-  every feature once — do not add a second runner. (The double-execution caveat is a Maven concern, not
-  Gradle.)
-- **Glue config:** `src/test/resources/junit-platform.properties` →
-  `cucumber.glue=uk.gov.hmcts.cp.….acceptance` (+ `cucumber.plugin=pretty, summary`).
-- **Spring glue** (in `…/acceptance/`): one `@CucumberContextConfiguration` + `@SpringBootTest` +
-  `@ActiveProfiles("test")` class — **same setup as the sanity `*IntegrationTest`**, so BDD and sanity
-  boot identically (Test strategy §2).
-- **Step definitions** (in `…/acceptance/`): business language only; organise by domain and keep thin —
-  see the step-def organisation rules in the implementation agent.
-- Runs under `./gradlew test` (same source set).
+The full MbD Cucumber harness — dependencies, the `…/acceptance/` (runner + Spring glue) +
+`…/acceptance/steps/` layout, the `AcceptanceTest` `@Suite` runner, recursive glue config, Spring glue
+sharing the sanity test's base config, and per-scenario stub reset via a Cucumber hook — is specified in
+skill: `skills/bdd-test-strategy/SKILL.md` (§5). The template ships this harness (plain Cucumber on
+JUnit Platform + `cucumber-spring`, not Serenity) — use it as-is; on an older template that lacks it, add
+it per that skill and raise an ADR. Runs under `./gradlew test` (single `test` source set).
 
 ## Inputs
 - Approved **INVEST user-story files** from `docs/pipeline/user-stories/` — one per independently
@@ -153,32 +148,22 @@ For UI features, the user-facing E2E and accessibility coverage **always lands i
 ## Instructions
 
 ### Step 1 — Author acceptance (BDD) scenarios
-**Decide at the story level first, not AC by AC.** Ask one question of the story *as a whole*: does it
-deliver business value — any outcome observable to a user, a calling system, or the business? If yes, it
-**MUST** have at least one acceptance (BDD) scenario (**happy or negative** — whichever expresses that
-value), even when its ACs individually read as technical. Judge the story's purpose as a whole; never
-conclude "no BDD" just because each AC looks like plumbing — a backend / messaging / integration story
-still has a business outcome (e.g. "the notification is delivered and recorded as SENT", or "an invalid
-request is rejected"). Only a pure enabler/scaffold story with **no** externally-observable behaviour
-(e.g. schema/migration-only, build/CI wiring) may have zero scenarios — and then state that explicitly.
-**If in doubt whether the story warrants BDD scenarios, HALT and ask the user — do not assume either
-way** (defaulting to "no BDD" on an ambiguous story is exactly the failure this rule prevents).
+**Gate — decide at the story level, not AC by AC.** If the story delivers business value (any outcome
+observable to a user, a calling system, or the business), it **MUST** have ≥1 acceptance scenario
+(**happy or negative**), even when its ACs individually read as technical. Only a pure enabler/scaffold
+story with **no** externally-observable behaviour (schema/migration-only, build/CI wiring) may have zero
+— then state that explicitly. **If in doubt, HALT and ask the user — never default to "no BDD" on an
+ambiguous story.**
 
-Once BDD is warranted, choose *what* to express: business-observable behaviour becomes Gherkin (skill:
-skills/generate-bdd-specs.md); purely technical / infrastructure ACs (migration, context-load, atomicity,
-message settlement) are covered by integration tests (Steps 2–3), **never** by Gherkin.
-Rules:
-- Organise scenarios into **cohesive feature files by business capability** — each file encapsulates all
-  relevant scenarios for that capability; fold related ACs into one scenario with several `Then/And`
-  steps rather than one scenario per AC.
-- Add negative/edge scenarios for conditional business logic.
-- `Background:` for shared context; tag `@smoke` / `@regression` as appropriate; business language only —
-  no UI selectors, no technical steps.
-- **If feature-file or scenario organisation is unclear, HALT and ask the user to finalise it — do not
-  guess.**
-- Placement (MbD): feature files under `src/test/resources/features/`; the Cucumber runner + Spring glue
-  + step definitions in a `…/acceptance/` package (see "BDD / Cucumber harness (MbD setup)"). CQRS:
-  `<context>-domain/src/test/resources/` or `<context>-integration-test/src/test/resources/`.
+For the full decision procedure, what to express in Gherkin vs integration tests, feature-file
+organisation, and the BDD anti-patterns (no technical scenarios; **no end-to-end tests outside BDD**; no
+anemic one-per-file/per-story files; business language only; per-scenario shared-stub reset), follow
+skill: `skills/bdd-test-strategy/SKILL.md`. Generate the Gherkin itself with skill:
+`skills/generate-bdd-specs.md`.
+
+Placement (MbD): feature files under `src/test/resources/features/`; the Cucumber runner + Spring glue in
+a `…/acceptance/` package, step definitions in `…/acceptance/steps/`. CQRS:
+`<context>-domain/src/test/resources/` or `<context>-integration-test/src/test/resources/`.
 
 ### Step 2 — Spring Boot wiring / sanity integration test (exactly one)
 Write one integration test that boots the application context under the **test profile** and asserts it
@@ -200,14 +185,28 @@ REST client; Postgres Testcontainer for a repository; ASB emulator for a consume
 up every Testcontainer for every test.
 - MbD: `@SpringBootTest` (sliced where possible) under `src/test/java/...`; WireMock 3.13 for outbound
   HTTP; Postgres via Testcontainers; ASB via the emulator at the messaging boundary (no live Azure).
+  Author the boundary's test double as a fluent, fixture-backed stub service over reusable
+  container/emulator support — skill: `skills/test-stub-dsl/SKILL.md` (no raw WireMock/SDK calls in tests).
 - CQRS: `<context>-integration-test/src/test/java/...` (Cucumber + Serenity, embedded Artemis + Postgres
   Testcontainers); assert via REST Assured against the RAML endpoints.
+- **Mock the boundary's immediate collaborators** (the services / repositories it delegates to) and
+  assert the **boundary's own** behaviour: it consumes/parses/validates the input, **delegates with the
+  right arguments**, and settles/acks/maps the outcome. Do **not** re-verify what the collaborator does
+  (persistence, business rules, downstream side effects) here — that is the collaborator's own test. An
+  ASB consumer test starts the emulator, mocks the service it delegates to, and asserts "consumed →
+  collaborator invoked with the right arguments → completed / dead-lettered / abandoned"; it does not
+  touch a real DB.
 - **These boundary tests replace unit tests for the boundary classes** — do not duplicate them in Step 4.
 
 ### Step 4 — Unit tests (all remaining classes)
-Write unit tests for **all other classes** — domain/business logic, services, validators, transformers,
-mappers — i.e. everything not already covered by a boundary integration test (Step 3).
-- Name tests `should_[expected outcome]_when_[condition]`.
+Write unit tests for **all other classes** — domain/business logic, services, orchestrators, validators,
+transformers, mappers — i.e. everything not already covered by a boundary integration test (Step 3).
+**Coverage gate: every production class the story adds or changes must map to exactly one test — a unit
+test (collaborators mocked) or a boundary test (Step 3). Before finishing, enumerate those classes and
+confirm each is covered; a service/orchestration class with no test is a gap, not an acceptable
+omission** (skill: `skills/test-authoring-conventions/SKILL.md`).
+- Name tests `should_[expected outcome]_when_[condition]` — behaviour in domain language, never an
+  AC/FR/ticket id in the name (skill: `skills/test-authoring-conventions/SKILL.md`).
 - MbD: JUnit 5 + Mockito + AssertJ under `src/test/java/uk/gov/hmcts/cp/...`. CQRS: command-handler /
   query-handler / aggregate tests under the respective modules; use `domain-test-dsl` where available.
   UI: `*.spec.ts` colocated with the component.
@@ -250,7 +249,9 @@ Do not proceed to implementation until the user confirms test specs are approved
 
 ## Coverage standard (context/hmcts-standards.md, refined by the Test strategy above)
 - **Acceptance (BDD):** business scenarios only, in cohesive feature files; orthogonal to the pyramid;
-  no technical scenarios; no duplication of boundary/unit coverage.
+  the **sole home for end-to-end behaviour** (never a JUnit end-to-end test); no technical scenarios; no
+  duplication of boundary/unit coverage. Full strategy + anti-patterns: skill:
+  `skills/bdd-test-strategy/SKILL.md`.
 - **Wiring / sanity:** exactly one Spring Boot context-boot test under the test profile, sharing the BDD
   suite's setup; also the single home for actuator / technical-NFR assertions (enhance it, don't fork a
   test per concern).

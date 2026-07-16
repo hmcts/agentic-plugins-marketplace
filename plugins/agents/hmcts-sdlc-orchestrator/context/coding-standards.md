@@ -25,9 +25,47 @@ src/
     └── contract/          # Pact contract tests
 ```
 
+### Design principles (SOLID, cohesion)
+- **Single Responsibility (SRP).** A class has **one reason to change** — one responsibility. A class
+  that validates *and* orchestrates *and* persists *and* calls an external API is doing four jobs; split
+  them. Signals a class is doing too much: its name needs "and" / `Manager` / `Helper` / `Util`; a unit
+  test for it needs many unrelated mocks; you have to scroll to understand it.
+- **Encapsulate each responsibility in a dedicated collaborator:**
+  - **Validation** → Bean Validation constraints (`@NotNull` / a custom `ConstraintValidator`) or a
+    dedicated `*Validator` class — never validation logic scattered inline through a service or controller.
+  - **Persistence** → a repository.
+  - **External calls** → a client / sender behind an interface (one implementation per provider/channel).
+  - **Mapping / translation** → a mapper / transformer.
+  - **Orchestration** → a service that *coordinates* the above collaborators and holds no low-level logic
+    itself.
+- **High cohesion, low coupling.** Everything in a class relates to its single purpose. Depend on
+  **abstractions** at seams (inject an interface, resolved by a factory where there are several
+  implementations), via constructor injection — not concrete types wired inline.
+- **Open/Closed (OCP).** Add behaviour by adding a new implementation behind an existing interface (a new
+  provider/channel), not by editing a growing `if`/`switch` in one class.
+- **LSP / ISP / DIP.** Subtypes honour their supertype's contract; keep interfaces small and role-specific
+  (callers shouldn't depend on methods they don't use); high-level policy depends on abstractions, not on
+  concrete low-level classes.
+- **Pragmatism, not gold-plating.** Extract a collaborator when a responsibility is *genuinely distinct*
+  — do **not** fragment a cohesive class into anemic one-method classes. SRP is about reasons to change,
+  not line count.
+
 ### Method size
 - Methods should do one thing. If a method needs a comment to explain a section, extract that section.
 - Target: ≤20 lines per method. Hard limit: 40 lines.
+
+### Comments & Javadoc
+- **Never add comments that restate the code.** Self-documenting names and extracted methods replace
+  explanatory comments. Do not narrate *what* the code does.
+- **Production code — minimise.** The only comment worth keeping is a short, non-obvious **why** a
+  reader cannot infer from the code: a workaround, a spec/protocol quirk, or the rationale for a
+  non-obvious framework annotation (e.g. why a test uses `@DirtiesContext`, why a bean is `@Primary`).
+  When such a rationale is genuinely non-obvious, a one-line comment is correct — silence would be worse.
+- **No javadoc on self-explanatory members** — getters/setters, obvious constructors, trivial methods,
+  or anything whose name already says it. Reserve javadoc for genuinely non-obvious public API contracts.
+- **Tests — zero comments, zero javadoc** (see `skills/test-authoring-conventions/`).
+- **Allowed exception:** `build.gradle` dependencies each carry a one-line justification (why added /
+  what it replaces) — see § Dependencies.
 
 ### Error handling
 - Use typed exceptions (`HearingNotFoundException extends RuntimeException`)

@@ -12,6 +12,7 @@ Always load the following before any pipeline stage:
 
 Load on demand when relevant:
 - `${CLAUDE_PLUGIN_ROOT}/context/azure-sdk-guide.md` — when working on any Azure service integration.
+- `${CLAUDE_PLUGIN_ROOT}/context/springboot-mbd-gotchas.md` — when implementing MbD `cp-*`/`cpp-mbd-*` services (cp-task-manager, Azure SDK credential switching, Jackson 3, Testcontainers/Awaitility pitfalls).
 - `${CLAUDE_PLUGIN_ROOT}/context/cloud-adoption-rationale.md` — only when lock-in or cloud-cost objections surface, or when an ADR weighs those trade-offs. Do not auto-load.
 
 ---
@@ -117,12 +118,15 @@ Skills split across the marketplace and this repo. Install the marketplace plugi
 |-----------------------------------------|-----------------------------------|-----------------------------------------------|
 | ${CLAUDE_PLUGIN_ROOT}/skills/write-acceptance-criteria.md     | marketplace: `bdd-workflow`       | Deriving testable ACs from any requirement    |
 | ${CLAUDE_PLUGIN_ROOT}/skills/generate-bdd-specs.md            | marketplace: `bdd-workflow`       | Writing Cucumber/Gherkin feature files        |
+| ${CLAUDE_PLUGIN_ROOT}/skills/bdd-test-strategy/               | local (HMCTS-specific)            | Deciding BDD scope for a story, feature-file organisation, MbD Cucumber harness, and BDD anti-patterns (no technical scenarios, no end-to-end tests outside BDD) |
 | ${CLAUDE_PLUGIN_ROOT}/skills/accessibility-check.md           | marketplace: `accessibility-check` + HMCTS overlay | WCAG 2.1 AA review + GOV.UK Frontend guidance |
 | ${CLAUDE_PLUGIN_ROOT}/skills/review-checklist.md              | marketplace: `review-checklist` + HMCTS overlay    | Code review checklist + Spring Boot / Azure / logging |
 | ${CLAUDE_PLUGIN_ROOT}/skills/adr-template.md                  | marketplace: `adr-template`       | Recording any architecture decision           |
 | ${CLAUDE_PLUGIN_ROOT}/skills/springboot-service-from-template/| local (HMCTS-specific)            | Standing up a new Spring Boot service from the HMCTS template |
 | ${CLAUDE_PLUGIN_ROOT}/skills/springboot-api-from-template/    | local (HMCTS-specific)            | Standing up a new HMCTS Marketplace API spec repo |
 | ${CLAUDE_PLUGIN_ROOT}/skills/cpp-test-authoring/              | local (HMCTS-specific)            | Writing or extending tests in `cpp-ui-e2e-serenity` (Serenity BDD/Cucumber) or `cpp-apitests` (JUnit 5 + REST Assured) |
+| ${CLAUDE_PLUGIN_ROOT}/skills/test-stub-dsl/                   | local (HMCTS-specific)            | Authoring MbD boundary test doubles as fluent, fixture-backed stub services over reusable container/emulator support (WireMock / Azurite / Service Bus) |
+| ${CLAUDE_PLUGIN_ROOT}/skills/test-authoring-conventions/      | local (HMCTS-specific)            | Test naming (no AC/ticket ids), behaviour-level granularity, no comments/javadoc in tests, DTOs via factories/builders, DB via TestRepository helpers |
 | ${CLAUDE_PLUGIN_ROOT}/skills/export-design-artifact/          | local (HMCTS-specific)            | Exporting a self-contained HTML artifact (plan / decision / design-gap / comparison) from the bundled template gallery — **mandatory** for the implementation plan before Stage 5 |
 
 ---
@@ -185,14 +189,28 @@ Stage 5 — see the Hard rules.
 
 The test-engineer authors, and the code-reviewer enforces, four test categories. **Acceptance (BDD)
 tests are orthogonal to the unit/integration pyramid — not a pyramid layer.**
-- **BDD (`.feature`) = business scenarios only** — never technical (no migration / wiring / context-load
-  scenarios). Feature files are cohesive (grouped by business capability, not per-story, not per-AC). **If
-  organisation is unclear, ask the user — do not assume.**
-- **Exactly one** Spring Boot wiring / sanity test (test profile) that **shares the BDD suite's setup**.
+- **BDD (`.feature`) = business scenarios only, and the sole home for end-to-end behaviour** — never
+  technical (no migration / wiring / context-load scenarios) and **never a JUnit end-to-end test** (an
+  `…EndToEndIntegrationTest` that drives the whole stack belongs in a `.feature`; only the single
+  wiring/sanity test and boundary tests are non-BDD integration tests). Feature files are cohesive
+  (grouped by business capability, not per-story, not per-AC). **If organisation is unclear, ask the user
+  — do not assume.** Full strategy + anti-patterns: `${CLAUDE_PLUGIN_ROOT}/skills/bdd-test-strategy/`.
+- **Exactly one** Spring Boot wiring / sanity test (test profile) that **shares one cached full-application
+  context with the BDD suite** (same profile, no mocks, no `@DirtiesContext`) — the only place a full
+  `@SpringBootTest` is justified.
 - **Boundary integration tests**, one per boundary (controller / ASB consumer / ASB producer /
   repository / REST client / …), each starting **only its relevant Testcontainer/mock — not all of
-  them.** Boundary classes so covered are **exempt from unit tests**.
+  them** — and wired with the **narrowest mechanism that still exercises the real dependency, never a full
+  `@SpringBootTest`**: no Spring at all where the class can be constructed directly; a slice
+  (`@DataJpaTest`/`@WebMvcTest`) where one exists; else a minimal `@Import` context (boundary config +
+  mocked collaborators + only the needed `@ImportAutoConfiguration`). Boundary classes so covered are
+  **exempt from unit tests**. Full detail: `${CLAUDE_PLUGIN_ROOT}/skills/test-authoring-conventions/`.
 - **Unit tests for all other classes.** Avoid duplication across levels; prefer the fewest tests that
   cover behaviour + top failure modes.
+- **Authoring conventions** (`${CLAUDE_PLUGIN_ROOT}/skills/test-authoring-conventions/`): behaviour-level
+  granularity (never per-AC/per-column/per-field, no schema-shape assertions); test names carry no
+  AC/FR/ticket ids; no comments or javadoc in tests; DTOs/entities via factories/builders (never `new`
+  in a test); DB setup/verification via `*TestRepository` helpers (no `JdbcTemplate`/raw SQL in test
+  classes); external boundaries via stub services over container support (`skills/test-stub-dsl/`).
 
 Full detail in `${CLAUDE_PLUGIN_ROOT}/agents/test-engineer.md` (§ Test strategy).
