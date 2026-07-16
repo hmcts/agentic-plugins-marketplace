@@ -81,9 +81,9 @@ gh api "repos/hmcts/cp-vp-aks-deploy/contents/vp-config/services_values.yml" \
 If `NOT_REGISTERED`, stop and tell the user:
 
 > "Prerequisites not met. `$REPO_NAME` has no entry in
-> `hmcts/cp-vp-aks-deploy/vp-config/services_values.yml`. The service must be registered
-> in the GitOps config before deployment can be wired. Raise a PR on `cp-vp-aks-deploy`
-> to add the entry, then re-run this skill."
+> `hmcts/cp-vp-aks-deploy/vp-config/services_values.yml`. Run `/register-aks-deployment`
+> first — its installed CI job opens the registration PR automatically on the next push
+> to main. Once that PR is merged, re-run `/wire-service-deployment`."
 
 ---
 
