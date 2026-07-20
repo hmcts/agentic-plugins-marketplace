@@ -158,6 +158,14 @@ story with **no** externally-observable behaviour (schema/migration-only, build/
 — then state that explicitly. **If in doubt, HALT and ask the user — never default to "no BDD" on an
 ambiguous story.**
 
+**Enhance before you fork.** Before writing a new `.feature` file, list and read the existing ones. If
+the story extends a flow an existing feature already covers (adds an outcome, a variant, or a gate to a
+capability already scenarioed), add your assertions to that capability's existing scenarios and add a
+new scenario only for the genuinely new (usually negative/gated) path — and put the new steps in that
+capability's **existing** step class, reusing its `Given`/`When`/recording steps rather than
+re-declaring them. Create a new feature file (and step class) only for a genuinely new business
+capability. If it is arguable, HALT and ask. (skill: `bdd-test-strategy` §4 "enhance before you fork" and §6.)
+
 For the full decision procedure, what to express in Gherkin vs integration tests, feature-file
 organisation, and the BDD anti-patterns (no technical scenarios; **no end-to-end tests outside BDD**; no
 anemic one-per-file/per-story files; business language only; per-scenario shared-stub reset), follow

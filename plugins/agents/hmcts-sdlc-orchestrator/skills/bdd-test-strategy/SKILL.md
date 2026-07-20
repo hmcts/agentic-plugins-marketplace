@@ -87,6 +87,15 @@ Business-observable → `.feature`; technical/infra → the wiring/sanity test o
 ## 4. Feature-file organisation
 
 - **Cohesive by business capability** — each file encapsulates all scenarios for that capability.
+- **Enhance before you fork — read the existing feature files before creating a new one.** A story that
+  extends a business flow already covered (adds an outcome, a variant, or a gate to an existing
+  capability) ENHANCES that capability's file; it does **not** get a parallel file. Concretely: if a new
+  scenario would repeat an existing scenario's `Given`/`When` and only add `Then`/`And` assertions, add
+  those assertions to the existing scenario — and add a *new* scenario only for the genuinely new path
+  (typically the negative / gated case). A new `.feature` file is warranted only for a genuinely new
+  business capability. When it is arguable whether the work is a new capability or an extension of an
+  existing one, **HALT and ask — do not default to a new file.** (Forking a near-duplicate feature file
+  per story is anti-pattern 3.)
 - Fold related ACs into one scenario with `Then/And` steps; add **negative/edge** scenarios for
   conditional business logic.
 - `Background:` for shared context; tag `@smoke` / `@regression` as appropriate.
@@ -131,12 +140,30 @@ the `…/acceptance/steps/` package):
 
 - **No 1:1 feature→step-def class.** Organise step defs by **domain concept / capability** and **reuse**
   them across features — Cucumber resolves steps globally from the glue package. Duplicate /
-  near-duplicate steps cause ambiguous-step failures and are the top maintenance cost.
+  near-duplicate steps cause ambiguous-step failures and are the top maintenance cost. When a story
+  extends an existing capability (§4 "enhance before you fork"), add its steps to that capability's
+  existing step class and reuse its `Given`/`When`/recording steps — never spin up a parallel `…Steps`
+  class, and never re-declare a step that already exists under different wording.
+- **Group step classes by boundary/collaborator OR by capability — both are valid; by *feature* is the
+  anti-pattern.** Because Cucumber resolves steps globally, physical layout is only for human cohesion.
+  Organise each step class around the collaborator a step drives or verifies — e.g. `CommandSteps`
+  (inbound message send/arrange), `GovNotifySteps` (provider verification), `NotificationRecordSteps`
+  (DB assertions via a `TestRepository`), `ResultEventSteps` (result-queue assertions) — or around a
+  domain capability, whichever keeps steps reusable and duplication-free. Keep boundary knowledge in the
+  fluent stub services (skill: `test-stub-dsl`), so a step class stays thin even when it arranges another
+  boundary. Do NOT over-fragment: a single small one-theme capability stays one class.
 - **Thin, low-complexity steps.** A step delegates to a helper / fixture / stub service / the app under
   test — **no `if`/`else`/`switch`/loops or scenario logic inside step defs**. Push logic into plain
   helpers or the app.
-- **Share state via a Spring/Cucumber scenario-scoped bean**, never static fields (statics leak across
-  scenarios and break parallelism). Reset shared external stubs in a Cucumber `@Before` (anti-pattern 7).
+- **Share state across step classes via a single scenario-scoped context bean**, never static fields
+  (statics leak across scenarios and break parallelism). When steps are split by boundary (above), the
+  shared arrange/act state (ids, the built command, the reply queue, provider references) moves into one
+  `@Component @ScenarioScope` holder — this is the enabler that *makes* the split clean; each step class
+  `@Autowired`s it and cucumber-spring gives them the same per-scenario instance (its default scoped
+  proxy keeps the shared full-app context starting cleanly for non-Cucumber `@SpringBootTest`s). Name it
+  **`ScenarioContext`** for a single-bounded-context service, or `<Domain>ScenarioState` when several
+  coexist. Reset shared external stubs and drain queues in a Cucumber `@Before`/`@After` hook class
+  (anti-pattern 7), not a JUnit lifecycle hook.
 - **Declarative Gherkin, imperative glue** — the API/DB/messaging translation lives in the glue, not the
   `.feature`. Drive stubbed boundaries through the fluent stub services (skill: `test-stub-dsl`), not raw
   WireMock/SDK calls.
