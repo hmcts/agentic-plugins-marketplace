@@ -211,6 +211,8 @@ tests are orthogonal to the unit/integration pyramid — not a pyramid layer.**
   granularity (never per-AC/per-column/per-field, no schema-shape assertions); test names carry no
   AC/FR/ticket ids; no comments or javadoc in tests; DTOs/entities via factories/builders (never `new`
   in a test); DB setup/verification via `*TestRepository` helpers (no `JdbcTemplate`/raw SQL in test
-  classes); external boundaries via stub services over container support (`skills/test-stub-dsl/`).
+  classes); external boundaries via stub services over container support (`skills/test-stub-dsl/`);
+  group a multi-group class's tests into behaviour-named `@Nested` inner classes (shared setup on the
+  outer class; don't nest single-theme classes).
 
 Full detail in `${CLAUDE_PLUGIN_ROOT}/agents/test-engineer.md` (§ Test strategy).

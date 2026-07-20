@@ -45,6 +45,24 @@ factories, and helpers are the documentation. (Same rule as production code: nev
   Per-field assertions, `existsById` / `count` micro-tests, and column-introspection tests add noise,
   not coverage — leave them out.
 
+## 3a. Group related tests with `@Nested`
+
+- When a test class covers **more than one distinct behavioural group**, wrap each group in a
+  `@Nested` inner (non-static) class named for the behaviour, in domain language and PascalCase
+  (`Sending`, `CheckingStatus`, `DeadLettering`, `WhenSendingFails`, `WhenPollingSucceeds`). The
+  grouping is the documentation — no `@DisplayName`, no comments.
+- Group by **behaviour/scenario**, not by method-under-test or by field. Typical groups: the happy
+  path vs each failure mode; one operation vs another (`Sending` vs `CheckingStatus`); parse-failure
+  vs validation-failure vs redelivery.
+- **Don't nest for the sake of it.** A class with a single cohesive theme or only two or three tests
+  about one operation stays flat — a `@Nested` block that contains the whole class adds ceremony, not
+  clarity. Nest only when there are genuinely ≥2 separable groups.
+- Shared `@Mock`/`@InjectMocks`/`@MockitoBean` fields, `@BeforeEach`/`@AfterEach`, and helper methods
+  live on the **outer** class; non-static `@Nested` classes inherit them (Mockito's
+  `@ExtendWith(MockitoExtension.class)` and Spring's `@SpringBootTest` both apply to nested classes,
+  and a single Spring context is still cached and shared across them). `@DynamicPropertySource` stays
+  `static` on the outer class.
+
 ## 4. Test data via factories/builders — never `new` a DTO in a test
 
 - DTOs and entities are created through **builders or factories**, never instantiated directly in a
@@ -107,6 +125,16 @@ factories, and helpers are the documentation. (Same rule as production code: nev
   external system — HTTP provider, blob store, message broker). The stub/client **composes** the support;
   never merge the two, and never call the SDK / WireMock / broker directly from a test. Payloads load
   from fixtures, not inline. Full recipe: skill `test-stub-dsl`.
+
+## 7. Assertions — AssertJ everywhere; json-unit for JSON documents
+
+- **AssertJ is the house assertion library** (`org.assertj.core.api.Assertions.assertThat`). Do **not**
+  introduce Hamcrest matchers (it is only ever a transitive dependency).
+- For a **JSON body/payload**, compare the whole document against an expected fixture with **json-unit**
+  (`json-unit-assertj`: `assertThatJson(actual).isEqualTo(expectedFixture)`) rather than a stack of
+  per-field `path(...)` assertions. Ignore only volatile nodes declaratively — `"${json-unit.ignore}"` in
+  the fixture, or `whenIgnoringPaths(...)` — and never hand-normalise the actual JSON to force equality.
+  Full recipe (incl. keeping encoded-attachment byte fidelity as a separate check): skill `test-stub-dsl` §4b.
 
 ---
 

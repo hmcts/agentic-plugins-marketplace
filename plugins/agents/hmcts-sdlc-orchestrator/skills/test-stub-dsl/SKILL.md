@@ -51,11 +51,12 @@ The two must not be merged: a container-support class that also builds responses
 
 ## 3. Payloads always from fixtures — never inline
 
-Response bodies and attachment bytes load from `src/test/resources/fixtures/…`, never hard-coded in
-Java (only truly trivial one-liners may be inline). Use a small fixture loader with `${token}`
-substitution for the few per-test values (e.g. the external reference id) that must vary. This keeps the
-stub service readable and lets the fixture double as living documentation of the provider contract. The
-caller passes domain values; the stub service loads the fixture and substitutes tokens internally.
+Response bodies, attachment bytes, **and expected-request/expected-output documents** load from
+`src/test/resources/fixtures/…`, never hard-coded in Java (only truly trivial one-liners may be inline).
+Use a small fixture loader with `${token}` substitution for the few per-test values (e.g. the external
+reference id, generated notification/template ids) that must vary. This keeps the stub service readable and
+lets the fixture double as living documentation of the provider contract. The caller passes domain values;
+the stub service loads the fixture and substitutes tokens internally.
 
 ## 4. Verify the received request field by field — not just "a call happened"
 
@@ -74,6 +75,28 @@ field by field, where feasible**:
 
 Parse the captured request (WireMock `LoggedRequest`, the received `ServiceBusMessage`) and assert with
 AssertJ; prefer this over loose `matchingJsonPath` presence-only checks where an exact value is known.
+
+## 4b. JSON bodies — compare the whole document against a fixture with json-unit
+
+For a JSON request/response body, prefer a **single whole-document comparison against an expected fixture**
+over a pile of per-field `assertThat(node.path("x"))` calls. Use **json-unit** (`json-unit-assertj`, the
+AssertJ-native flavour — the house assertion library is AssertJ, never Hamcrest):
+
+```java
+assertThatJson(actualBody).isEqualTo(expectedRequestJson);   // expected loaded from a fixture
+```
+
+- json-unit's **default mode is strict on object keys**, so unexpected extra fields (e.g. a `reply_to` that
+  should be absent) fail the compare for free — you no longer assert absence field by field.
+- **Ignore only genuinely volatile nodes, declaratively in the fixture** with a placeholder —
+  `"file": "${json-unit.ignore}"` (also `${json-unit.any-string}`, `${json-unit.regex}…`), or code-side
+  `whenIgnoringPaths("personalisation.material_url.file")`. The fixture then documents exactly what is not
+  pinned. Do **not** hand-normalise the actual JSON (stripping whitespace, re-encoding) to force equality —
+  that hack is what json-unit replaces.
+- **Keep encoded-content fidelity as a separate targeted check**, not folded into the JSON compare: ignore
+  the encoded node in the document compare, then decode it once and compare bytes to the source fixture
+  (`assertThat(getMimeDecoder().decode(fileNode)).isEqualTo(expectedAttachment)`). Byte comparison is robust
+  to base64 chunking differences; string comparison of the encoded blob is not.
 
 ## 4a. Verification must be Awaitility-safe
 

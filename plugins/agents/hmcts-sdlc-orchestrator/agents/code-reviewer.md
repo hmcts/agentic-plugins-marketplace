@@ -92,6 +92,9 @@ Mark each item: PASS / FAIL / N/A with a brief note.
   assertions (exact column lists, DDL) in a behaviour test, or per-getter/`existsById`/`count`
   micro-tests, are findings. A persistence boundary test should be a round-trip (+ optional
   minimal-fields), not one test per field.
+- **Grouping** — a class covering more than one behavioural group organises its tests into
+  behaviour-named `@Nested` inner classes with shared fields/setup on the outer class; a flat class
+  with several unrelated groups, or a `@Nested` block wrapping a single cohesive theme, is a nit.
 - **Test infrastructure** — DTOs/entities built via factories/builders (a `new SomeDto(...)` in a test
   is a finding); DB setup/verification via `*TestRepository` helpers (`JdbcTemplate`/raw SQL in a test
   class is a finding); external boundaries via fluent stub services composed over container support, not

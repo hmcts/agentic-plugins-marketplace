@@ -65,7 +65,10 @@ tests (a repository test is a save→fetch round-trip plus, optionally, a minima
 id in a test name (or anywhere — tests carry no comments and no javadoc). Build DTOs/entities through
 factories/builders (never `new` in a test); do all DB setup/verification through `*TestRepository`
 helpers (never `JdbcTemplate`/raw SQL in a test class); drive external boundaries through fluent stub
-services over reusable container support (skill: `skills/test-stub-dsl/SKILL.md`).
+services over reusable container support (skill: `skills/test-stub-dsl/SKILL.md`). When a class covers
+more than one behavioural group, group its tests into behaviour-named `@Nested` inner classes
+(`Sending`, `DeadLettering`, `WhenPollingFails`) — shared fields/`@BeforeEach`/helpers stay on the
+outer class; don't nest a single-theme or two-/three-test class.
 
 ## Test source sets & naming (grounded in the actual template)
 

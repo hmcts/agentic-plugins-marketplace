@@ -142,6 +142,14 @@ the `…/acceptance/steps/` package):
   WireMock/SDK calls.
 - Prefer **parameter types / data tables** over regex-heavy patterns; avoid conjunction ("And"-laden)
   mega-steps — one concern per step (`Given`/`When` arrange/act, `Then` asserts).
+- **Acceptance tests drive inputs and assert outputs from hard-coded JSON fixtures, not builders/factories.**
+  The command/message the scenario sends and the expected outbound payload both load from
+  `src/test/resources/fixtures/…` (with `${token}` substitution for the few volatile ids). Send the raw
+  fixture JSON to the boundary (e.g. the ASB queue) rather than serialising a factory-built object, and
+  assert the captured request against an expected fixture with **json-unit** (`test-stub-dsl` §4b). The
+  fixtures then *are* the contract the AT pins. Factories/builders remain the norm for unit and
+  boundary-integration tests — this fixtures-not-factories rule is specific to acceptance (BDD) tests,
+  whose whole point is to document the external contract literally.
 
 ## Relationship to the other BDD skills
 
