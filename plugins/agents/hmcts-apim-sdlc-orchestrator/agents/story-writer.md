@@ -86,6 +86,12 @@ for an ADR before implementation begins.
 Present the story list.
 **Do not proceed to `contract-test-engineer` until the user confirms stories are approved.**
 
+## Signal
+
+Stories approved, each with a linked Jira ticket (Definition of Ready) → hand off to
+`contract-test-engineer`. A story flagged for an ADR (Step 4) does not block the handoff,
+but the ADR must land before `implementation` starts on that story.
+
 ---
 
 ## Story template

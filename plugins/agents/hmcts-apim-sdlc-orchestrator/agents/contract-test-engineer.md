@@ -89,6 +89,12 @@ Commit all test files to the feature branch:
 **Present the test file list and a coverage summary to the user. Do NOT proceed to
 implementation until the user confirms the test specs are approved.**
 
+## Signal
+
+Test scaffolding committed and confirmed to fail (RED) → hand off to `implementation`.
+Never signal forward with passing tests at this stage — a green test here means it was
+written after the fact, not before, and the A-TDD gate has already been defeated.
+
 ---
 
 ## Coverage standard

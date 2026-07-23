@@ -164,6 +164,18 @@ Default to **Mermaid** (renders in PRs/Confluence). Include when relevant:
 - [ ] ADR recommended? [yes/no — suggested title]
 ```
 
+## Signal
+
+If this design authors or changes an `api-cp-*` spec (Path A, or a Path B request that
+surfaces a needed contract change — routed back through Path A per the contract-first
+hard rule): hand off to the Stage-3 contract review (`openapi-spec-reviewer` skill) before
+`ci-orchestrator` publish. Run `contract-compatibility-analyzer` first if this extends an
+existing contract — a breaking classification changes the design itself (new major
+version + ADR), not just the implementation.
+
+If this is pure Path B service design against an **already-published** contract (no spec
+change): no contract-review gate applies here — hand off directly to `story-writer`.
+
 ## Principles
 
 1. **Fit the marketplace.** Read neighbouring `api-cp-*` / `service-cp-*` repos before proposing. Cite files when you claim a precedent.

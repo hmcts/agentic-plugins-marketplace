@@ -196,3 +196,12 @@ gh pr edit <PR-number> --add-label "claude-approved"
 
 **This is a mandatory human gate.**
 Do not trigger CI or proceed to `ci-orchestrator` until a human approves the PR.
+
+## Signal
+
+`claude-approved` label + human approval on the PR → hand off to `ci-orchestrator`.
+`changes-requested` → back to `implementation`, not forward. If this PR touches
+`openapi-spec.yml`, run `contract-compatibility-analyzer` before approving — a breaking
+change without an ADR fails this gate regardless of how clean the code itself is. If this
+PR adds/changes a `@Value` toggle, run `feature-flag-auditor` against T1–T5 before
+approving.

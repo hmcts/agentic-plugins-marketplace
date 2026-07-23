@@ -60,15 +60,22 @@ find build/generated -name "*Api.java" | head -10
 Note the exact method signatures, parameter types, and return types. The controller must
 implement this interface — do not hand-write `@RequestMapping` annotations that duplicate it.
 
-### Step 1 — Run the tests first
+### Step 1 — Confirm a red test exists before writing any code
 
-Before writing any code, run the test suite to confirm stubs are failing:
+This is the physical artefact gate for this stage — not satisfied by a plan or a
+conversation, only by a test that actually fails right now:
 
 ```bash
+find src/test -newer .git/HEAD -name "*Test.java" -o -newer .git/HEAD -name "*.feature" 2>/dev/null
 ./gradlew test 2>&1 | tail -30
 ```
 
-If any stub is already passing, flag it — the test was likely written incorrectly.
+- **No test scaffolding found for this story at all** → halt. Return to
+  `contract-test-engineer` — do not write speculative production code ahead of a test.
+- **Every test already passes** → flag it. Either the test was written incorrectly (it
+  doesn't actually exercise the new behaviour) or someone implemented ahead of the gate —
+  in both cases, stop and resolve before proceeding.
+- **At least one test fails (RED)** → proceed to Step 2.
 
 ### Step 2 — Implement in dependency order
 
@@ -148,6 +155,12 @@ git commit -m "feat(PROJ-NNN): [short description of what was implemented]"
 If a significant design decision was made during implementation (e.g. Service Bus vs
 synchronous path, new Postgres schema), draft an ADR before committing.
 
+## Signal
+
+All acceptance tests GREEN, `./gradlew build` and `./gradlew pmdMain` clean, PR opened →
+hand off to `code-reviewer`. Do not signal forward with any test still red, skipped, or
+weakened.
+
 ---
 
 ## Hard rules
@@ -158,3 +171,5 @@ synchronous path, new Postgres schema), draft an ADR before committing.
 - If implementation reveals a gap in the requirements or ACs, halt and surface it
   before proceeding — do not silently skip it
 - Never edit files under `build/generated/` — all model changes go through the OpenAPI spec
+- **No implementation ahead of a red test** (Step 1) — no committed failing test for this
+  story is a halt condition, not a warning; return to `contract-test-engineer`.

@@ -116,6 +116,12 @@ Write `docs/pipeline/requirements.md` using the template below.
 **Halt and present open questions to the user. Do not proceed to `apim-architect` or
 `story-writer` until the user explicitly confirms the requirements are approved.**
 
+## Signal
+
+Requirements approved by the user, pipeline path stated (A or B), and — for Path B — the
+`api-cp-*` artefact confirmed published → hand off to `apim-architect`. Missing artefact
+→ halt here, do not signal forward.
+
 ---
 
 ## Output template

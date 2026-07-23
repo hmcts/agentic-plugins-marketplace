@@ -160,3 +160,11 @@ If smoke checks fail after deployment:
   ```
 - Ask the user to revert the image-tag commit in `cp-vp-aks-deploy` to trigger a rollback
 - Surface the failure logs and halt — return to `ci-orchestrator` for diagnosis
+
+## Signal
+
+Dev: pod healthy, smoke checks PASS, `deploy-notes.md` recorded → the feature is now live
+in production but dark behind its toggle — releasing it to users is a separate decision,
+not a further deployment. SIT: human confirms the release → `deployer` creates the GitHub
+Release → hand off to `catalog-publisher` to check for spec metadata drift. Smoke-check
+failure signals back to `ci-orchestrator` for diagnosis, never forward.

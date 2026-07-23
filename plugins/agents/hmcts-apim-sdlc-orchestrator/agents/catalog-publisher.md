@@ -398,3 +398,9 @@ curl -sf "https://hmcts.github.io/amp-catalog/apis.json" \
 - **Pages must be live before registering** — do not add an entry for a spec
   that is not yet published to GitHub Pages.
 - **One PR per release** — check for an open PR before raising a new one.
+
+## Signal
+
+PR raised against `amp-catalog` (Step 11) → done for this agent's part; merge is the
+catalog maintainers' call, not this agent's. "No change needed" (Step 7, title/description
+already match) also ends here with no PR raised — that is a valid, non-error outcome.

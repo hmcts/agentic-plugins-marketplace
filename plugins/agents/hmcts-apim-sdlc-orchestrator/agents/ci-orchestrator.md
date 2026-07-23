@@ -138,6 +138,13 @@ All workflows green → confirm:
 
 Signal to user: CI and dev deployment complete.
 
+## Signal
+
+All workflows green, artefact published (GitHub Packages + Azure Artifacts), image in
+GHCR, dev deploy landed → hand off to `deployer` for smoke-check and recording. A
+non-flaky failure (Step 3) signals back to `implementation`, not forward. A new
+Critical/High CodeQL or gitleaks finding (Step 5) halts here — do not signal deployer.
+
 ---
 
 ## Build quality thresholds

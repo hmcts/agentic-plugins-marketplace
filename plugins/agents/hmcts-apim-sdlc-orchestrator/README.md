@@ -9,7 +9,7 @@ natively for the API-first, Modern by Default stack.
 
 | Component | Items |
 |---|---|
-| **Agents** (`agents/`) | `requirements-analyst`, `apim-architect`, `story-writer`, `contract-test-engineer`, `implementation`, `code-reviewer`, `ci-orchestrator`, `deployer`, `catalog-publisher` (eligibility-checked, examples-gated) — full self-contained pipeline |
+| **Agents** (`agents/`) | Pipeline: `requirements-analyst`, `apim-architect`, `story-writer`, `contract-test-engineer`, `implementation`, `code-reviewer`, `ci-orchestrator`, `deployer`, `catalog-publisher` (eligibility-checked, examples-gated). Hub-and-spoke specialists (not gated to a numbered stage): `contract-compatibility-analyzer` (additive-vs-breaking spec-change + consumer-impact analysis), `feature-flag-auditor` (T1–T5 toggle placement + flag-debt sweep, generic across any service-cp-* repo) |
 | **Skills** (`skills/`) | `openapi-spec-reviewer` — reviews a spec against 4 lenses (data-sharing/UK-GDPR, infrastructure-SLA/Azure, API standards, security); scored /100; `bootstrap-context` — writes `.claude/CLAUDE.md` with correct context imports (also runs automatically on session start); `springboot-api-from-template` — bootstraps a new `api-cp-*` repo from the HMCTS template, with team-ownership and git-access verification; `springboot-service-from-template` — bootstraps a new `service-cp-*` repo from the HMCTS template, chaining to `springboot-api-from-template` if the matching API repo doesn't exist yet, and trimming the new repo's README of generic template boilerplate (demo-project catalogue, inline build/PMD instructions) at scaffold time; `release` — cuts a GitHub release for an `api-cp-*`/`service-cp-*` repo: finds PRs merged since the last tag, filters out dependency/chore/docs noise, computes the next SemVer version, and creates the release with a synthesised functional changelog (the step that triggers Path B's SIT deploy gate) |
 | **Context** (`context/`) | `api-spec-shared`, `service-shared`, `shared-code-rules`, `hmcts-standards`, `logging-standards`, `azure-sdk-guide`, `claude-md-standards` |
 | **Hooks** (`hooks/`) | `block-pii`, `block-secrets`, `guard-bash`, `guard-paths`, `bootstrap-context` (SessionStart — auto-creates `.claude/CLAUDE.md` in `api-cp-*`/`service-cp-*` repos) |
@@ -48,14 +48,22 @@ service-cp-* (needs published spec)
 > "Design the courthouses reference-data API and draft its spec" — invokes `apim-architect`.
 > "Review this OpenAPI spec" — invokes `openapi-spec-reviewer`.
 > "Scaffold the tests for the approved court-schedule service stories" — invokes `contract-test-engineer`.
+> "Is this spec change safe? Who consumes it?" — invokes `contract-compatibility-analyzer`.
+> "Check this service for stale feature flags" — invokes `feature-flag-auditor`.
 
 ## Roadmap
 
-- `api-dependency-analyzer` (optional) — maps which `service-cp-*` consume which `api-cp-*`
-  spec versions; breaking-change detection.
+- ~~`api-dependency-analyzer`~~ — delivered as `contract-compatibility-analyzer` (see Agents above).
 - `authentication-auditor` (**TBD**) — APIM authentication/authorization audit
   (`securitySchemes` coverage, OAuth2/OIDC scopes, Spring Security config). Replaces the
   scope pending the in-flight authZ/authN design.
+- `slo-observability-reviewer` (**TBD**) — verifies a changed endpoint ships metrics,
+  structured logs, trace correlation, and an SLO/alert definition before `code-reviewer`
+  approves.
+- `legacy-parity-analyst` (**TBD**) — systematic legacy-to-MbD migration comparison, for
+  when a `service-cp-*` replaces or wraps an existing `cpp-context-*`/Azure Functions system
+  and byte-for-byte behavioural parity (including known legacy quirks) needs an explicit
+  replicate-or-diverge decision rather than manual, one-off archaeology.
 
 ## Context bootstrap
 
