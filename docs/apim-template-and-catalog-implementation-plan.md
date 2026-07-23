@@ -17,7 +17,7 @@
 - A repo must never be created without an owning GitHub team validated first (`gh api /orgs/hmcts/teams/{slug}`).
 - `catalog-publisher`'s eligibility check (Task 3, Step 1) is mandatory and blocking — never skipped.
 - `catalog-publisher`'s examples-validation gate (Task 3, Step 9) must pass before any `apis.json` write.
-- Spec doc of record: `docs/superpowers/specs/2026-06-23-apim-orchestrator-template-and-catalog-design.md`.
+- Spec doc of record: `docs/apim-template-and-catalog-design.md`.
 
 ---
 
