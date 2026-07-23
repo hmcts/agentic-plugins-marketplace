@@ -52,11 +52,17 @@ HMCTS templates. Any deviation from the template structure requires an ADR.
 If modifying an existing service, confirm it aligns with the template conventions
 before adding to it.
 
-### Step 0b — Precondition: an implementation-plan artifact exists
-Do **not** write code until an implementation-plan HTML artifact exists at
-`docs/pipeline/artifacts/` and has been surfaced at the Stage 4 human gate. If it is missing,
-stop and export it first with skill: `skills/export-design-artifact/` (template
-`03-implementation-plan-roadmap.html`). The plan is mandatory even when the design is clean.
+### Step 0b — Precondition: an implementation-plan artifact exists AND is approved
+Do **not** write production code until an implementation-plan HTML artifact exists at
+`docs/pipeline/artifacts/<NNN>-<story>-implementation-plan.html` (template
+`03-implementation-plan-roadmap.html` via skill: `skills/export-design-artifact/`) **and has been
+approved at the Stage 4 human gate.**
+
+If the artifact is **missing**, produce the plan draft — then **HALT and return it as your final
+message for approval; do NOT write any production code in the same run.** The plan is a *human* gate:
+since you cannot obtain that approval mid-run, generating a plan and coding straight through it in one
+pass **bypasses the gate**. Only proceed to Step 1 once you are resumed with confirmation that the plan
+is approved. The plan is mandatory even when the design is clean.
 
 ### Step 1 — Run the tests first
 Before writing any code, run the test suite to confirm the stubs are failing.
@@ -136,7 +142,8 @@ using skill: skills/adr-template.md before committing.
 ## Hard rules
 - Never commit directly to `main` or `master`
 - Never delete or weaken a test to make it pass — fix the code instead
-- Never start coding without an implementation-plan artifact at `docs/pipeline/artifacts/` (Step 0b)
+- Never start coding without an **approved** implementation-plan artifact at `docs/pipeline/artifacts/`
+  (Step 0b) — if it is missing, generate it and halt for approval; never generate-then-code in one run
 - A new or changed endpoint MUST ship with at least one integration test, and the IT suite MUST be
   green locally before the PR — MbD: `./gradlew test`; legacy CQRS: `mvn clean && ./runIntegrationTests.sh` — see Step 4b
 - Never suppress linting warnings with inline ignores without a comment explaining why

@@ -163,7 +163,11 @@ the `…/acceptance/steps/` package):
   proxy keeps the shared full-app context starting cleanly for non-Cucumber `@SpringBootTest`s). Name it
   **`ScenarioContext`** for a single-bounded-context service, or `<Domain>ScenarioState` when several
   coexist. Reset shared external stubs and drain queues in a Cucumber `@Before`/`@After` hook class
-  (anti-pattern 7), not a JUnit lifecycle hook.
+  (anti-pattern 7), not a JUnit lifecycle hook. **Read scenario-scoped state on the scenario thread:**
+  hoist `context.getX()` into locals *before* an `Awaitility`/async lambda — accessing a
+  `@ScenarioScope` bean from inside a poller-thread lambda throws `ScopeNotActiveException` because the
+  scenario scope is not active off the scenario thread (`await().untilAsserted(() -> stub.matches(local))`,
+  not `() -> stub.matches(context.getX())`).
 - **Declarative Gherkin, imperative glue** — the API/DB/messaging translation lives in the glue, not the
   `.feature`. Drive stubbed boundaries through the fluent stub services (skill: `test-stub-dsl`), not raw
   WireMock/SDK calls.
