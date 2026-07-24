@@ -103,6 +103,16 @@ chore/PROJ-NNN-short-description
 
 No direct commits to `main` or `master` — all changes via PR with ≥1 human approval.
 
+**This is a process rule, not a technical control, on almost every repo in this fleet.**
+Audited directly via `gh api repos/hmcts/<repo>/branches/<default>/protection` on 2026-07-24:
+`main` has no GitHub branch protection configured on `service-cp-crime-results-pcr`,
+`api-cp-crime-results-pcr`, and every other `api-cp-*`/`service-cp-*` repo checked, with one
+confirmed exception (`api-cp-caseadmin-case-urn-mapper`, which requires 1 approval). GitHub
+will let a zero-review PR merge cleanly on the rest. Do not assume a green `mergeable`/`CLEAN`
+PR state implies the approval rule was satisfied — check `reviewDecision`/`reviews` on the PR
+itself, and never merge (or instruct a merge) without a real human approval recorded, since
+GitHub is not the backstop here.
+
 ---
 
 ### Pull request hygiene
