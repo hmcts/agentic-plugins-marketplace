@@ -3,6 +3,7 @@ Keep replies extremely concise. No filler.
 ## Code Rules (non-negotiable)
 
 - No comments unless the WHY is genuinely non-obvious (hidden constraint, workaround, surprising invariant). Never explain WHAT the code does.
+- A comment stays within its own layer's concern. A Flyway migration comment explains why the column/table exists at the schema level (an ADR reference, a type choice) — not the application-layer mechanism that will read or write it (e.g. don't describe a Hibernate listener, an encryption library, or a caching strategy inside a `CREATE TABLE`/`ALTER TABLE` comment). Same principle applies to an OpenAPI spec description explaining a persistence-layer implementation detail. If a comment needs to describe another layer to justify itself, that's a sign it belongs in that other layer (the entity, the ADR, the design doc) instead — cross-reference it by name, don't restate it.
 - No multi-line comment blocks or docstrings.
 - No error handling for scenarios that cannot happen. Trust internal code and framework guarantees. Only validate at real system boundaries (user input, external APIs).
 - No features, refactoring, or abstractions beyond what the task requires. Three similar lines > premature abstraction.

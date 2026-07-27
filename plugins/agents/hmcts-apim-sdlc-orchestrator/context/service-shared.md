@@ -156,7 +156,22 @@ All services implement `TracingFilter extends OncePerRequestFilter`:
 ## Flyway Migrations (DB-backed services only)
 
 - Location: `src/main/resources/db/migration/`
-- Naming: `V<VERSION>__<description>.sql`
+- **Naming: `V<major>.<NNN>__<description>.sql`** (e.g. `V1.001__initial_schema.sql`,
+  `V1.002__add_client_table.sql`) — not flat `V1__`/`V2__`. Matches the convention already used
+  by `service-cp-crime-hearing-results-document-subscription` and the
+  `postgres-encrypt-demo`/`postgres-lock`/`postgres-springboot4` demos. The dotted `<NNN>` gives
+  room to insert migrations later without renumbering everything already shipped; a flat
+  sequence doesn't. Caught in review on `service-cp-crime-results-pcr` after 8 migrations had
+  already shipped flat — renaming was still safe there only because nothing had deployed them
+  to a real environment yet (no `flyway_schema_history` anywhere had those version numbers
+  recorded). Don't rely on that safety net once a migration has actually run somewhere real.
+- **Table/column naming reflects data provenance, not just this service's own name.** If the
+  persisted data represents a shared Common Platform domain concept (case/hearing/defendant
+  data sourced from CP generally), prefix tables/columns `cp_*`, not a service-specific prefix
+  like the API's own name — e.g. `cp_version`/`cp_offence`, not `pcr_version`/`pcr_offence`,
+  because that data is CP's, not invented by the PCR API specifically. A service-invented
+  concept with no CP-wide equivalent (e.g. a subscription/client table this service alone owns)
+  can still use a service-specific prefix.
 - Auto-runs on `bootRun` and test startup
 - All JPA entities use UUID PKs: `@GeneratedValue(strategy = GenerationType.UUID)`
 - PostgreSQL 12+ (Testcontainers handles test DB automatically)
