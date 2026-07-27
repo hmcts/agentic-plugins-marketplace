@@ -27,27 +27,28 @@ Keep replies extremely concise. No filler.
 - No feature flags or fallbacks for hypothetical future requirements.
 - Bug fix = fix the bug only. Do not clean up surroundings.
 - A record/DTO with more than ~4 boolean fields gets a Lombok `@Builder` (works on records too). A
-  long positional-boolean constructor call (`new Vocabulary(true, false, false, true, ...)`) is
-  unreadable and one silent transposition away from a real bug — a named `.builder()` call makes
-  each value self-documenting at the call site. Keep the canonical constructor too if existing
-  tests already construct it positionally; only the production call site needs to migrate.
+  long positional-boolean constructor call is unreadable and one silent transposition away from a
+  real bug — a named `.builder()` call makes each value self-documenting at the call site. Keep the
+  canonical constructor too if existing tests already construct it positionally; only the
+  production call site needs to migrate.
 - Name a class after what its data **is**, not the transport/infra mechanism that happened to
-  produce it at one point in the pipeline. A Service Bus message body class named after "EventGrid"
-  because Event Grid originally triggered it is wrong once it's a queue item by the time your code
-  sees it — name it after the domain event (`HearingResultedEvent`, not `EventGridEnvelope`).
-- Code that is a faithful, line-for-line port of Common-Platform-sourced legacy logic (Function
-  App, Durable Functions activities, a legacy JS module) must be identifiable as ported at three
-  levels, not just one: (1) sub-packaged under a dedicated sub-package (e.g. `services/orchestrator/`)
-  so the "ported, not invented here" boundary is visible in import statements; (2) the class itself
-  gets a `CP` prefix (`CPVocabularyService`, not `VocabularyService`) — same convention as CP-sourced
-  DB tables (`cp_*` → `CP*Entity`/`CP*Repository`); (3) a design-doc comment citing the legacy
-  `file:line` it was read from. Missing any one of the three is how "is this copied from CP?" ends
-  up as a review comment instead of being obvious from the diff.
+  produce it at one point in the pipeline. A message-body class named after the upstream trigger
+  that originally fired it (e.g. a queue-consumed event class named for a pub/sub broker it passed
+  through) is wrong once it's a plain queue item by the time your code sees it — name it after the
+  domain event, not the infrastructure hop.
+- Code that is a faithful, line-for-line port of an external/legacy system's logic must be
+  identifiable as ported at three levels, not just one: (1) sub-packaged under a dedicated
+  sub-package (e.g. `services/legacy/` or `services/<source-system>/`) so the "ported, not invented
+  here" boundary is visible in import statements; (2) the class name itself carries a prefix or
+  suffix identifying the source system, matching whatever convention already marks that source's
+  data elsewhere in the repo (e.g. DB tables/entities); (3) a design-doc or code comment citing the
+  legacy `file:line` it was read from. Missing any one of the three is how "is this copied from
+  upstream?" ends up as a review comment instead of being obvious from the diff.
 - A method/constructor parameter name must be self-descriptive and greppable, even when the
-  wire-level contract uses a short name. A REST client method taking a date named `on` (matching
-  a `?on=<date>` query param) is fine on the wire but wrong as a Java identifier — nobody can grep
-  for `on` in an IDE. Rename the Java parameter (`activeAt`) and keep the wire-level query-param
-  name unchanged; they don't have to match.
+  wire-level contract uses a short name. A client method taking a date named with 1-2 characters
+  (matching an equally short query param) is fine on the wire but wrong as a Java identifier —
+  nobody can grep for a two-letter name in an IDE. Rename the Java parameter to something
+  descriptive and keep the wire-level query-param name unchanged; they don't have to match.
 - A fixed API path segment (the part after the host that never actually varies by environment,
   only the host does) is not environment config — don't put it behind `@Value("${x.path:<literal>}")`
   with a hardcoded default. That duplicates the literal in `application.yaml` AND the Java default,
@@ -59,8 +60,8 @@ Keep replies extremely concise. No filler.
   methods bypass Spring Boot's Jackson autoconfiguration entirely — any `spring.jackson.*` property
   (e.g. `deserialization.fail-on-null-for-primitives`) silently never applies to that client's
   (de)serialization, in production or in WireMock-backed tests that mirror the same construction.
-  Discovered on `service-cp-crime-results-pcr`: a `MismatchedInputException` persisted even after
-  setting the property globally, because `AppConfig`'s `RestClient` bean used the static builder.
+  Verify by checking whether a configured Jackson property actually takes effect in a test that
+  exercises the real client construction path, not just in isolation.
 
 ## Error handling log levels
 
