@@ -174,7 +174,54 @@ All services implement `TracingFilter extends OncePerRequestFilter`:
   can still use a service-specific prefix.
 - Auto-runs on `bootRun` and test startup
 - All JPA entities use UUID PKs: `@GeneratedValue(strategy = GenerationType.UUID)`
-- PostgreSQL 12+ (Testcontainers handles test DB automatically)
+- PostgreSQL 12+
+
+### Required dependencies (DB-backed services)
+
+`spring-boot-starter-flyway` is required alongside the raw Flyway libraries — depending on
+`org.flywaydb:flyway-core`/`flyway-database-postgresql` alone compiles fine but never wires
+`FlywayAutoConfiguration` into a Spring Boot 4 app, so migrations silently never run, in
+production or in tests. All three go together:
+
+```groovy
+implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+implementation 'org.postgresql:postgresql'
+implementation 'org.springframework.boot:spring-boot-starter-flyway'
+implementation 'org.flywaydb:flyway-core'
+implementation 'org.flywaydb:flyway-database-postgresql'
+```
+
+Discovered on `service-cp-crime-results-pcr`: repository tests failed with
+`relation "..." does not exist` despite `spring.flyway.enabled: true` and correct migration
+files — `spring-boot-starter-flyway` was simply missing.
+
+### Database integration test pattern
+
+**Standard: full `@SpringBootTest` + a `PostgresInitialise`-style `ApplicationContextInitializer`
+against a real, externally-started Postgres — not `@DataJpaTest`/Testcontainers.** This is
+`service-cp-crime-hearing-results-document-subscription`'s established pattern; adopt it rather
+than reaching for `@DataJpaTest` slice tests, even though the latter is the more commonly-seen
+Spring Boot idiom for this scenario elsewhere. `@DataJpaTest` was tried on
+`service-cp-crime-results-pcr` and abandoned — it needs Spring Boot 4-specific test-slice
+modules (`spring-boot-starter-data-jpa-test`, `spring-boot-starter-flyway-test`) this org's
+services don't otherwise depend on, for no benefit over the simpler established pattern.
+
+- `PostgresInitialise implements ApplicationContextInitializer<ConfigurableApplicationContext>`
+  (test source, e.g. `integration/config/PostgresInitialise.java`): asserts a real Postgres is
+  reachable at a fixed local URL (`jdbc:postgresql://localhost:5432/<dbname>`, `postgres`/`postgres`)
+  before the context boots, throwing a clear `IllegalStateException` with setup instructions if
+  not; then applies `TestPropertyValues` overriding `spring.datasource.*` and capping
+  `spring.datasource.hikari.maximum-pool-size` (small — each cached Spring test context keeps
+  its own Hikari pool open, and the default size exhausts Postgres `max_connections` once
+  several contexts are cached).
+- A shared abstract `IntegrationTestBase` (or a narrower `RepositoryIntegrationTestBase` for
+  persistence-only tests) carries `@SpringBootTest` + `@ContextConfiguration(initializers = PostgresInitialise.class)`;
+  concrete test classes extend it.
+- Repository tests use `@Transactional` per test method (not per class) for automatic rollback
+  — no explicit `flush()`/`clear()` needed; matches the existing test suite's convention exactly.
+- `docker-compose.yml` needs a `postgres` service (`postgres:18-alpine`, fixed `POSTGRES_DB`/
+  `POSTGRES_USER`/`POSTGRES_PASSWORD`, port `5432:5432`) so `docker compose up -d postgres` is
+  the standard local bootstrap command — there's no self-contained fallback, unlike Testcontainers.
 
 ## Docker
 
@@ -183,7 +230,8 @@ All services implement `TracingFilter extends OncePerRequestFilter`:
 - Entry point: `/app/startup.sh`
 - AppInsights agent mounted from `lib/applicationinsights.json`
 - WireMock (`wiremock/wiremock:3.6.0`) for API tests
-- Testcontainers for DB integration tests (no manual Docker required)
+- Real Postgres for DB integration tests — see "Database integration test pattern" above; not
+  Testcontainers
 
 ## CI/CD Workflows
 
