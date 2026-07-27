@@ -96,6 +96,34 @@ Required env vars: `GITHUB_TOKEN`, `AZURE_DEVOPS_ARTIFACT_USERNAME`, `AZURE_DEVO
 
 Local publishing requires no credentials: `./gradlew publishToMavenLocal`
 
+## Security Scheme
+
+For new `api-cp-*` specs, declare security as plain bearer JWT plus an APIM subscription key —
+no OAuth2 client-credentials flow, no scope:
+
+```yaml
+security:
+  - bearerAuth: []
+    subscriptionKey: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    subscriptionKey:
+      type: apiKey
+      in: header
+      name: Ocp-Apim-Subscription-Key
+      description: >-
+        HMCTS APIM subscription key identifying the consuming system. Issued
+        per consumer when their APIM product subscription is provisioned.
+```
+
+A `403 Forbidden` under this model means "valid subscription key required but not subscribed to
+this API," not a missing OAuth2 scope.
+
 ## Key Constraints
 
 - **Java 25**, Spring Boot 4.0.x, **Jakarta EE** (not `javax`)
