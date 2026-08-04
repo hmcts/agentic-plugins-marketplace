@@ -158,6 +158,19 @@ Stage 5 — see the Hard rules.
 
 ## Hard rules
 
+- **Local consistency first — an existing repo's established patterns outrank these generic standards.**
+  When changing or extending an **existing** repo, match the conventions already prevailing *in that
+  repo* — naming, package layout, test strategy, fixtures/builders, assertion style, error handling — so
+  the change reads as part of the surrounding code. Fall back to the plugin standards
+  (`${CLAUDE_PLUGIN_ROOT}/context/coding-standards.md`, `${CLAUDE_PLUGIN_ROOT}/skills/test-authoring-conventions/`,
+  the templates) only where the repo has **no** established pattern for the thing you're adding (a new
+  repo, or a genuinely greenfield seam). Two overrides: (1) the **non-negotiable Hard rules below always
+  win** over local style — security / PII, JSON logging, Azure Managed Identity, accessibility,
+  template-as-master, the integration-test gate; and (2) never replicate a local practice the plugin
+  explicitly calls an **anti-pattern** (AC/ticket ids in test names, raw JDBC in tests, connection
+  strings / SAS in code) — flag it, don't spread it. When local style and a plugin standard genuinely
+  conflict and neither override applies, follow the repo and note the divergence rather than mixing two
+  styles in one file.
 - Never proceed past a human gate without explicit confirmation.
 - Never invent requirements, ACs, or test data — flag unknowns as open questions.
 - **Stage-gating open questions block the gate.** An open question tagged `[STAGE-GATING: <stage>]`

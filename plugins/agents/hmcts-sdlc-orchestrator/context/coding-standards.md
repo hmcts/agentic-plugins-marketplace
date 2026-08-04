@@ -1,5 +1,14 @@
 # Coding Standards
 
+> **Scope — local consistency first.** These are the **defaults for greenfield code and new repos**.
+> When editing an **existing** repo, the conventions already established *in that repo* take priority:
+> match the surrounding code's naming, package layout, and idioms so the change is indistinguishable from
+> what is already there. Apply the standards below where the repo has **no** established pattern for what
+> you're adding. Always-apply exceptions that override local style: the non-negotiable rules (security /
+> PII, JSON logging, Azure Managed Identity, template-as-master). And never carry forward a local
+> practice this document explicitly forbids (e.g. connection strings in config, comments that restate
+> code) — flag it instead of replicating it.
+
 ## Java / Spring Boot
 
 ### Naming

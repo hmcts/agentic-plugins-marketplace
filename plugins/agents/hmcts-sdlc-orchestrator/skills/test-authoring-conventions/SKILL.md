@@ -13,6 +13,14 @@ description: |
 Applies to every unit, integration, and acceptance test. Goal: tests that read as behaviour, stay
 maintainable, and don't leak infrastructure into the test class.
 
+> **Local consistency first.** In an **existing** repo, follow the test patterns already established
+> there — harness/base classes, factory and builder placement and naming, `*TestRepository` helpers,
+> stub-service style, `@Nested` grouping, assertion library — so a new test slots in beside the ones
+> around it. The conventions below are the **default for a new repo or a test area with no precedent**.
+> Where an existing test genuinely violates a convention here (an AC id in a name, raw JDBC, Hamcrest),
+> don't copy it forward — flag it; but don't churn a repo's consistent, valid house style just to match
+> this document.
+
 ---
 
 ## 1. Naming & traceability — no requirement ids in tests
