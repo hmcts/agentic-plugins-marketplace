@@ -1,5 +1,11 @@
 Keep replies extremely concise. No filler.
 
+## Git commit / PR conventions
+
+- Never append a `Co-Authored-By: Claude ...` trailer, a "🤖 Generated with Claude Code" line, or
+  any other AI-attribution signature to a commit message or PR description in these repos. Write
+  commit messages and PR bodies exactly as a team member would.
+
 ## Code Rules (non-negotiable)
 
 - No comments unless the WHY is genuinely non-obvious (hidden constraint, workaround, surprising invariant). Never explain WHAT the code does.
