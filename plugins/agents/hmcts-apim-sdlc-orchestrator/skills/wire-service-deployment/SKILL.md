@@ -5,7 +5,9 @@ description: >
   provisioning and cp-vp-aks-deploy registration are complete. Idempotent — safe to
   invoke again if the jobs already exist. Use when a service-cp-* repo is missing the
   deploy-dev and deploy-sit jobs in its ci-build-publish.yml, or when setting up a
-  newly bootstrapped service for the first time.
+  newly bootstrapped service for the first time. Also detects a dedicated Postgres
+  database and chains to exclude-db-from-priming-clear to protect it from the nonprod
+  priming pipeline's quick_clear sweep.
 ---
 
 # Skill: Wire Service Deployment
@@ -363,6 +365,45 @@ EOF
 
 ---
 
+## Step 11 — Protect any dedicated database from priming quick-clear
+
+Run the same database-detection check `exclude-db-from-priming-clear` uses:
+
+```bash
+python3 - <<'EOF'
+import re, os
+
+candidate = None
+
+if os.path.exists("docker-compose.yml"):
+    with open("docker-compose.yml") as f:
+        m = re.search(r"POSTGRES_DB:\s*(\S+)", f.read())
+        if m:
+            candidate = m.group(1).strip()
+
+if not candidate and os.path.exists("src/main/resources/application.yaml"):
+    with open("src/main/resources/application.yaml") as f:
+        text = f.read()
+    m = re.search(
+        r"datasource:\s*\n\s*url:\s*.*jdbc:postgresql://[^/]+/([a-zA-Z0-9_]+)",
+        text,
+    )
+    if m:
+        candidate = m.group(1)
+
+print(f"DB_DETECTED:{candidate}" if candidate else "NO_DB_OWNED")
+EOF
+```
+
+If `NO_DB_OWNED`, this service is a stateless proxy — nothing further to do.
+
+If `DB_DETECTED:<name>`, invoke the `exclude-db-from-priming-clear` skill now,
+passing `<name>` as the locally-detected candidate. That skill owns the
+human-confirmation step (local dev naming can diverge from the deployed name)
+and the PR to `cpp-aks-ops` — do not duplicate that logic here.
+
+---
+
 ## Rules
 
 - **Never run this skill on `main` directly.** Always create and push from a new branch.
@@ -373,3 +414,6 @@ EOF
   updates only the `template_parameters` blocks in the deploy jobs).
 - If `gh api` cannot read `cp-vp-aks-deploy` (permissions issue), ask the user to provide
   cluster params manually rather than blocking the entire workflow.
+- **Step 11's database chain is best-effort, not a gate.** If database detection or the
+  chained `exclude-db-from-priming-clear` run fails, report it but do not block or roll
+  back the CI-wiring PR already raised in Steps 6–10 — they are independent concerns.
