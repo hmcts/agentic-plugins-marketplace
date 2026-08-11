@@ -67,7 +67,8 @@ One-time service lifecycle skills (run once per repo, not per feature):
 
 | Skill | When |
 |---|---|
-| `wire-service-deployment` | After Azure provisioning and `cp-vp-aks-deploy` registration — wires `deploy-dev` and `deploy-sit` CI jobs |
+| `wire-service-deployment` | After Azure provisioning and `cp-vp-aks-deploy` registration — wires `deploy-dev` and `deploy-sit` CI jobs, then chains to `exclude-db-from-priming-clear` if the service owns a database |
+| `exclude-db-from-priming-clear` | Chained from `wire-service-deployment` for new services with a dedicated database, or run standalone to remediate an existing service after a priming data-loss incident |
 
 ## Pipelines (run stages in order; halt at every human gate)
 
@@ -100,7 +101,7 @@ No code, no deploy. Output of Path A is a published `api-cp-*` artefact register
 | # | Stage | Driver | Gate | MbD stage | Signal to next |
 |---|---|---|---|---|---|
 | 0 | Verify the `api-cp-*` artefact is published | **`requirements-analyst`** check | **Blocks if missing** | — | Confirmed published → continue; missing → halt |
-| 0b | Wire deployment CI (one-time, new services only) | **`wire-service-deployment`** skill | Prereq: Azure provisioned + service in `cp-vp-aks-deploy` | — | Jobs wired → requirements-analyst |
+| 0b | Wire deployment CI (one-time, new services only) | **`wire-service-deployment`** skill | Prereq: Azure provisioned + service in `cp-vp-aks-deploy` | — | Jobs wired (chains to `exclude-db-from-priming-clear` if a database is detected) → requirements-analyst |
 | 1 | Requirements | **`requirements-analyst`** | Human | 0–1 | Requirements approved → apim-architect |
 | 2 | Service design | **`apim-architect`** | Human | 1 | Design approved → story-writer |
 | 3 | User stories | **`story-writer`** | Human | 1 | Stories approved, linked Jira ticket exists → contract-test-engineer |
