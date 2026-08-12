@@ -213,6 +213,8 @@ gh pr list --repo hmcts/cpp-aks-ops --head "chore/exclude-$DB_NAME-from-priming-
 If none exists:
 
 ```bash
+DB_NAME="<confirmed name from Step 2, validated above>"
+[[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 cd /tmp/cpp-aks-ops
 BRANCH="chore/exclude-$DB_NAME-from-priming-quick-clear"
 git checkout -b "$BRANCH"
