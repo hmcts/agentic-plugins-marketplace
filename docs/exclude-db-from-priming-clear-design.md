@@ -60,9 +60,11 @@ provisioned on the shared server (confirmed case: local `pcrdb` vs. deployed `pc
 write an unconfirmed name into the ops PR.
 
 **Step 3 — Idempotency check.**
-Read `aks_priming_deploy.yaml` from `hmcts/cpp-aks-ops` via `gh api` (no local clone, same
-approach `wire-service-deployment` uses against `cp-vp-aks-deploy`). If the confirmed name is
-already present in both deny-lists below, report "already excluded" and exit.
+Clone `hmcts/cpp-aks-ops` into `/tmp/cpp-aks-ops` (same `gh repo clone` pattern
+`catalog-publisher` already uses for `hmcts/amp-catalog` — a local clone, not a read-only
+`gh api` lookup, because Step 4 needs to write the patched file back and Step 5 needs to
+push a branch from it). If the confirmed name is already present in both deny-lists below,
+report "already excluded" and exit.
 
 **Step 4 — Patch exactly two lines**, both inside the single `runQuickClear` task:
 - the dev-path `jq -r '.[].name | select(...)'` chain (currently ends `... and . != "hrds"`)

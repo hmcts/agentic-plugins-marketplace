@@ -122,15 +122,34 @@ Ask the user directly:
 Do not proceed to Step 3 without an explicit confirmed name from the user. Never
 write the unconfirmed local candidate into the PR.
 
-## Step 3 — Idempotency check
-
-```bash
-gh repo clone hmcts/cpp-aks-ops /tmp/cpp-aks-ops 2>/dev/null \
-  || git -C /tmp/cpp-aks-ops pull --ff-only
-```
+Validate the confirmed name before using it anywhere below — it must be a
+plausible Postgres identifier, not arbitrary text:
 
 ```bash
 DB_NAME="<confirmed name from Step 2>"
+if ! [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]]; then
+  echo "REJECTED: '$DB_NAME' is not a valid Postgres identifier (lowercase letters, digits, underscore only) — ask the user to confirm again."
+  exit 1
+fi
+```
+
+Each step below re-declares `DB_NAME` at the top of its own commands —
+do not assume shell state (exported variables) persists between separate
+tool invocations of different steps.
+
+## Step 3 — Idempotency check
+
+```bash
+if [ -d /tmp/cpp-aks-ops ]; then
+  git -C /tmp/cpp-aks-ops pull --ff-only
+else
+  gh repo clone hmcts/cpp-aks-ops /tmp/cpp-aks-ops
+fi
+```
+
+```bash
+DB_NAME="<confirmed name from Step 2, validated above>"
+[[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 if grep -q "!= \"$DB_NAME\"" /tmp/cpp-aks-ops/aks_priming_deploy.yaml \
    && grep -q "'$DB_NAME'" /tmp/cpp-aks-ops/aks_priming_deploy.yaml; then
   echo "ALREADY_EXCLUDED"
@@ -149,9 +168,14 @@ Both edits are inside the single `runQuickClear` task
 `priming_enable`/`restore_dataset` logic is touched.
 
 ```bash
-python3 - <<EOF
+DB_NAME="<confirmed name from Step 2, validated above>"
+[[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
+export DB_NAME
+python3 - <<'EOF'
+import os
+
 path = "/tmp/cpp-aks-ops/aks_priming_deploy.yaml"
-db_name = "$DB_NAME"
+db_name = os.environ["DB_NAME"]
 
 with open(path) as f:
     text = f.read()
@@ -181,6 +205,8 @@ skill was written. Report the mismatch to the user rather than patching blind.
 Check for an existing open PR first:
 
 ```bash
+DB_NAME="<confirmed name from Step 2, validated above>"
+[[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 gh pr list --repo hmcts/cpp-aks-ops --head "chore/exclude-$DB_NAME-from-priming-quick-clear" --state open
 ```
 
