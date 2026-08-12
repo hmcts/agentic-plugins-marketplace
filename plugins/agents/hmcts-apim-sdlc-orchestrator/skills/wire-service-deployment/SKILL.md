@@ -367,40 +367,20 @@ EOF
 
 ## Step 11 — Protect any dedicated database from priming quick-clear
 
-Run the same database-detection check `exclude-db-from-priming-clear` uses:
+Check whether this service owns a dedicated database — a `POSTGRES_DB` entry in
+`docker-compose.yml` or a `spring.datasource.url` in
+`src/main/resources/application.yaml` is enough to tell:
 
 ```bash
-python3 - <<'EOF'
-import re, os
-
-candidate = None
-
-if os.path.exists("docker-compose.yml"):
-    with open("docker-compose.yml") as f:
-        m = re.search(r"POSTGRES_DB:\s*(\S+)", f.read())
-        if m:
-            candidate = m.group(1).strip()
-
-if not candidate and os.path.exists("src/main/resources/application.yaml"):
-    with open("src/main/resources/application.yaml") as f:
-        text = f.read()
-    m = re.search(
-        r"datasource:\s*\n\s*url:\s*.*jdbc:postgresql://[^/]+/([a-zA-Z0-9_]+)",
-        text,
-    )
-    if m:
-        candidate = m.group(1)
-
-print(f"DB_DETECTED:{candidate}" if candidate else "NO_DB_OWNED")
-EOF
+{ grep -q "POSTGRES_DB" docker-compose.yml 2>/dev/null || grep -q "datasource" src/main/resources/application.yaml 2>/dev/null; } \
+  && echo "HAS_DB" || echo "NO_DB_OWNED"
 ```
 
 If `NO_DB_OWNED`, this service is a stateless proxy — nothing further to do.
 
-If `DB_DETECTED:<name>`, invoke the `exclude-db-from-priming-clear` skill now,
-passing `<name>` as the locally-detected candidate. That skill owns the
-human-confirmation step (local dev naming can diverge from the deployed name)
-and the PR to `cpp-aks-ops` — do not duplicate that logic here.
+If `HAS_DB`, invoke the `exclude-db-from-priming-clear` skill now — it runs its
+own detection (Step 1) and human-confirmation (Step 2), so do not duplicate
+that logic here.
 
 ---
 

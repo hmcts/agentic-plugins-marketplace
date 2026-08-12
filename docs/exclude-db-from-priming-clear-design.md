@@ -24,9 +24,10 @@ patches the deny-list.
 
 ## Goal
 
-1. Fix the live incident: exclude `pcr`'s actual database from `quick_clear`.
-2. Prevent recurrence: any future `service-cp-*` with its own database is protected
-   automatically at onboarding time, before it can ever be swept.
+1. Prevent recurrence: any future `service-cp-*` with its own database is protected
+   automatically at onboarding time, before it can ever be swept. (The live `pcr`
+   incident itself was resolved externally, independent of this skill — see
+   "Fixing the live incident" below.)
 
 ## Non-goals
 
@@ -46,8 +47,8 @@ Added to `hmcts-apim-sdlc-orchestrator/skills/exclude-db-from-priming-clear/SKIL
 
 **Step 1 — Detect a dedicated database.**
 Check, in order:
-1. `spring.datasource.url` in `src/main/resources/application.yaml`
-2. `POSTGRES_DB` in `docker-compose.yml`
+1. `POSTGRES_DB` in `docker-compose.yml`
+2. `spring.datasource.url` in `src/main/resources/application.yaml`
 
 If neither is present, report "no dedicated database owned by this service — nothing to
 protect" and exit. This is the "if it has any db" gate from the original ask.
@@ -93,9 +94,11 @@ shared ops repo) are different concerns with different blast radii and different
 
 ### Fixing the live incident
 
-Once the skill exists, it is run once, directly, against `service-cp-crime-results-pcr` to
-raise the actual fix PR — with a human confirming the real database name (`pcrdb` vs `pcr`)
-per Step 2.
+The live `pcr` incident was resolved externally, independent of this skill: a separate,
+already-merged PR — `hmcts/cpp-aks-ops#422` ("Exclude pcr database from priming
+quick_clear truncation"), merged 2026-08-12T08:18:17Z — added `pcr` to both deny-lists
+directly against `cpp-aks-ops`. This skill did not raise that fix; running it against
+`service-cp-crime-results-pcr` now correctly reports `ALREADY_EXCLUDED` at Step 3.
 
 ## Alternatives considered
 

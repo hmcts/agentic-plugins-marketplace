@@ -28,7 +28,7 @@
 - Consumes: nothing from other tasks.
 - Produces: a skill named `exclude-db-from-priming-clear`, invocable standalone and referenced by name from `wire-service-deployment` (Task 2).
 
-- [ ] **Step 1: Write the skill file**
+- [x] **Step 1: Write the skill file**
 
 ```markdown
 ---
@@ -63,7 +63,7 @@ database on the shared nonprod Postgres flexible server — via
 `az postgres flexible-server db list` (dev) or `SELECT datname FROM pg_database`
 (non-dev) — and truncates all tables in each one, except a small hardcoded deny-list
 of system databases: `template0`, `template1`, `postgres`, `repmgr`,
-`azure_maintenance`, `azure_sys`, `hrds`.
+`azure_maintenance`, `azure_sys`, `hrds`, and any previously-excluded service databases.
 
 Any new service database that appears on that server is swept by default. `hrds`
 already being in the deny-list shows this "add the db name to the deny-list" fix
@@ -85,7 +85,7 @@ candidate = None
 
 if os.path.exists("docker-compose.yml"):
     with open("docker-compose.yml") as f:
-        m = re.search(r"POSTGRES_DB:\s*(\S+)", f.read())
+        m = re.search(r"POSTGRES_DB:[ \t]*(\S+)", f.read())
         if m:
             candidate = m.group(1).strip()
 
@@ -126,7 +126,10 @@ Validate the confirmed name before using it anywhere below — it must be a
 plausible Postgres identifier, not arbitrary text:
 
 ```bash
-DB_NAME="<confirmed name from Step 2>"
+DB_NAME=$(cat <<'NAME_EOF'
+<confirmed name from Step 2>
+NAME_EOF
+)
 if ! [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]]; then
   echo "REJECTED: '$DB_NAME' is not a valid Postgres identifier (lowercase letters, digits, underscore only) — ask the user to confirm again."
   exit 1
@@ -141,14 +144,19 @@ tool invocations of different steps.
 
 ```bash
 if [ -d /tmp/cpp-aks-ops ]; then
-  git -C /tmp/cpp-aks-ops pull --ff-only
+  git -C /tmp/cpp-aks-ops fetch origin
+  git -C /tmp/cpp-aks-ops checkout -B priming-exclusion-work origin/HEAD
 else
   gh repo clone hmcts/cpp-aks-ops /tmp/cpp-aks-ops
+  git -C /tmp/cpp-aks-ops checkout -B priming-exclusion-work origin/HEAD
 fi
 ```
 
 ```bash
-DB_NAME="<confirmed name from Step 2, validated above>"
+DB_NAME=$(cat <<'NAME_EOF'
+<confirmed name from Step 2, validated above>
+NAME_EOF
+)
 [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 if grep -q "!= \"$DB_NAME\"" /tmp/cpp-aks-ops/aks_priming_deploy.yaml \
    && grep -q "'$DB_NAME'" /tmp/cpp-aks-ops/aks_priming_deploy.yaml; then
@@ -168,7 +176,10 @@ Both edits are inside the single `runQuickClear` task
 `priming_enable`/`restore_dataset` logic is touched.
 
 ```bash
-DB_NAME="<confirmed name from Step 2, validated above>"
+DB_NAME=$(cat <<'NAME_EOF'
+<confirmed name from Step 2, validated above>
+NAME_EOF
+)
 [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 export DB_NAME
 python3 - <<'EOF'
@@ -180,14 +191,16 @@ db_name = os.environ["DB_NAME"]
 with open(path) as f:
     text = f.read()
 
-jq_old = 'and . != "hrds")'
-jq_new = f'and . != "hrds" and . != "{db_name}")'
+jq_old = 'and . != "hrds"'
+jq_new = f'and . != "hrds" and . != "{db_name}"'
 assert jq_old in text, "jq deny-list anchor not found — file may have changed upstream"
+assert text.count(jq_old) == 1, "jq deny-list anchor appears more than once — ambiguous patch target"
 text = text.replace(jq_old, jq_new, 1)
 
-sql_old = "'azure_sys', 'hrds');\""
-sql_new = f"'azure_sys', 'hrds', '{db_name}');\""
+sql_old = "'azure_sys', 'hrds'"
+sql_new = f"'azure_sys', 'hrds', '{db_name}'"
 assert sql_old in text, "psql NOT IN anchor not found — file may have changed upstream"
+assert text.count(sql_old) == 1, "psql NOT IN anchor appears more than once — ambiguous patch target"
 text = text.replace(sql_old, sql_new, 1)
 
 with open(path, "w") as f:
@@ -205,19 +218,27 @@ skill was written. Report the mismatch to the user rather than patching blind.
 Check for an existing open PR first:
 
 ```bash
-DB_NAME="<confirmed name from Step 2, validated above>"
+DB_NAME=$(cat <<'NAME_EOF'
+<confirmed name from Step 2, validated above>
+NAME_EOF
+)
 [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 gh pr list --repo hmcts/cpp-aks-ops --head "chore/exclude-$DB_NAME-from-priming-quick-clear" --state open
 ```
 
+If an open PR is found, report its URL to the user and stop — do not raise a duplicate.
+
 If none exists:
 
 ```bash
-DB_NAME="<confirmed name from Step 2, validated above>"
+DB_NAME=$(cat <<'NAME_EOF'
+<confirmed name from Step 2, validated above>
+NAME_EOF
+)
 [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 cd /tmp/cpp-aks-ops
 BRANCH="chore/exclude-$DB_NAME-from-priming-quick-clear"
-git checkout -b "$BRANCH"
+git checkout -B "$BRANCH"
 git add aks_priming_deploy.yaml
 git commit -m "chore(priming): exclude $DB_NAME from quick_clear sweep
 
@@ -239,7 +260,7 @@ Excludes the \`$DB_NAME\` database from the priming pipeline's \`quick_clear\`
 step. \`quick_clear\` enumerates every database on the shared nonprod Postgres
 server and truncates all its tables except a small system deny-list
 (\`template0\`, \`template1\`, \`postgres\`, \`repmgr\`, \`azure_maintenance\`,
-\`azure_sys\`, \`hrds\`). \`$DB_NAME\` is owned by a service-cp-* Spring Boot
+\`azure_sys\`, \`hrds\`, and any previously-excluded service databases). \`$DB_NAME\` is owned by a service-cp-* Spring Boot
 service with its own dedicated datastore, not a legacy shared schema, and
 should not be swept by this job.
 
@@ -278,7 +299,7 @@ Never auto-merge. Report the PR URL to the user and stop — a human on the
   fuzzy/partial patch.
 ```
 
-- [ ] **Step 2: Verify the frontmatter parses and required sections exist**
+- [x] **Step 2: Verify the frontmatter parses and required sections exist**
 
 ```bash
 python3 - <<'EOF'
@@ -312,7 +333,7 @@ EOF
 
 Expected: `OK: frontmatter valid, all required sections present`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add plugins/agents/hmcts-apim-sdlc-orchestrator/skills/exclude-db-from-priming-clear/SKILL.md
@@ -335,7 +356,7 @@ database on the shared server by default."
 - Consumes: the skill name `exclude-db-from-priming-clear` (Task 1) — invoked by name, no shared code/types.
 - Produces: `wire-service-deployment` now also protects any dedicated database at onboarding time.
 
-- [ ] **Step 1: Update the frontmatter description**
+- [x] **Step 1: Update the frontmatter description**
 
 Find this block at the top of the file:
 
@@ -367,7 +388,7 @@ description: >
 ---
 ```
 
-- [ ] **Step 2: Insert the new Step 11, before the `## Rules` section**
+- [x] **Step 2: Insert the new Step 11, before the `## Rules` section**
 
 Find this block near the end of the file (the last line of Step 10, immediately
 before `## Rules`):
@@ -403,7 +424,7 @@ candidate = None
 
 if os.path.exists("docker-compose.yml"):
     with open("docker-compose.yml") as f:
-        m = re.search(r"POSTGRES_DB:\s*(\S+)", f.read())
+        m = re.search(r"POSTGRES_DB:[ \t]*(\S+)", f.read())
         if m:
             candidate = m.group(1).strip()
 
@@ -433,7 +454,7 @@ and the PR to `cpp-aks-ops` — do not duplicate that logic here.
 ## Rules
 ```
 
-- [ ] **Step 3: Add a Rules bullet documenting the chain**
+- [x] **Step 3: Add a Rules bullet documenting the chain**
 
 Find the last bullet of the `## Rules` section:
 
@@ -452,7 +473,7 @@ Replace it with:
   back the CI-wiring PR already raised in Steps 6–10 — they are independent concerns.
 ```
 
-- [ ] **Step 4: Verify the required sections still exist**
+- [x] **Step 4: Verify the required sections still exist**
 
 ```bash
 python3 - <<'EOF'
@@ -473,7 +494,7 @@ EOF
 
 Expected: `OK: chaining step present`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add plugins/agents/hmcts-apim-sdlc-orchestrator/skills/wire-service-deployment/SKILL.md
@@ -498,7 +519,7 @@ of relying on someone noticing after data loss."
 - Consumes: the skill name `exclude-db-from-priming-clear` (Task 1).
 - Produces: no new interfaces — documentation and version metadata only.
 
-- [ ] **Step 1: Update the README "What's inside" Skills row**
+- [x] **Step 1: Update the README "What's inside" Skills row**
 
 Find this row in the "What's inside" table:
 
@@ -512,7 +533,7 @@ Replace it with:
 | **Skills** (`skills/`) | `openapi-spec-reviewer` — reviews a spec against 4 lenses (data-sharing/UK-GDPR, infrastructure-SLA/Azure, API standards, security); scored /100; `bootstrap-context` — writes `.claude/CLAUDE.md` with correct context imports (also runs automatically on session start); `springboot-api-from-template` — bootstraps a new `api-cp-*` repo from the HMCTS template, with team-ownership and git-access verification; `springboot-service-from-template` — bootstraps a new `service-cp-*` repo from the HMCTS template, chaining to `springboot-api-from-template` if the matching API repo doesn't exist yet, and trimming the new repo's README of generic template boilerplate (demo-project catalogue, inline build/PMD instructions) at scaffold time; `wire-service-deployment` — wires `deploy-dev`/`deploy-sit` CI jobs after Azure provisioning, chaining to `exclude-db-from-priming-clear` when the service owns a database; `exclude-db-from-priming-clear` — detects a service-cp-*'s dedicated Postgres database and raises a PR to `cpp-aks-ops` excluding it from the nonprod priming pipeline's `quick_clear` sweep; `release` — cuts a GitHub release for an `api-cp-*`/`service-cp-*` repo: finds PRs merged since the last tag, filters out dependency/chore/docs noise, computes the next SemVer version, and creates the release with a synthesised functional changelog (the step that triggers Path B's SIT deploy gate) |
 ```
 
-- [ ] **Step 2: Update the CLAUDE.md one-time service lifecycle skills table**
+- [x] **Step 2: Update the CLAUDE.md one-time service lifecycle skills table**
 
 Find:
 
@@ -535,7 +556,7 @@ One-time service lifecycle skills (run once per repo, not per feature):
 | `exclude-db-from-priming-clear` | Chained from `wire-service-deployment` for new services with a dedicated database, or run standalone to remediate an existing service after a priming data-loss incident |
 ```
 
-- [ ] **Step 3: Update the CLAUDE.md Path B stage table row 0b**
+- [x] **Step 3: Update the CLAUDE.md Path B stage table row 0b**
 
 Find:
 
@@ -549,7 +570,7 @@ Replace it with:
 | 0b | Wire deployment CI (one-time, new services only) | **`wire-service-deployment`** skill | Prereq: Azure provisioned + service in `cp-vp-aks-deploy` | — | Jobs wired (chains to `exclude-db-from-priming-clear` if a database is detected) → requirements-analyst |
 ```
 
-- [ ] **Step 4: Update `plugin.json` version and description**
+- [x] **Step 4: Update `plugin.json` version and description**
 
 In `plugins/agents/hmcts-apim-sdlc-orchestrator/.claude-plugin/plugin.json`:
 
@@ -577,7 +598,7 @@ In `plugins/agents/hmcts-apim-sdlc-orchestrator/.claude-plugin/plugin.json`:
 }
 ```
 
-- [ ] **Step 5: Verify `plugin.json` is still valid JSON**
+- [x] **Step 5: Verify `plugin.json` is still valid JSON**
 
 ```bash
 jq . plugins/agents/hmcts-apim-sdlc-orchestrator/.claude-plugin/plugin.json > /dev/null && echo "VALID JSON"
@@ -585,7 +606,7 @@ jq . plugins/agents/hmcts-apim-sdlc-orchestrator/.claude-plugin/plugin.json > /d
 
 Expected: `VALID JSON`
 
-- [ ] **Step 6: Update the `marketplace.json` entry**
+- [x] **Step 6: Update the `marketplace.json` entry**
 
 In `.claude-plugin/marketplace.json`, find the `hmcts-apim-sdlc-orchestrator` entry
 (around line 105):
@@ -614,7 +635,7 @@ Replace it with:
     },
 ```
 
-- [ ] **Step 7: Verify `marketplace.json` is still valid JSON and the version bumped**
+- [x] **Step 7: Verify `marketplace.json` is still valid JSON and the version bumped**
 
 ```bash
 jq '.plugins[] | select(.name=="hmcts-apim-sdlc-orchestrator") | {version, description}' .claude-plugin/marketplace.json
@@ -623,7 +644,7 @@ jq '.plugins[] | select(.name=="hmcts-apim-sdlc-orchestrator") | {version, descr
 Expected: `version` is `"1.4.0"` and `description` contains the string
 `"exclude-db-from-priming-clear"`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add plugins/agents/hmcts-apim-sdlc-orchestrator/README.md \
@@ -646,12 +667,12 @@ Path B stage 0b, and bumps plugin.json/marketplace.json to 1.4.0."
 - Consumes: the committed state of Tasks 1–3.
 - Produces: confidence the plugin still loads cleanly before it is used live in Task 5.
 
-- [ ] **Step 1: Run the code-review skill on the branch**
+- [x] **Step 1: Run the code-review skill on the branch**
 
 Invoke `code-review:review` on the current branch. Fix all findings (Must fix,
 Should fix, and Nits) before proceeding.
 
-- [ ] **Step 2: Reload plugins**
+- [x] **Step 2: Reload plugins**
 
 ```
 /reload-plugins
@@ -661,7 +682,7 @@ Expected: the summary line's skill count increases by 1 for
 `hmcts-apim-sdlc-orchestrator` (the new `exclude-db-from-priming-clear` skill), with
 no load errors reported.
 
-- [ ] **Step 3: Run `/doctor`**
+- [x] **Step 3: Run `/doctor`**
 
 ```
 /doctor
@@ -670,7 +691,7 @@ no load errors reported.
 Expected: `"Claude Code diagnostics dismissed"`. Any other output means a config file
 has a syntax error — check the flagged file and reload again.
 
-- [ ] **Step 4: Smoke-test the new skill's trigger**
+- [x] **Step 4: Smoke-test the new skill's trigger**
 
 Ask Claude, in a session with the plugin loaded: *"Does `service-cp-crime-hearing`
 have a database that needs protecting from priming quick-clear?"* Confirm
@@ -679,7 +700,7 @@ service is a stateless proxy per `service-shared.md`). If it doesn't trigger, th
 frontmatter `description` is too narrow — broaden the intent patterns and re-run
 Step 2.
 
-- [ ] **Step 5: Smoke-test the chaining trigger**
+- [x] **Step 5: Smoke-test the chaining trigger**
 
 Ask Claude: *"Wire up deployment for a service that just provisioned its own
 database."* Confirm `wire-service-deployment` is invoked and its Step 11 correctly
@@ -689,43 +710,15 @@ identifies that it should chain to `exclude-db-from-priming-clear`.
 
 ### Task 5: Remediate the live incident — exclude `pcr` from quick_clear
 
-**Files:** none in this repo — all changes are in `hmcts/cpp-aks-ops`.
+**Status: resolved externally.** The `pcr` database was excluded from
+`quick_clear` via a direct PR against `hmcts/cpp-aks-ops` —
+[#422 "Exclude pcr database from priming quick_clear truncation"](https://github.com/hmcts/cpp-aks-ops/pull/422),
+merged 2026-08-12T08:18:17Z — raised and merged independently of this skill.
+Verified via `gh pr diff 422`: it adds `pcr` to both deny-lists (dev `jq` path
+and non-dev `psql NOT IN` path), the same two locations
+`exclude-db-from-priming-clear`'s Step 4 targets, with no changes outside the
+`quick_clear`-gated task.
 
-**Interfaces:**
-- Consumes: the finished `exclude-db-from-priming-clear` skill (Task 1).
-- Produces: a real, open PR against `hmcts/cpp-aks-ops`.
-
-This is a live action, not a test — it must not run unattended. Confirming the
-real database name (Step 2 of the skill) requires an explicit answer from the user
-running this task; do not assume `pcr` or `pcrdb` without asking.
-
-- [ ] **Step 1: Invoke the skill against `service-cp-crime-results-pcr`**
-
-```bash
-cd /Users/srivanimuddineni/HMCTS/APIM/service-cp-crime-results-pcr
-```
-
-Run the `exclude-db-from-priming-clear` skill's Step 1 (database detection) from
-this directory. Expected: `DB_DETECTED:pcrdb` (from `docker-compose.yml`'s
-`POSTGRES_DB: pcrdb` / `application.yaml`'s `jdbc:postgresql://localhost:5432/pcrdb`).
-
-- [ ] **Step 2: Confirm the real deployed database name**
-
-Ask the user directly, per the skill's Step 2: *"Local dev config uses `pcrdb`, but
-the priming pipeline logs (build 780429) show the truncated database was named
-`pcr`. Please confirm the exact database name to exclude — is it `pcr`, or does it
-vary by environment (dev/ste/sit)?"*
-
-Do not proceed until the user gives an explicit name.
-
-- [ ] **Step 3: Run the skill's Steps 3–5 with the confirmed name**
-
-Follow `exclude-db-from-priming-clear`'s Step 3 (idempotency check), Step 4 (patch
-both deny-lists in a clone of `hmcts/cpp-aks-ops`), and Step 5 (raise the PR) with
-the name confirmed in Step 2.
-
-- [ ] **Step 4: Report the result**
-
-Report the PR URL to the user, and restate: this PR needs a human reviewer on the
-`cpp-aks-ops` side to confirm the database name is correct across every
-environment before merging — this skill never auto-merges.
+No further action needed — running `exclude-db-from-priming-clear` against
+`service-cp-crime-results-pcr` now correctly reports `ALREADY_EXCLUDED` at
+Step 3 and stops.

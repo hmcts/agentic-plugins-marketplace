@@ -30,7 +30,7 @@ database on the shared nonprod Postgres flexible server — via
 `az postgres flexible-server db list` (dev) or `SELECT datname FROM pg_database`
 (non-dev) — and truncates all tables in each one, except a small hardcoded deny-list
 of system databases: `template0`, `template1`, `postgres`, `repmgr`,
-`azure_maintenance`, `azure_sys`, `hrds`.
+`azure_maintenance`, `azure_sys`, `hrds`, and any previously-excluded service databases.
 
 Any new service database that appears on that server is swept by default. `hrds`
 already being in the deny-list shows this "add the db name to the deny-list" fix
@@ -52,7 +52,7 @@ candidate = None
 
 if os.path.exists("docker-compose.yml"):
     with open("docker-compose.yml") as f:
-        m = re.search(r"POSTGRES_DB:\s*(\S+)", f.read())
+        m = re.search(r"POSTGRES_DB:[ \t]*(\S+)", f.read())
         if m:
             candidate = m.group(1).strip()
 
@@ -93,7 +93,10 @@ Validate the confirmed name before using it anywhere below — it must be a
 plausible Postgres identifier, not arbitrary text:
 
 ```bash
-DB_NAME="<confirmed name from Step 2>"
+DB_NAME=$(cat <<'NAME_EOF'
+<confirmed name from Step 2>
+NAME_EOF
+)
 if ! [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]]; then
   echo "REJECTED: '$DB_NAME' is not a valid Postgres identifier (lowercase letters, digits, underscore only) — ask the user to confirm again."
   exit 1
@@ -108,14 +111,19 @@ tool invocations of different steps.
 
 ```bash
 if [ -d /tmp/cpp-aks-ops ]; then
-  git -C /tmp/cpp-aks-ops pull --ff-only
+  git -C /tmp/cpp-aks-ops fetch origin
+  git -C /tmp/cpp-aks-ops checkout -B priming-exclusion-work origin/HEAD
 else
   gh repo clone hmcts/cpp-aks-ops /tmp/cpp-aks-ops
+  git -C /tmp/cpp-aks-ops checkout -B priming-exclusion-work origin/HEAD
 fi
 ```
 
 ```bash
-DB_NAME="<confirmed name from Step 2, validated above>"
+DB_NAME=$(cat <<'NAME_EOF'
+<confirmed name from Step 2, validated above>
+NAME_EOF
+)
 [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 if grep -q "!= \"$DB_NAME\"" /tmp/cpp-aks-ops/aks_priming_deploy.yaml \
    && grep -q "'$DB_NAME'" /tmp/cpp-aks-ops/aks_priming_deploy.yaml; then
@@ -135,7 +143,10 @@ Both edits are inside the single `runQuickClear` task
 `priming_enable`/`restore_dataset` logic is touched.
 
 ```bash
-DB_NAME="<confirmed name from Step 2, validated above>"
+DB_NAME=$(cat <<'NAME_EOF'
+<confirmed name from Step 2, validated above>
+NAME_EOF
+)
 [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 export DB_NAME
 python3 - <<'EOF'
@@ -147,14 +158,16 @@ db_name = os.environ["DB_NAME"]
 with open(path) as f:
     text = f.read()
 
-jq_old = 'and . != "hrds")'
-jq_new = f'and . != "hrds" and . != "{db_name}")'
+jq_old = 'and . != "hrds"'
+jq_new = f'and . != "hrds" and . != "{db_name}"'
 assert jq_old in text, "jq deny-list anchor not found — file may have changed upstream"
+assert text.count(jq_old) == 1, "jq deny-list anchor appears more than once — ambiguous patch target"
 text = text.replace(jq_old, jq_new, 1)
 
-sql_old = "'azure_sys', 'hrds');\""
-sql_new = f"'azure_sys', 'hrds', '{db_name}');\""
+sql_old = "'azure_sys', 'hrds'"
+sql_new = f"'azure_sys', 'hrds', '{db_name}'"
 assert sql_old in text, "psql NOT IN anchor not found — file may have changed upstream"
+assert text.count(sql_old) == 1, "psql NOT IN anchor appears more than once — ambiguous patch target"
 text = text.replace(sql_old, sql_new, 1)
 
 with open(path, "w") as f:
@@ -172,19 +185,27 @@ skill was written. Report the mismatch to the user rather than patching blind.
 Check for an existing open PR first:
 
 ```bash
-DB_NAME="<confirmed name from Step 2, validated above>"
+DB_NAME=$(cat <<'NAME_EOF'
+<confirmed name from Step 2, validated above>
+NAME_EOF
+)
 [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 gh pr list --repo hmcts/cpp-aks-ops --head "chore/exclude-$DB_NAME-from-priming-quick-clear" --state open
 ```
 
+If an open PR is found, report its URL to the user and stop — do not raise a duplicate.
+
 If none exists:
 
 ```bash
-DB_NAME="<confirmed name from Step 2, validated above>"
+DB_NAME=$(cat <<'NAME_EOF'
+<confirmed name from Step 2, validated above>
+NAME_EOF
+)
 [[ "$DB_NAME" =~ ^[a-z0-9_]+$ ]] || { echo "REJECTED: invalid DB_NAME"; exit 1; }
 cd /tmp/cpp-aks-ops
 BRANCH="chore/exclude-$DB_NAME-from-priming-quick-clear"
-git checkout -b "$BRANCH"
+git checkout -B "$BRANCH"
 git add aks_priming_deploy.yaml
 git commit -m "chore(priming): exclude $DB_NAME from quick_clear sweep
 
@@ -206,7 +227,7 @@ Excludes the \`$DB_NAME\` database from the priming pipeline's \`quick_clear\`
 step. \`quick_clear\` enumerates every database on the shared nonprod Postgres
 server and truncates all its tables except a small system deny-list
 (\`template0\`, \`template1\`, \`postgres\`, \`repmgr\`, \`azure_maintenance\`,
-\`azure_sys\`, \`hrds\`). \`$DB_NAME\` is owned by a service-cp-* Spring Boot
+\`azure_sys\`, \`hrds\`, and any previously-excluded service databases). \`$DB_NAME\` is owned by a service-cp-* Spring Boot
 service with its own dedicated datastore, not a legacy shared schema, and
 should not be swept by this job.
 
