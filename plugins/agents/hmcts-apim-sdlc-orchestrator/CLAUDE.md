@@ -184,6 +184,11 @@ docs/pipeline/
   - A `@Value` feature toggle is expected to outlive one release cycle (flag-debt risk —
     see `feature-flag-auditor`)
   - Confidence in the decision is low, for any other reason
+  - **Not required for decommissioning or removing dead code** (retiring a superseded
+    integration, deleting an unused component, reverting a design never actually adopted) —
+    put the reasoning in the PR description/commit message instead. See
+    `context/hmcts-standards.md`'s ADR section for the confirmed team preference behind this
+    carve-out.
 - OpenAPI **3.1.0** for new specs; media-type + SemVer versioning; additive (backwards-compatible) evolution.
 - `@JsonInclude(NON_NULL)` must be present in `additionalModelTypeAnnotations` (see `context/api-spec-shared.md`).
 - No internal HMCTS domains in any spec (CI rejects them).

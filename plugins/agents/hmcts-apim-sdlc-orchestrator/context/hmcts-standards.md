@@ -13,6 +13,19 @@ No accessibility standards apply here — the API Marketplace has no user-facing
 Treat all case data as **OFFICIAL-SENSITIVE** unless explicitly told otherwise.
 - No PII in logs, error messages, API responses, test data, or spec examples
 - No real case reference numbers, hearing dates, or party names in artefacts, commits, or fixtures
+- No real government or secure-mail email domains in spec examples, test fixtures, or
+  documentation — `*.justice.gov.uk`, `*.hmcts.net`, `*.service.gov.uk`, `*.cjscp.org.uk`,
+  `*.ejudiciary.net`, `*.cjsm.net` (the same domain list `lint-openapi.yml`'s
+  `validate-openapi-links` job blocks). Use a fabricated domain instead (e.g.
+  `example-prison.gov.uk`) even when the source fixture data is real — copying a real
+  recipient address into a spec example is a genuine PII/data leak, not just a lint nit. This
+  list is a known-domains blocklist, not exhaustive — a domain not yet listed can still leak;
+  eyeball every email-shaped example value against its source fixture, don't rely on the
+  regex alone. Found and fixed in api-cp-crime-results-pcr (Aug 2026): real prison OMU
+  `@justice.gov.uk` addresses had been copied verbatim from drift-detection fixtures into
+  response examples and merged because the check wasn't a required/blocking PR status; a
+  second pass before the next release then found a real `@premier-serco.cjsm.net` custody
+  address the original blocklist didn't even cover, which is why `cjsm.net` was added.
 - Every new external dependency assessed against OWASP Top 10 before merging
 - OWASP ZAP DAST scan is wired in `codeql.yml` — treat findings as blockers for Critical/High
 
@@ -49,6 +62,14 @@ An ADR (`docs/pipeline/adrs/<NNN>-<title>.md`) is required before proceeding for
 - Any private repo creation
 
 ADRs are reviewed by the tech lead before the relevant stage begins.
+
+**Not required for decommissioning or removing dead code** — retiring a superseded
+integration, deleting an unused component, or reverting a design that was never actually
+adopted doesn't need a formal ADR. Put the reasoning in the PR description/commit message
+instead. Confirmed team preference (api-cp-crime-results-pcr PR #47, Aug 2026): the team
+doesn't need documented "evidence" to back a removal decision — normal PR/commit review is
+enough. This carve-out is for *removals*, not new decisions; anything adding a new pattern,
+dependency, or contract change still needs an ADR per the list above.
 
 ---
 
