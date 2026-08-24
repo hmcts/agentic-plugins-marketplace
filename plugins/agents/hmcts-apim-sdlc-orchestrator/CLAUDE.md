@@ -69,6 +69,7 @@ One-time service lifecycle skills (run once per repo, not per feature):
 |---|---|
 | `wire-service-deployment` | After Azure provisioning and `cp-vp-aks-deploy` registration — wires `deploy-dev` and `deploy-sit` CI jobs, then chains to `exclude-db-from-priming-clear` if the service owns a database |
 | `exclude-db-from-priming-clear` | Chained from `wire-service-deployment` for new services with a dedicated database, or run standalone to remediate an existing service after a priming data-loss incident |
+| `add-audit-to-service` | Rolling CPP endpoint auditing onto a service that has none — adds the `cp-audit-springboot-annotations` starter, agrees the per-endpoint audit contract with the service owner, annotates every handler, and raises the `cp-vp-aks-deploy` PRs for the Artemis broker hostnames. Breaking rollout: unannotated endpoints return 403 |
 
 ## Pipelines (run stages in order; halt at every human gate)
 
