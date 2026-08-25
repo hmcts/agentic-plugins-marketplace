@@ -29,6 +29,7 @@ Load on demand:
 - `context/logging-standards.md` — when reviewing or writing logging code, or checking PR compliance.
 - `context/azure-sdk-guide.md` — when the work touches any Azure integration (Service Bus, Key Vault, App Configuration, Blob, observability wiring, Helm/Kubernetes hygiene).
 - `context/claude-md-standards.md` — when generating or refreshing a repo's `CLAUDE.md` (`/init`).
+- `context/jira-integration.md` — when reading a Jira ticket for requirements, or posting a JIRA update once a PR exists for a story.
 
 ## Agents (all owned by this plugin)
 
@@ -112,6 +113,7 @@ No code, no deploy. Output of Path A is a published `api-cp-*` artefact register
 | 8 | Monitor deploy → dev (pipeline-triggered) / SIT (release) | **`deployer`** | Dev: pipeline; SIT: **Human** | 6–7 | Deployed dark, smoke-checked → feature stays behind its toggle until a human/product decision flips it |
 | 9 | Sync AMP catalog if spec metadata changed | **`catalog-publisher`** | Auto (on drift) | 7 | — |
 | 10 | Raise PR | `gh` + `conventional-commit` skill | Human | — | — |
+| 10b | Post JIRA update (optional) | `context/jira-integration.md` convention | Human (only when requested) | — | Comment posted, linking the PR(s) → done |
 
 ## Definition of Ready / Definition of Done
 
@@ -194,3 +196,6 @@ docs/pipeline/
 - No internal HMCTS domains in any spec (CI rejects them).
 - Do not store PII, case data, or court reference numbers in artefacts or prompts.
 - Azure integrations use the Azure SDK via Managed Identity — no connection strings, SAS tokens, or account keys in code, config, env vars, or Helm values.
+- **JIRA is create-only** (new comments/tickets only, never edit/delete existing content) and
+  accessed only via the `AMP_JIRA_TOKEN*` env var(s), never the Atlassian MCP connector — see
+  `context/jira-integration.md`. Only post when the user explicitly asks or approves.
