@@ -10,8 +10,10 @@ never a substitute for the ticket's own description, status, or fields.
 - This workspace's JIRA is a self-hosted Jira Server/Data Center instance at
   `https://tools.hmcts.net/jira`, not Atlassian Cloud — use REST API **v2**
   (`https://tools.hmcts.net/jira/rest/api/2/...`), not v3.
-- Auth: `Authorization: Bearer $AMP_JIRA_TOKEN_1` (a Personal Access Token env var, not a
-  Basic email:token pair).
+- Auth: `Authorization: Bearer $AMP_JIRA_TOKEN` (a Personal Access Token env var, not a
+  Basic email:token pair). The env var name may carry a numeric suffix in a given environment
+  (e.g. `AMP_JIRA_TOKEN_1`) — check what's actually set (`env | grep -i AMP_JIRA_TOKEN`) rather
+  than assuming the bare name.
 - **Never use the Atlassian MCP connector** for JIRA or Confluence access in this workspace,
   even if it becomes authenticated/available. Only ever use the `AMP_JIRA_TOKEN*` env var(s).
 - Comment bodies use Jira wiki markup, not Markdown — `h4. Heading`, `{{monospace}}`,
