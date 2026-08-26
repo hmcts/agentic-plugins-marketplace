@@ -68,6 +68,78 @@ Keep replies extremely concise. No filler.
   (de)serialization, in production or in WireMock-backed tests that mirror the same construction.
   Verify by checking whether a configured Jackson property actually takes effect in a test that
   exercises the real client construction path, not just in isolation.
+- **A messaging resource name the application depends on** — whether it self-provisions the
+  queue/topic (create-if-not-exists, `service-shared.md` Pattern B) or connects to one Terraform
+  provisions on a shared Service Bus (`service-shared.md` Pattern C) — is not environment config;
+  don't put it behind `@Value("${service-bus.queue-name}")`. Make it a `public static final
+  String` constant on the properties/config class instead. Self-provisioned: the app creates the
+  resource, so the name must be byte-identical across every environment or provisioning silently
+  diverges from what the app connects to. Terraform-owned: the name is an infrastructure
+  contract, not something the app controls, so `@Value` with a default just invites the two to
+  drift apart. Either way this is the messaging-resource form of the fixed-API-path-segment rule
+  above. Found on `service-cp-crime-results-pcr`: the queue name was originally `@Value`-injected
+  under the self-provisioned framing; the resulting constant carried through unchanged when the
+  service moved to the Terraform-provisioned pattern.
+- **Service Bus redelivery/backoff shape**: a small config component holding the list of
+  configured retry durations (read from a comma-separated `@Value`, e.g. `2s,4s,10s`, validated
+  non-empty and non-negative in the constructor), and a separate retry-computation component
+  depending on it plus `ClockService` — established by
+  `service-cp-crime-hearing-results-document-subscription`, mirrored by
+  `service-cp-crime-results-pcr`. The retry-computation component clamps to the last configured
+  delay once the attempt number exceeds the list length, and adds that delay to the current time
+  to get the next scheduled-enqueue time — the consumer calls this one method and sets the
+  result directly. A domain/ingestion service may still own its own, unrelated backoff for a
+  different concern (e.g. a synchronous caller's in-process blocking retry loop) — the rule is
+  about not sharing that computation with the queue consumer's rescheduling logic, not banning
+  backoff logic from a domain service entirely.
+- **Dead-letter a malformed Service Bus message immediately** — catch the deserialization
+  exception specifically (e.g. `JacksonException` for Jackson 3) around the parse call only, log
+  at `ERROR` with the delivery attempt number, and call `context.deadLetter(new
+  DeadLetterOptions().setDeadLetterReason("..."))` naming the payload type, then return without
+  processing further. Don't let a parse failure fall through to a generic catch-all that abandons
+  the message for native redelivery — every wasted attempt before native `maxDeliveryCount`
+  exhaustion just delays landing in the DLQ, with a generic reason instead of naming the actual
+  problem.
+- Don't downgrade a well-typed field (e.g. a generated model's `LocalDate`) to a weaker type
+  (`String`) early in a call chain just because a distant consumer needs the weaker type. Thread
+  the real type through every intermediate method/client signature and convert only at the actual
+  boundary that needs the weaker form (e.g. building a Redis cache key). Converting early loses
+  type safety for every intermediate hop for no benefit — the weaker type doesn't become correct
+  just because one downstream caller wants it. Found on `service-cp-crime-results-pcr`: a
+  generated model's `LocalDate` field was stringified via `.toString()` right at the
+  controller/consumer boundary and passed as `String` through the domain service's whole call
+  chain; fixed by keeping `LocalDate` end-to-end and stringifying only at the actual boundary
+  that needed it.
+- A `@PostConstruct` (or any startup-time) initialisation of infrastructure the service cannot
+  function without (a required message-queue consumer, a mandatory external connection) must not
+  catch a broad `Exception`, log it, and return normally. Swallowing the failure leaves the app
+  reporting healthy (readiness probe passes) with the critical dependency silently never started —
+  worse than a failed deployment, since nothing alerts anyone. Let the exception propagate so
+  Spring context startup fails and the deployment is visibly broken. Found on
+  `service-cp-crime-results-pcr`: a Service Bus consumer's startup initialisation caught
+  `Exception` around readiness/provisioning/processor-start and only logged — fixed by removing
+  the try/catch so a Service Bus failure fails startup outright.
+
+## PMD ruleset notes
+
+- `AvoidCatchingGenericException`'s category is **PMD-version-dependent** — don't copy a sibling
+  repo's `<exclude>` placement without checking. Confirmed under `category/java/errorprone.xml`
+  for PMD 7.17.0 (this org's current version); NOT found under `category/java/bestpractices.xml`
+  for that version despite older sibling repos placing it there. Placing it in the wrong category
+  produces a PMD warning ("Exclude pattern ... did not match any rule in ruleset ...") and the
+  exclusion silently doesn't apply — `./gradlew pmdMain` still fails on that rule. Verify placement
+  by actually running `pmdMain`, not by matching an existing ruleset file. Found on
+  `service-cp-crime-results-pcr`.
+- `OnlyOneReturn` (`category/java/codestyle.xml`) tolerates exactly one early return per method,
+  not zero — a single early-return guard clause followed by more code is fine, but adding a
+  *second* early return to a method that already has one flags the earlier one. When a new guard
+  clause would create a second early return, extract the code after the first return into its own
+  method instead of accumulating returns in one method — each extracted method then has at most
+  one early return again. This is the same "extract instead of adding a section a comment would
+  need to explain" principle as the method-size rule in `hmcts-standards.md`, applied to control
+  flow rather than length. Found on `service-cp-crime-results-pcr`: adding a
+  malformed-payload guard clause to an existing method with one early return triggered this;
+  fixed by splitting the deserialization step into its own method.
 
 ## Error handling log levels
 

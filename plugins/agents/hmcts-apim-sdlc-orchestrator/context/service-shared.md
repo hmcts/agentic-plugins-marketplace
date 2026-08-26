@@ -131,6 +131,50 @@ If a `@Value` toggle field is declared but never read in that class, remove it.
   - Tests construct `new ClockService(Clock.fixed(...))` for deterministic time — never let a test depend on the real system clock for date/time assertions.
   - Rationale: a raw injected `Clock` lets every call site repeat its own `Instant`/`LocalDate`/`OffsetDateTime` conversion logic; centralising it in one service keeps that conversion consistent and swappable in one place.
 
+## Service Bus Integration Patterns
+
+Not every `service-cp-*` that touches a Service Bus queue provisions it. Before generating or
+reviewing Service Bus code, determine which pattern applies — inspect the service's existing
+consumer code and infrastructure (Terraform) rather than assuming ownership. If infrastructure
+clearly provisions the queue, treat that as authoritative; don't introduce application-side
+provisioning.
+
+**Pattern A — Common platform / query only.** No owned Service Bus resource. Don't introduce
+messaging infrastructure just because another service in the estate uses it.
+
+**Pattern B — Application-provisioned queue.** Established by
+`service-cp-crime-hearing-results-document-subscription`. The service owns the queue/topic
+lifecycle end to end — creation, subscription, processor. Startup-failure handling follows that
+service's own established convention; see the `@PostConstruct` rule in `shared-code-rules.md`,
+which only mandates fail-fast for a dependency with no fallback (a Pattern B service may
+legitimately treat its own self-provisioned queue as best-effort). Implementation shape →
+`shared-code-rules.md`.
+
+**Pattern C — Terraform-provisioned shared resource.** Established by
+`service-cp-crime-results-pcr`. Infrastructure owns the queue on the shared Service Bus; the
+application connects and validates, never creates. There's no app-side fallback if the queue is
+missing, so startup fails loudly and immediately instead of retrying past what's really an infra
+problem.
+
+| Concern | Infrastructure | Application |
+|---|---|---|
+| Queue existence & configuration | Owns | Validates; never mutates |
+| Queue name | Infrastructure contract | Stable constant |
+| Processor, message handling, retry, dead-lettering | — | Owns |
+
+### Universal Service Bus rules (all patterns)
+
+- Redelivery/backoff timing for a rescheduled message is computed by a dedicated
+  `servicebus`-package component, never borrowed from a domain/ingestion service method — see
+  `shared-code-rules.md` for the canonical shape.
+- A malformed/unparseable message is a permanent failure — dead-letter it immediately, don't let
+  it flow through business/completeness retry logic. Redelivery can't fix a message that will
+  never parse.
+- A queue/topic name the application depends on is a stable constant, never `@Value`-injected —
+  for Pattern B because self-provisioning needs a byte-identical name across environments; for
+  Pattern C because it's an infrastructure contract. Same conclusion, different reason — see
+  `shared-code-rules.md`.
+
 ## Configuration Standards
 
 - `application.yaml` uses `${VAR:default}` — all new env vars **must** be documented in `.envrc.example`

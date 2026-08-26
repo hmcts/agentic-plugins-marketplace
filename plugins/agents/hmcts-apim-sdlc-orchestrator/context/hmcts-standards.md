@@ -63,6 +63,17 @@ An ADR (`docs/pipeline/adrs/<NNN>-<title>.md`) is required before proceeding for
 
 ADRs are reviewed by the tech lead before the relevant stage begins.
 
+**Writing standard — applies to every ADR and design doc.**
+- Cover the current decision, the architecture, and why it was made. Skip alternatives that
+  weren't chosen unless they help explain the choice.
+- Leave out future scope, roadmap items, and "nice to have" ideas that aren't part of this
+  decision.
+- Only include implementation detail (class names, method signatures, code) when it's actually
+  needed to understand the decision. The code documents itself.
+- Keep the decision, the reasoning, and the trade-offs as separate, clearly labelled sections.
+- Don't repeat the same fact across the summary, the rationale, and the consequences.
+- Use short paragraphs and bullets. Write plainly.
+
 **Not required for decommissioning or removing dead code** — retiring a superseded
 integration, deleting an unused component, or reverting a design that was never actually
 adopted doesn't need a formal ADR. Put the reasoning in the PR description/commit message
@@ -186,3 +197,5 @@ Mixed test method naming styles within one class are not permitted.
 - Target: ≤20 lines per method
 - Hard limit: 40 lines — extract if exceeded
 - If a method needs an inline comment to explain a section, that section should be its own method
+- If a new guard clause would give a method a second early return, extract instead of
+  accumulating returns — see the PMD `OnlyOneReturn` note in `shared-code-rules.md`
