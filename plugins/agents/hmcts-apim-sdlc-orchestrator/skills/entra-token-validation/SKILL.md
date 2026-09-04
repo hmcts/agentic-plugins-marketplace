@@ -238,6 +238,7 @@ Javadoc duplicates it in the place that ages worst.
 | `application.yaml` | One comment line above the `auth:` block |
 | `docs/Authentication.md` (or equivalent) | The operational reference only: config table, claims table, exempt path list, Entra prerequisites, how to run locally |
 | `README.md` | **One line** under `### Key Documentation` linking the doc. Nothing else |
+| PR description | The repo template's sections, one short paragraph, a few bullets, and anything operationally load-bearing — deployment prerequisites and the breaking-change box. Point at the doc in the repo instead of restating it |
 
 Do **not** write:
 
