@@ -30,6 +30,7 @@ Load on demand:
 - `context/azure-sdk-guide.md` — when the work touches any Azure integration (Service Bus, Key Vault, App Configuration, Blob, observability wiring, Helm/Kubernetes hygiene).
 - `context/claude-md-standards.md` — when generating or refreshing a repo's `CLAUDE.md` (`/init`).
 - `context/jira-integration.md` — when reading a Jira ticket for requirements, or posting a JIRA update once a PR exists for a story.
+- `context/alerting-monitoring.md` — when a PR introduces or changes a Service Bus consumer, downstream HTTP client, or DLQ path, or when adding/reviewing alert or dashboard coverage.
 
 ## Agents (all owned by this plugin)
 
@@ -58,6 +59,7 @@ stage. Each still reports back to whichever numbered stage is currently open.
 |---|---|---|
 | Is this spec change additive or breaking? Which `service-cp-*` consumers pin the old version? | `contract-compatibility-analyzer` | `apim-architect` (design time) and `code-reviewer` (any PR touching `openapi-spec.yml`) |
 | Is a `@Value` feature toggle stale (100% rolled out, safe to delete) or violating T1–T5? | `feature-flag-auditor` | `code-reviewer` (pre-merge) or run standalone as a periodic sweep |
+| Does this PR's diff introduce/change a Service Bus consumer, downstream HTTP client, or DLQ path needing alert/dashboard coverage? | `wire-alerting-monitoring` skill | `code-reviewer` (Definition of Done, stage 6) on every PR; also standalone for retroactive coverage on an existing repo |
 
 Standalone marketplace skills used as-is: `adr-template`, `bdd-workflow`, `review-checklist`,
 `conventional-commit`, `code-review`, `explain-codebase`. PRs are raised with `gh` +
@@ -140,6 +142,9 @@ place that states what "ready" and "done" mean.
 - Backwards-compatible, or a versioned major-bump change with an ADR (see Hard rules)
 - Any `@Value` feature toggle follows placement rules T1–T5 (`context/service-shared.md`);
   no dead toggle field left behind
+- Any new/changed Service Bus consumer, downstream HTTP client, or DLQ path ships alerting and
+  dashboard coverage via the `wire-alerting-monitoring` skill (see
+  `context/alerting-monitoring.md`), or carries an explicit justification for why not
 - New env vars documented in `.envrc.example`
 - Human PR approval (the one mandatory human gate before CI)
 
