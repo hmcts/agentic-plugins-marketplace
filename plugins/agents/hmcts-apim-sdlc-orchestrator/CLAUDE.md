@@ -45,6 +45,7 @@ a different stack (CQRS/WildFly/Jenkins/SonarQube/Snyk) and will produce incorre
 | Contract tests (A-TDD) | `contract-test-engineer` |
 | Implementation | `implementation` |
 | Code review | `code-reviewer` |
+| Security review | `amp-security` |
 | CI build/test/publish/deploy | `ci-orchestrator` |
 | Deploy monitoring + SIT release | `deployer` |
 | AMP catalog registration / update | `catalog-publisher` |
@@ -70,6 +71,7 @@ One-time service lifecycle skills (run once per repo, not per feature):
 |---|---|
 | `wire-service-deployment` | After Azure provisioning and `cp-vp-aks-deploy` registration — wires `deploy-dev` and `deploy-sit` CI jobs, then chains to `exclude-db-from-priming-clear` if the service owns a database |
 | `exclude-db-from-priming-clear` | Chained from `wire-service-deployment` for new services with a dedicated database, or run standalone to remediate an existing service after a priming data-loss incident |
+| `entra-token-validation` | When adding, auditing or fixing Entra JWT token validation — scored conformance report against the estate standard, then applies the code fixes. `amp-security` hands off to it for Lens 1 |
 
 ## Pipelines (run stages in order; halt at every human gate)
 
@@ -109,6 +111,7 @@ No code, no deploy. Output of Path A is a published `api-cp-*` artefact register
 | 4 | Contract & test specs | **`contract-test-engineer`** (Pact + Spring Boot Test) | **Human** | 2 | Tests committed and confirmed **RED** → implementation |
 | 5 | Implementation | **`implementation`** | Auto | 3 | All tests **GREEN**, `pmdMain` clean, PR opened → code-reviewer |
 | 6 | Code review | **`code-reviewer`** | **Human** | 4 | PR `claude-approved` + human approval → ci-orchestrator; `changes-requested` → back to implementation |
+| 6b | Security review (6 lenses, /100) | **`amp-security`** | **Human** | 4 | No Critical findings → ci-orchestrator; Critical → back to implementation |
 | 7 | Build, test & publish | **`ci-orchestrator`** (GHA + ADO) | Auto | 5 | Artefact + image published → deployer; failure → back to implementation or escalate |
 | 8 | Monitor deploy → dev (pipeline-triggered) / SIT (release) | **`deployer`** | Dev: pipeline; SIT: **Human** | 6–7 | Deployed dark, smoke-checked → feature stays behind its toggle until a human/product decision flips it |
 | 9 | Sync AMP catalog if spec metadata changed | **`catalog-publisher`** | Auto (on drift) | 7 | — |
