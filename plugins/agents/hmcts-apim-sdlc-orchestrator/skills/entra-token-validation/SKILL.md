@@ -218,9 +218,39 @@ When applying:
    broken clients before enforcing; it provides no protection and is not a remediation.
 6. Follow the repo's existing conventions — the plugin's `context/service-shared.md` and
    `context/shared-code-rules.md` apply.
+7. **Keep the prose terse.** See below. This is not a stylistic nicety — code shipped with
+   paragraph-length rationale gets hand-edited back down every time, so writing it is rework.
 
 Report honestly at the end: what was fixed, what was skipped and why, and which items remain open
 with Entra or APIM.
+
+### House style — write it short the first time
+
+The standard in `knowledge/` is long because it records decisions and traps. **The code you write
+from it is not.** Everything that document explains has already been written down; repeating it in
+Javadoc duplicates it in the place that ages worst.
+
+| Where | Write |
+|---|---|
+| Class and method Javadoc | **One summary line.** No `<p>` rationale paragraphs, no explanatory `@param` prose |
+| A check whose *removal* would be a security regression | One short line at the point of the check — e.g. that `idtyp` must not be required, that `sub == oid` is what proves app-only, that the issuer is matched exactly |
+| `build.gradle` dependency comments | One short line — `// Entra access token validation` |
+| `application.yaml` | One comment line above the `auth:` block |
+| `docs/Authentication.md` (or equivalent) | The operational reference only: config table, claims table, exempt path list, Entra prerequisites, how to run locally |
+| `README.md` | **One line** under `### Key Documentation` linking the doc. Nothing else |
+
+Do **not** write:
+
+- A section justifying a design choice ("Why Nimbus rather than Spring Security"). It is a
+  legitimate either-way decision — state it in the chat reply, not in the repo.
+- A table or list inventorying the test suite and what each test covers. The test names do that.
+- A paragraph explaining why exact matching beats prefix matching, why a counter is separate from
+  another counter, or why an exception does not carry a cause. One line, or nothing.
+- A `> **Before this is deployed...**` callout in `README.md`. Deployment prerequisites belong in
+  the doc and in the chat reply.
+
+The rationale is wanted — in the **chat response**, where it informs the reviewer and then goes
+away. It is not wanted in the source tree.
 
 ---
 

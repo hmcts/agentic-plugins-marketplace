@@ -112,3 +112,38 @@ These are the reason the suite exists. All must be present.
 Integration tests must run with enforcement **on**, supplying the signing key in-process as the
 application's JWKS. Running them with validation disabled stops them covering the authentication
 path at all — a common and quiet regression.
+
+---
+
+## Two traps that cost real time
+
+### The in-process JWKS must be proven to be in use
+
+Supplying the test key set by **overriding the production bean's name** is unreliable: which
+definition wins depends on registration order, and when the override silently loses, *every test
+still passes*. Each negative case gets its rejection — but from a failed lookup against the real
+Entra endpoint, not from the check it was written to exercise. The suite goes green while
+asserting nothing, and the tests quietly make network calls.
+
+Two things fix it:
+
+- Register the test key set under **its own bean name, marked `@Primary`**, rather than overriding
+  by name with `spring.main.allow-bean-definition-overriding`.
+- Carry **one positive case** in the integration test — a token minted by the test is accepted.
+  That is the only assertion that can fail when the wrong key set is in use, because every other
+  test in the class expects a rejection either way. Without it the trap is undetectable.
+
+### `openapi/openapi-spec.yml` collides across api-cp artefacts
+
+Every api-cp artefact packages its spec at the same resource path. A service that depends on more
+than one — its own contract plus any API it calls — has two files with identical names on the
+classpath, and `getResourceAsStream` returns whichever the classloader reaches first. That is
+usually the wrong one, so the contract-enumeration test reads a spec belonging to a different API
+and fails for a reason that has nothing to do with the endpoints.
+
+Enumerate `getResources()` and select the spec by `info.title`, failing with the list of titles
+found when there is no match.
+
+The same collision applies to the generated classes — `ErrorResponse` in particular is emitted by
+every api-cp artefact under the same FQN, so which definition the service binds against is decided
+by classpath order. Worth reporting as an Info observation; it is not a token validation defect.
