@@ -103,13 +103,15 @@ Per `context/service-shared.md` — Controller → Manager (if present) → Serv
 - [ ] MDC not cleared before the end of the request lifecycle
 - [ ] No MDC leaks between requests (finally block)
 
-#### F. Security
+#### F. Stack conventions
 
-- [ ] No secrets, credentials, or environment-specific values in code or comments
-- [ ] No PII in logs, error messages, or response bodies
 - [ ] `CJSCPPUID` header set on all outbound calls to CP backends
-- [ ] Azure integrations use `DefaultAzureCredential` (Managed Identity); no connection strings, SAS tokens, or account keys anywhere
 - [ ] Jakarta EE (`jakarta.*`) — not `javax.*` anywhere
+
+Full security review — secrets and managed identity, PII/data protection, authentication and
+authorisation, outbound/callback security, exposure surface, dependencies and supply chain — is
+`amp-security`'s job at stage 6b. Do not re-derive those checks here; flag anything security-shaped
+you notice and let stage 6b own the finding.
 
 #### G. Code quality
 

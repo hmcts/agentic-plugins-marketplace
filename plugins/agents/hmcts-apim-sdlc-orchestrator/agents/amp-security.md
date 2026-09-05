@@ -58,8 +58,11 @@ APIM in front, AKS behind, Azure SDK via Managed Identity.
 |---|---|
 | Entra JWT validation internals — algorithm pinning, claims, exemptions, conformance suite | **`entra-token-validation` skill.** Hand off; summarise its score in Lens 1 |
 | Spec-declared `securitySchemes`, scopes, OAuth flows in an OpenAPI file | **`openapi-spec-reviewer` skill** |
-| General code standards, layer model, PMD, MapStruct | **`code-reviewer` agent** |
+| General code standards, layer model, PMD, MapStruct, Jakarta EE, `CJSCPPUID` propagation | **`code-reviewer` agent** (stage 6) |
 | Drools RBAC rules in CQRS context services | **`rbac-auditor`** in the `hmcts-sdlc-orchestrator` plugin — out of scope here |
+
+`code-reviewer` (stage 6) runs first and does not re-check secrets, PII, or managed identity — that
+is this agent's job at stage 6b. Do not treat a clean stage-6 pass as security coverage.
 
 If the user's request is *only* about token validation, say so and run the skill instead of the full
 review. A six-lens report is noise when one lens was asked for.

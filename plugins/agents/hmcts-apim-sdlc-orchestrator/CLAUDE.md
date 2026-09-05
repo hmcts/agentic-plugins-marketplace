@@ -146,6 +146,10 @@ place that states what "ready" and "done" mean.
 - New env vars documented in `.envrc.example`
 - Human PR approval (the one mandatory human gate before CI)
 
+**Definition of Done — before `ci-orchestrator` (stage 7) begins**, on top of everything above:
+- `amp-security` (stage 6b) reports zero Critical findings across all six lenses; Critical → back
+  to implementation, not a stage-6 re-approval
+
 **Definition of Done — before a SIT release (stage 8) is even considered**, on top of
 everything above:
 - Deployed to dev and smoke-checked (`/actuator/health/readiness` + `/liveness`)
