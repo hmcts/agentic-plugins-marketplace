@@ -32,6 +32,12 @@ The AMP platform's established observability mechanism — proven first in
 - A contract test (generic name: `AlertKqlLogMessageContractTest`) in the target repo asserts
   each alert KQL's `contains "..."` literal still exists in the Java source file it's cited
   against, so a log-message rename can't silently break an alert.
+- Dashboard-worthy KQL under `support/dashboard-kql/` is mastered in the app repo and onboarded
+  into the separate shared `cp-amp-terraform-az-dashboard` repo (a distinct repo from
+  `cp-amp-terraform-alerts` — dashboards are visualised, not paged) via the `wire-azure-dashboard`
+  skill. That repo auto-discovers one dashboard per `configs/<name>.json` + `queries/<name>/*.kql`
+  pair — see `skills/wire-azure-dashboard/SKILL.md` for the onboarding procedure; this doc only needs
+  to know that dashboard-worthy signals feed it, not its mechanics.
 
 The real pod name comes from `hmcts/cp-vp-aks-deploy`'s `vp-config/services_values.yml` — never
 inferred or hardcoded. If a service isn't registered there yet, the skill stops and asks rather

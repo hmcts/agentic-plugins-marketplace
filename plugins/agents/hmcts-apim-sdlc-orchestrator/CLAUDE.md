@@ -60,6 +60,7 @@ stage. Each still reports back to whichever numbered stage is currently open.
 | Is this spec change additive or breaking? Which `service-cp-*` consumers pin the old version? | `contract-compatibility-analyzer` | `apim-architect` (design time) and `code-reviewer` (any PR touching `openapi-spec.yml`) |
 | Is a `@Value` feature toggle stale (100% rolled out, safe to delete) or violating T1–T5? | `feature-flag-auditor` | `code-reviewer` (pre-merge) or run standalone as a periodic sweep |
 | Does this PR's diff introduce/change a Service Bus consumer, downstream HTTP client, or DLQ path needing alert/dashboard coverage? | `wire-alerting-monitoring` skill | `code-reviewer` (Definition of Done, stage 6) on every PR; also standalone for retroactive coverage on an existing repo |
+| `wire-alerting-monitoring` produced `support/dashboard-kql/*.kql` — onboard it into the shared Azure Portal dashboard repo | `wire-azure-dashboard` skill | Chained from `wire-alerting-monitoring` whenever it generates dashboard-worthy KQL; also standalone for retroactive onboarding |
 
 Standalone marketplace skills used as-is: `adr-template`, `bdd-workflow`, `review-checklist`,
 `conventional-commit`, `code-review`, `explain-codebase`. PRs are raised with `gh` +
@@ -144,7 +145,8 @@ place that states what "ready" and "done" mean.
   no dead toggle field left behind
 - Any new/changed Service Bus consumer, downstream HTTP client, or DLQ path ships alerting and
   dashboard coverage via the `wire-alerting-monitoring` skill (see
-  `context/alerting-monitoring.md`), or carries an explicit justification for why not
+  `context/alerting-monitoring.md`), with any resulting `support/dashboard-kql/` onboarded into
+  the shared dashboard repo via `wire-azure-dashboard` — or carries an explicit justification for why not
 - New env vars documented in `.envrc.example`
 - Human PR approval (the one mandatory human gate before CI)
 
