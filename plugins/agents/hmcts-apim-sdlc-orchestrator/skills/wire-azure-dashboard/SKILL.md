@@ -2,13 +2,15 @@
 name: wire-azure-dashboard
 description: >
   Onboards a service-cp-*'s dashboard-worthy KQL (support/dashboard-kql/*.kql, produced by the
-  wire-alerting-monitoring skill's Step 4) into the shared cp-amp-terraform-az-dashboard repo:
+  wire-alerting-monitoring skill's Step 4, or expanded to match another service's baseline tile
+  set per context/alerting-monitoring.md) into the shared cp-amp-terraform-az-dashboard repo:
   creates or extends that repo's configs/<name>.json tile layout and queries/<name>/*.kql,
-  adding a repo-local support/sync-dashboard-to-terraform.sh if one doesn't exist yet, and raises
-  a PR. Generic across every service-cp-* repo — nothing in this skill's naming, layout, or sync
-  logic is specific to any one service; the only precedent is cited in context/alerting-monitoring.md,
-  never depended on as a value. Idempotent — never duplicates an existing dashboard, tile, or
-  query for the same service; only adds what's newly detected.
+  adding a repo-local support/sync-dashboard-to-terraform.sh if one doesn't exist yet, verifying
+  every query against real data before shipping, and raises a PR. Generic across every
+  service-cp-* repo — nothing in this skill's naming, layout, or sync logic is specific to any
+  one service; the only precedent is cited in context/alerting-monitoring.md, never depended on
+  as a value. Idempotent — never duplicates an existing dashboard, tile, or query for the same
+  service; only adds what's newly detected.
 ---
 
 # Skill: Wire Azure Dashboard
@@ -22,6 +24,13 @@ description: >
 - Standalone, to retroactively onboard an existing repo's already-present `support/dashboard-kql/`
   into `cp-amp-terraform-az-dashboard` for the first time.
 - Standalone, to add new tiles for dashboard-worthy KQL added since the last onboarding.
+- Standalone, to expand an existing dashboard to match another service's baseline tile set (see
+  `context/alerting-monitoring.md`'s "Baseline dashboard tiles" section). This mode *generates*
+  new `support/dashboard-kql/*.kql` in the app repo first — treat every tile in the precedent
+  service's dashboard as a **candidate, not a mandate**: check that candidate's own detection
+  test (a specific log line existing, a metrics table having real data, a controller having the
+  pattern at all) against this repo before creating KQL for it. A candidate with no real
+  detection match in this repo is left out, with the reason stated, not silently invented.
 
 Invocation command: `/wire-azure-dashboard`
 
@@ -37,8 +46,17 @@ the onboarding procedure once those `.kql` files already exist.
 ls support/dashboard-kql/*.kql 2>/dev/null
 ```
 
-If empty or missing, stop here — nothing to wire. Do not invent dashboard-worthy content; that
-judgment belongs to `wire-alerting-monitoring` / `context/alerting-monitoring.md`.
+If empty or missing **and** this isn't the "expand to match precedent" mode from "When to
+invoke," stop here — nothing to wire. Do not invent dashboard-worthy content; that judgment
+belongs to `wire-alerting-monitoring` / `context/alerting-monitoring.md`.
+
+In the "expand to match precedent" mode, this step instead means: for each candidate tile from
+the precedent service's dashboard, run its detection test against this repo (a specific log line
+existing in the source, a controller having the analogous pattern, real data existing in the
+relevant metrics/App Insights table — see `context/alerting-monitoring.md`'s "Baseline dashboard
+tiles"). Write `support/dashboard-kql/<name>.kql` only for candidates that pass their detection
+test; state the reason for each one left out. Once this step produces at least one `.kql` file,
+continue with Step 2 as normal.
 
 ---
 
@@ -133,7 +151,43 @@ or restyle an existing tile as a side effect of adding new ones.
 
 ---
 
-## Step 7 — Idempotency check before writing any file
+## Step 7 — Verify every tile's query against real data before shipping
+
+A query that only "looks right" is not enough — run it against the real target data source
+before committing anything. This is where blind-copied precedent silently produces a wrong or
+permanently-empty tile.
+
+- For a log-based query: resolve the target Log Analytics workspace and query it directly —
+  `az monitor log-analytics workspace show` for the workspace ID, then
+  `az monitor log-analytics query -w <workspaceId> --analytics-query "..."`.
+- For an App Insights-based query (`use_appinsights: true`): resolve that component's *backing*
+  workspace — `az monitor app-insights component show --app <name> --query workspaceResourceId`
+  — and query **that workspace directly**, using the workspace-native table name (`AppRequests`,
+  not `requests` — `requests` is a classic-API-only alias that Azure resolves automatically
+  *inside a deployed dashboard tile*, but does not resolve when queried this way).
+  - **Never verify with `az monitor app-insights query --app <appId>`.** That command uses the
+    legacy classic Application Insights REST API, which silently returns incomplete data for
+    workspace-based App Insights components — the modern default for every new component, so
+    assume this applies unless proven otherwise. A near-zero result from that command is *not*
+    proof the tile will be empty; it may just be the wrong verification tool. Confirmed case: a
+    query that returned ~2 rows via the legacy API returned the correct ~10,000+ rows once
+    queried via the underlying workspace directly, matching APIM's own native
+    `reports/byApi` call count almost exactly.
+  - The KQL *file* itself should still be written using the classic name (`requests`, not
+    `AppRequests`) — that's what the deployed dashboard tile's `use_appinsights: true` context
+    expects and resolves correctly on its own. Only the *verification* method needs the
+    workspace-direct form.
+- A query that genuinely returns 0 rows against real data is fine to ship — an empty tile can be
+  the correct, healthy state (e.g. no downstream failures yet). Say so explicitly in the PR
+  description so a reviewer doesn't mistake it for a broken query.
+- A query returning data that looks anomalous (an unexplained spike, a sustained gap, a count
+  wildly different from a related metric) is a genuine finding — name it in the PR description
+  as something for the team to look into, separate from the dashboard-onboarding work itself.
+  Don't silently ship a tile without flagging what looks odd about its own data.
+
+---
+
+## Step 8 — Idempotency check before writing any file
 
 Never overwrite an existing `configs/<name>.json` or `queries/<name>/*.kql` file silently. If new
 content would differ from what's already there for a file this skill didn't just create, show the
@@ -141,7 +195,7 @@ diff and ask before replacing — same posture as `wire-alerting-monitoring`'s S
 
 ---
 
-## Step 8 — Raise the `cp-amp-terraform-az-dashboard` PR
+## Step 9 — Raise the `cp-amp-terraform-az-dashboard` PR
 
 ```bash
 cd /tmp/cp-amp-terraform-az-dashboard
@@ -168,7 +222,7 @@ to it.
 
 ---
 
-## Step 9 — Cross-link
+## Step 10 — Cross-link
 
 If the app-repo side of this change (Step 3's new sync script, or the `support/dashboard-kql/`
 files themselves) is still an open PR, link the `cp-amp-terraform-az-dashboard` PR from it and
@@ -195,4 +249,14 @@ vice versa, same as `wire-alerting-monitoring`'s Step 8 does for `cp-amp-terrafo
 - **Idempotent** — check before writing every file; skip or diff-and-ask, never silently
   overwrite.
 - If `support/dashboard-kql/` doesn't exist yet, **stop and say so** rather than generating
-  dashboard content inline — that's `wire-alerting-monitoring`'s job, not this skill's.
+  dashboard content inline — that's `wire-alerting-monitoring`'s job, not this skill's — unless
+  running in the explicit "expand to match precedent" mode, where generating it is the point.
+- **Every precedent tile is a candidate, never a mandate** — when matching another service's
+  dashboard, verify each candidate's detection test against this repo before creating its KQL;
+  a service missing the underlying pattern genuinely doesn't get that tile.
+- **Never verify an `use_appinsights: true` query with the legacy classic API**
+  (`az monitor app-insights query --app <appId>`) — it silently under-reports for workspace-based
+  components. Resolve and query the backing Log Analytics workspace directly instead (Step 7).
+- **An empty or anomalous result is data, not failure** — ship a genuinely-empty tile with a note
+  that empty is expected; flag genuinely anomalous data as a finding for the team, not something
+  to quietly bury inside a dashboard-onboarding PR.
