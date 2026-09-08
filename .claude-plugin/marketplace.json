@@ -38,6 +38,14 @@
       "tags": ["accessibility", "a11y", "wcag", "axe-core"]
     },
     {
+      "name": "add-apim-api",
+      "source": "./plugins/skills/add-apim-api",
+      "description": "Add a new API to the HMCTS CP Azure APIM Terraform config — naming, path, tfvars entry, secrets-scanner-safe hosts, Entra IDs, and GitHub variables",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["apim", "azure", "terraform", "tfvars", "hmcts", "api"]
+    },
+    {
       "name": "adr-template",
       "source": "./plugins/skills/adr-template",
       "description": "Record architecture decisions in a consistent ADR format with context, options, consequences, and compliance notes",

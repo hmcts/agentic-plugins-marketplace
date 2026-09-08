@@ -1,0 +1,10 @@
+{
+  "name": "add-apim-api",
+  "version": "1.0.0",
+  "description": "Checklist for adding a new API to the HMCTS CP Azure APIM Terraform config — naming, path, tfvars entry, secrets-scanner-safe hosts, Entra IDs, and GitHub variables",
+  "author": {
+    "name": "HMCTS"
+  },
+  "license": "MIT",
+  "keywords": ["apim", "azure", "terraform", "tfvars", "hmcts", "api"]
+}
