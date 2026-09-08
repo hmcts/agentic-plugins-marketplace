@@ -38,6 +38,14 @@
       "tags": ["accessibility", "a11y", "wcag", "axe-core"]
     },
     {
+      "name": "hol-guard",
+      "source": "./plugins/skills/hol-guard",
+      "description": "Protect Claude Code and other local AI harness tool execution with HOL Guard runtime security checks",
+      "version": "1.0.0",
+      "category": "skill",
+      "tags": ["security", "ai-agents", "runtime", "mcp", "tool-use", "hol-guard"]
+    },
+    {
       "name": "adr-template",
       "source": "./plugins/skills/adr-template",
       "description": "Record architecture decisions in a consistent ADR format with context, options, consequences, and compliance notes",

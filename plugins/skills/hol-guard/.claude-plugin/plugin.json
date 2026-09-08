@@ -1,0 +1,12 @@
+{
+  "name": "hol-guard",
+  "version": "1.0.0",
+  "description": "Protect Claude Code and other local AI harness tool execution with HOL Guard runtime security checks",
+  "author": {
+    "name": "HOL",
+    "email": "support@hol.org"
+  },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hashgraph-online/hol-guard-plugin",
+  "keywords": ["security", "ai-agents", "runtime", "mcp", "tool-use", "hol-guard"]
+}
