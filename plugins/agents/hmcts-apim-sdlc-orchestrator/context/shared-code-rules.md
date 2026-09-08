@@ -201,8 +201,53 @@ Use `clockService.now()`, never raw `Instant.now()` — see the `ClockService` r
 Add on top only where the service actually needs it — do not pre-add unused handlers:
 - Bean-validation handlers (`ConstraintViolationException`, `MethodArgumentTypeMismatchException`,
   `MethodArgumentNotValidException`, `HttpMessageNotReadableException` → 400) once any endpoint
-  has a `@Valid`/constrained parameter.
+  has a `@Valid`/constrained parameter. **A plain typed path variable counts as constrained too**
+  — a controller method parameter declared `UUID`/`LocalDate`/etc with no `@Valid` annotation at
+  all still throws `MethodArgumentTypeMismatchException` on a malformed value, and needs this
+  handler just the same. Found across the `service-cp-*` fleet (confirmed on
+  `service-cp-crime-results-pcr`, AMP-1100 investigation, Sep 2026): 6 of 9 repos with a
+  `UUID`-typed `hearingId`/`defendantId` path param had no handler for it at all, so a malformed
+  value fell through to the generic `Exception` catch-all and returned 500 instead of 400 — the
+  gap wasn't "no `@Valid` param exists" (true), it was reading that condition too narrowly.
 - `EntityNotFoundException` → 404 for DB-backed services with a `Repository` layer.
+- **Check the `api-cp-*` spec's own `BadRequest`/`NotFound` response examples before deciding the
+  `error`/`details` shape — don't assume a taxonomy needs negotiating.** Several already-released
+  specs (e.g. `api-cp-crime-results-pcr`) document a concrete example for exactly this scenario:
+  `error: "BAD_REQUEST"`, `message: "The supplied hearingId is not a valid UUID"`,
+  `details: {parameter: "hearingId"}` — and the generated `ErrorResponseDetails` model already has
+  a typed `parameter` field, not a generic map. Where a spec documents this, `error` is simply
+  `HttpStatus.name()` (`BAD_REQUEST`, `NOT_FOUND`, ...) — a mechanical derivation, not a bespoke
+  business code needing agreement. The "otherwise leave `error`/`details` unset" fallback below
+  only applies where the spec's own examples don't already commit to a shape.
+  ```java
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+  public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatchException(final MethodArgumentTypeMismatchException e) {
+      final String requiredType = e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : "value";
+      final String message = String.format("The supplied %s is not a valid %s", e.getName(), requiredType);
+      log.warn("GlobalExceptionHandler handleMethodArgumentTypeMismatchException: {}", message);
+      return ResponseEntity
+              .status(HttpStatus.BAD_REQUEST)
+              .body(buildErrorResponse(message, "BAD_REQUEST", ErrorResponseDetails.builder().parameter(e.getName()).build()));
+  }
+  ```
+  Ported from `service-cp-crime-defendant-details` — the only sibling repo whose handler shape
+  (standalone, per-parameter message, `error`+`details.parameter` populated) actually matches what
+  the specs document, versus the plainer grouped `{ConstraintViolationException,
+  MethodArgumentTypeMismatchException, ...} → handleBadRequestException` shape used by a couple of
+  other repos, which only sets `message`. Don't copy `service-cp-crime-defendant-details`'s own
+  `Instant.now()` call verbatim though — that repo deviates from the mandatory `ClockService` rule
+  below; use `clockService.now()` in the shared `buildErrorResponse` overload instead:
+  ```java
+  private ErrorResponse buildErrorResponse(final String message, final String errorCode, final ErrorResponseDetails details) {
+      return ErrorResponse.builder()
+              .error(errorCode)
+              .message(message)
+              .details(details)
+              .timestamp(clockService.now())
+              .traceId(Objects.requireNonNull(tracer.currentSpan()).context().traceId())
+              .build();
+  }
+  ```
 - Custom error-code constants (`error` field values) only if the consuming team has agreed a
   machine-readable code taxonomy — otherwise leave `error`/`details` unset on `ErrorResponse`.
 
