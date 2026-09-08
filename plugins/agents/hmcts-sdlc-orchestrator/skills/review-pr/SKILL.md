@@ -51,7 +51,7 @@ Determine the repo type from the directory name and build files:
 - [ ] JSON schemas follow naming convention: `{context}.{type}.{name}.json`
 - [ ] RAML API definitions are updated for new/changed endpoints
 - [ ] **At least one integration test per new/changed endpoint** (`<context>-integration-test/`), exercising the real persistence/SQL + event path — not just unit tests that mock the repository
-- [ ] Integration-test suite is green locally (`mvn clean && ./runIntegrationTests.sh` when present); summary pasted in the PR
+- [ ] Integration-test suite is green locally (MbD: `./gradlew test`; legacy CQRS: `mvn clean && ./runIntegrationTests.sh`); summary pasted in the PR
 - [ ] No domain logic in controllers or repositories (belongs in aggregates/handlers)
 - [ ] Framework interceptors not bypassed without justification
 

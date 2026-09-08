@@ -22,7 +22,7 @@ This overlay adds HMCTS-specific additions the `code-reviewer` agent must apply 
 ### Integration tests (extra — backend features & bugfixes)
 - [ ] At least one integration test per new/changed endpoint (REST resource, `@Handles` action, message-driven entry point)
 - [ ] The IT exercises the real persistence/SQL + event path — not just unit tests that mock the repository
-- [ ] Integration-test suite is green locally (`mvn clean && ./runIntegrationTests.sh` when present); summary pasted in the PR
+- [ ] Integration-test suite is green locally (MbD: `./gradlew test`; legacy CQRS: `mvn clean && ./runIntegrationTests.sh`); summary pasted in the PR
 
 ### Pipeline artifacts (extra)
 - [ ] An implementation-plan HTML artifact exists at `docs/pipeline/artifacts/` (exported via `skills/export-design-artifact/`) and the change matches it

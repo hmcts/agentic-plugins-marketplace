@@ -73,19 +73,57 @@ Mark each item: PASS / FAIL / N/A with a brief note.
 
 **Maintainability**
 - Methods are small and single-purpose
+- **Classes are single-responsibility and cohesive (SOLID/SRP)** — validation, persistence, external
+  calls, mapping, and orchestration live in separate collaborators, not one god class; a class doing
+  several of these (e.g. inline validation + persistence + an external call) is a finding. Seams depend
+  on abstractions (interface + injection). Flag the opposite failure too — anemic one-method classes
+  fragmenting a cohesive unit. See `context/coding-standards.md` § Design principles (SOLID, cohesion).
 - Names reflect domain language from the story
 - No commented-out code
 - No TODO left without a linked Jira ticket
 
-**Test quality**
+**Test quality** (conventions: `skills/test-authoring-conventions/SKILL.md`)
 - Tests assert behaviour, not implementation detail
 - No tests that always pass regardless of code changes
 - Test data does not contain real PII or court reference numbers
+- **Naming/traceability** — no AC / FR / ticket id in any test name (e.g. `..._ac001_...`), and no
+  comments or javadoc in test classes; both are findings.
+- **Granularity** — tests are behaviour-level, not per-AC / per-column / per-field; schema-shape
+  assertions (exact column lists, DDL) in a behaviour test, or per-getter/`existsById`/`count`
+  micro-tests, are findings. A persistence boundary test should be a round-trip (+ optional
+  minimal-fields), not one test per field.
+- **Grouping** — a class covering more than one behavioural group organises its tests into
+  behaviour-named `@Nested` inner classes with shared fields/setup on the outer class; a flat class
+  with several unrelated groups, or a `@Nested` block wrapping a single cohesive theme, is a nit.
+- **Test infrastructure** — DTOs/entities built via factories/builders (a `new SomeDto(...)` in a test
+  is a finding); DB setup/verification via `*TestRepository` helpers (`JdbcTemplate`/raw SQL in a test
+  class is a finding); external boundaries via fluent stub services composed over container support, not
+  raw WireMock/SDK calls.
+- **Per-class coverage** — every production class the PR adds/changes has a test: a unit test
+  (collaborators mocked) for non-boundary classes, or a boundary test for a boundary class. A service /
+  orchestration class with **no** test is a **FAIL** (a service class shipped without its own unit test,
+  on the assumption a higher-level test covers it).
+- **Boundary tests mock immediate collaborators** — a boundary test asserts consume/validate/delegate/
+  settle against the real boundary while **mocking** the services/repositories it delegates to; a
+  boundary test that instead drives a real collaborator (e.g. a consumer test asserting real DB rows) is
+  a finding — that verification belongs to the collaborator's own test.
 - **Integration coverage** — every new/changed endpoint (REST resource, `@Handles` action,
   message-driven entry point) has at least one integration test, and the IT suite is green locally
-  (evidence: `mvn clean && ./runIntegrationTests.sh` summary in the PR). A new endpoint whose only
-  coverage is unit tests that mock the repository is a **FAIL** — the real persistence/SQL path is
-  untested.
+  (evidence: the IT-suite summary in the PR — MbD: `./gradlew test`; legacy CQRS:
+  `mvn clean && ./runIntegrationTests.sh`). A new endpoint whose only coverage is unit tests that mock
+  the repository is a **FAIL** — the real persistence/SQL path is untested.
+- **BDD scope** — acceptance `.feature` scenarios are **business behaviour only**; a technical scenario
+  in Gherkin (migration / wiring / context-load) is a **FAIL**. Feature files must be cohesive (grouped
+  by capability, not per-story or per-AC).
+- **Boundary vs unit** — each boundary (controller / ASB consumer / ASB producer / repository / REST
+  client / …) has a boundary integration test starting only its relevant dependency; a test spinning up
+  every Testcontainer, or a unit test duplicating a boundary already covered by an integration test, is
+  a finding. All non-boundary classes carry unit tests.
+- **Wiring/sanity** — exactly one context-boot test under the test profile, sharing the BDD suite's
+  setup; flag per-piece plumbing tests (separate migration / wiring / container tests) for consolidation.
+- **Provisional tests** — any `@provisional`-tagged test that a now-existing broader test supersedes is a
+  finding: it must be deleted or broadened, not left to accumulate. New Gradle source sets / tasks must
+  match the template (divergence needs an ADR) — test files should not hand-roll build config.
 
 **Spring Boot template alignment**
 - `build.gradle`, `gradle/*.gradle`, `Dockerfile`, `logback.xml`, and `.github/workflows/` have not diverged from the HMCTS templates without an ADR

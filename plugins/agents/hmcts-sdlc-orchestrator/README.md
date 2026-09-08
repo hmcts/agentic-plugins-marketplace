@@ -25,19 +25,27 @@ Bundled Claude Code plugin that ships the **HMCTS SDLC pipeline** for the Crime 
 /plugin install hmcts-sdlc-orchestrator@agentic-plugins-marketplace
 ```
 
-To enable the SDLC orchestrator in a repo, copy `CLAUDE.md` from the plugin into your project root after installation:
+Installing **activates the pipeline** — its agents, skills, and hooks load into every Claude session
+(run `/reload-plugins` to confirm the counts). **No per-repo setup is needed to use them**: describe
+your task and Claude invokes the right agent.
+
+**Optional — load the pipeline definition into a specific repo.** The 8-stage pipeline and hard rules
+live in this plugin's `CLAUDE.md`. To make it the project `CLAUDE.md` for a repo, copy it in
+(version-agnostic — marketplace plugins install under a versioned cache path):
 ```bash
-cp ~/.claude/plugins/hmcts-sdlc-orchestrator/CLAUDE.md ./CLAUDE.md
+cp "$(ls -d ~/.claude/plugins/cache/agentic-plugins-marketplace/hmcts-sdlc-orchestrator/*/CLAUDE.md | sort -V | tail -1)" ./CLAUDE.md
 ```
-This loads the 8-stage pipeline definition, context file references, and hard rules into every Claude session for that project.
+The file references its bundled files via `${CLAUDE_PLUGIN_ROOT}` (e.g. `${CLAUDE_PLUGIN_ROOT}/context/…`),
+so they resolve against the installed plugin whether or not it is copied. If the repo already has a
+`CLAUDE.md`, **merge** rather than overwrite.
 
 ## Usage example
 
-After copying `CLAUDE.md` into your project root, start the pipeline by describing what you need:
+From any repo where the plugin is installed, start the pipeline by describing what you need:
 
 > "Here's the brief for the new custody hearing widget — turn it into requirements, stories, tests, and implementation."
 
-Claude will invoke the `requirements-analyst`, `story-writer`, `test-engineer`, and `implementation` agents in sequence, pausing at each human gate for review.
+Claude will invoke the `requirements-analyst`, `architecture-designer`, `story-writer`, `test-engineer`, and `implementation` agents in sequence, pausing at each human gate for review.
 
 For standalone skills:
 > "Review this PR against CPP standards" — triggers `review-pr`
