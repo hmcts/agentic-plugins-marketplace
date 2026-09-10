@@ -53,9 +53,12 @@ src/main/java/uk/gov/hmcts/cp/
   controllers/                            (@RestController — implements generated api-cp-* interface)
   services/                               (business logic; called by controllers)
   clients/                                (RestClient HTTP clients to CP backend)
-  filters/
-    TracingFilter.java                    (OncePerRequestFilter — X-Correlation-Id header)
-    [ServiceSpecificFilter.java]          (auth/client-id filters where applicable)
+  filter/
+    http/
+      TracingFilter.java                 (OncePerRequestFilter — X-Correlation-Id header)
+      [AuthFilter.java]                  (servlet-level auth/client-id filters where applicable)
+    service/
+      [ExampleFilter.java]               (business logic that filters a service's response/input, e.g. field-level redaction or record exclusion rules)
   exceptions/
     GlobalExceptionHandler.java           (@RestControllerAdvice)
   [mappers/]                              (MapStruct — entity ↔ DTO, DB-backed services only)
@@ -88,6 +91,7 @@ Each layer has one responsibility and communicates only with the layer directly 
 - **Input validation**: validate at the earliest boundary — controller (`@Valid`) for HTTP flows, `ServiceBusHandlers` for Service Bus flows. Domain services must not throw `IllegalArgumentException` for input that should have been rejected upstream. Use `org.owasp.encoder.Encode.forJava()` before passing URN or case ID inputs to backend calls.
   - **Case/entity URN path params**: validate against `CASE_URN_REGEX = "^[0-9a-zA-Z]{1,30}$"` in the controller before any backend call — throw `ResponseStatusException(BAD_REQUEST, ...)` on mismatch (caught by the standard `GlobalExceptionHandler`, logged at `WARN` per the log-level rule). See `service-cp-caseadmin-case-urn-mapper`'s `CaseUrnMapperController` and `service-cp-crime-hearing`'s `HearingController` for the working pattern.
 - **HTTP clients**: use `RestClient` (Spring 6+) — `RestTemplate` is banned for new code; migrate it on touch. Build URLs with `UriComponentsBuilder`. Declare `CJSCPPUID` as a default header on the `RestClient` `@Bean` in `AppConfig` so every call carries it automatically. `RestClient.retrieve()` throws `HttpClientErrorException` (4xx) and `HttpServerErrorException` (5xx) — same hierarchy as `RestTemplate`, so `GlobalExceptionHandler` handles them identically. See `service-hmcts-springboot-demo/case-urn-mapper-demo` (`CaseUrnMapperConfig`, `CaseUrnMapperClient`) for the canonical wiring pattern.
+- **Two kinds of filter, two packages**: `filter.http` holds servlet-level `OncePerRequestFilter`s that act on every HTTP request/response regardless of endpoint (e.g. `TracingFilter`, auth/client-id checks) — these have no business logic. `filter.service` holds business-logic filters invoked by a service to filter or shape response/input data per domain rules (e.g. excluding records a caller isn't entitled to see) — these follow the same rule as any other service-layer code: no `.builder()` calls, delegate object construction to a mapper.
 
 ### Feature Toggle Placement
 
