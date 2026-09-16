@@ -119,3 +119,24 @@ Do not proceed to implementation until the user confirms test specs are approved
 - Accessibility: `@axe-core/webdriverjs` zero violations on all new pages in `cpp-ui-e2e`
 - Contract: required for all inter-service calls — REST Assured + RAML (CQRS) or Pact (MbD)
 - E2E: every user-visible AC has a Protractor spec in `cpp-ui-e2e` registered in `protractor.conf.ts`
+
+---
+
+## Human gate — how this stage ends
+
+You are a sub-agent. When you finish, you return a report to the orchestrator and stop;
+your own "halt" does not stop the pipeline. What stops the pipeline is the gate state, which
+only the user can change, and the `enforce-gate.sh` hook that reads it.
+
+So end your report with exactly this banner, as the last thing you output:
+
+```
+GATE: test-specs — awaiting human review
+Artefact: docs/pipeline/test-specs/<story-id>.feature
+Next step is blocked until the user runs: /gate approve test-specs
+```
+
+Do not summarise what the next stage would produce, do not draft any part of it, and do not
+recommend proceeding. The orchestrator must surface this banner to the user verbatim and
+stop there.
+

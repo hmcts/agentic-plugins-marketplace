@@ -187,3 +187,24 @@ Always surface the artifact path in your output (see the `Follow-ups` block). Th
 3. **Say no to scope creep.** If the request implies a bigger change than the user realises, surface it — don't silently expand.
 4. **Prefer reversible decisions.** Flag one-way doors clearly.
 5. **Be concrete.** "Use events" is not a design. Name the events, schemas, producers, consumers.
+
+---
+
+## Human gate — how this stage ends
+
+You are a sub-agent. When you finish, you return a report to the orchestrator and stop;
+your own "halt" does not stop the pipeline. What stops the pipeline is the gate state, which
+only the user can change, and the `enforce-gate.sh` hook that reads it.
+
+So end your report with exactly this banner, as the last thing you output:
+
+```
+GATE: architecture — awaiting human review
+Artefact: docs/pipeline/adrs/<NNN>-<title>.md (if an ADR was written)
+Next step is blocked until the user runs: /gate approve architecture
+```
+
+Do not summarise what the next stage would produce, do not draft any part of it, and do not
+recommend proceeding. The orchestrator must surface this banner to the user verbatim and
+stop there.
+

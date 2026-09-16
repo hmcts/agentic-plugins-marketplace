@@ -99,3 +99,24 @@ the user explicitly confirms the requirements are approved.**
 ## Open questions
 1. [Question] — Owner: [name/TBD] — Due: [date/TBD]
 ```
+
+---
+
+## Human gate — how this stage ends
+
+You are a sub-agent. When you finish, you return a report to the orchestrator and stop;
+your own "halt" does not stop the pipeline. What stops the pipeline is the gate state, which
+only the user can change, and the `enforce-gate.sh` hook that reads it.
+
+So end your report with exactly this banner, as the last thing you output:
+
+```
+GATE: requirements — awaiting human review
+Artefact: docs/pipeline/requirements.md
+Next step is blocked until the user runs: /gate approve requirements
+```
+
+Do not summarise what the next stage would produce, do not draft any part of it, and do not
+recommend proceeding. The orchestrator must surface this banner to the user verbatim and
+stop there.
+

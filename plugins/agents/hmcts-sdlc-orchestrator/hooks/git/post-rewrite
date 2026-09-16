@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Follow attribution across `git commit --amend` and `git rebase`.
+#
+# Without this, a rebase would orphan every recorded SHA and attribution would
+# quietly collapse to zero on any branch that gets tidied before review — which
+# in CPP is most of them.
+#
+# $1 is `amend` or `rebase`; stdin carries `<old-sha> <new-sha>` pairs.
+#
+# Runs whether or not a Claude session is live: rebases usually happen long
+# after the session that produced the work.
+
+set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/_chain.sh"
+
+pairs="$(mktemp)" || exit 0
+trap 'rm -f "$pairs"' EXIT
+cat >"$pairs"
+
+CPP_HOOK_STDIN="$pairs"
+chain_repo_hook post-rewrite "$@" || true
+unset CPP_HOOK_STDIN
+
+harness_enabled || exit 0
+
+reason="${1:-unknown}"
+while read -r old new _rest; do
+  [[ -n "${old:-}" && -n "${new:-}" ]] || continue
+  emit_event "$(jq -c -n --arg o "$old" --arg n "$new" --arg r "$reason" \
+    '{event:"commit_rewritten", old_sha:$o, new_sha:$n, reason:$r}')"
+done <"$pairs"
+
+exit 0

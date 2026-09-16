@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Record which branch a set of recorded commits was pushed to.
+#
+# This is the join key for everything that happens server-side: Azure DevOps
+# knows the PR's source branch, and this event maps that branch back to the
+# local attribution index. Without it, PR-level metrics (review turnaround,
+# CI first-pass, change failure rate) cannot be split assisted/unassisted.
+#
+# $1 remote name, $2 remote URL.
+# stdin: `<local ref> <local sha> <remote ref> <remote sha>` per pushed ref.
+#
+# Records the remote NAME only, never the URL, and only for repos the harness
+# has actually committed in.
+
+set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/_chain.sh"
+
+refs="$(mktemp)" || exit 0
+trap 'rm -f "$refs"' EXIT
+cat >"$refs"
+
+# A repo's own pre-push may legitimately reject the push (tests, lint, branch
+# protection). Chain first and honour its verdict — the harness must never be
+# the reason a push succeeds that should have failed.
+CPP_HOOK_STDIN="$refs"
+chain_repo_hook pre-push "$@"
+rc=$?
+unset CPP_HOOK_STDIN
+[[ $rc -ne 0 ]] && exit $rc
+
+harness_enabled || exit 0
+[[ -f "$STATE_DIR/attributed/$REPO_KEY" ]] || exit 0
+
+remote="${1:-origin}"
+while read -r _local_ref local_sha remote_ref _remote_sha; do
+  [[ -n "${local_sha:-}" && -n "${remote_ref:-}" ]] || continue
+  # All-zero local sha is a branch deletion, not a push of work.
+  [[ "$local_sha" =~ ^0+$ ]] && continue
+  emit_event "$(jq -c -n \
+    --arg sha "$local_sha" --arg ref "$remote_ref" --arg rem "$remote" \
+    '{event:"branch_pushed", tip_sha:$sha, remote_ref:$ref, remote:$rem}')"
+done <"$refs"
+
+exit 0

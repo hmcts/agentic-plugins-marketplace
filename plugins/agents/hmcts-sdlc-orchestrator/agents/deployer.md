@@ -99,3 +99,24 @@ If smoke checks fail after deployment:
 - Roll back to the previous stable image tag
 - Surface the failure and sandbox logs to the user
 - Halt — return to implementation agent for diagnosis
+
+---
+
+## Human gate — how this stage ends
+
+You are a sub-agent. When you finish, you return a report to the orchestrator and stop;
+your own "halt" does not stop the pipeline. What stops the pipeline is the gate state, which
+only the user can change, and the `enforce-gate.sh` hook that reads it.
+
+So end your report with exactly this banner, as the last thing you output:
+
+```
+GATE: deploy-sandbox — awaiting human review
+Artefact: docs/pipeline/deploy-notes.md
+Next step is blocked until the user runs: /gate approve deploy-sandbox
+```
+
+Do not summarise what the next stage would produce, do not draft any part of it, and do not
+recommend proceeding. The orchestrator must surface this banner to the user verbatim and
+stop there.
+
