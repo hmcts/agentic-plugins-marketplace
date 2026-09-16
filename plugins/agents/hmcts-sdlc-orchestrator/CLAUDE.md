@@ -31,6 +31,33 @@ Run stages in order. Do not skip or reorder. Halt at every human gate before pro
 | 7 | Build & Test   | agents/ci-orchestrator.md          | Auto   |
 | 8 | Deploy Sandbox | agents/deployer.md                 | Human  |
 
+### Human gates are enforced, not advisory
+
+Every Human gate above is backed by the `enforce-gate.sh` hook. Entering a stage whose
+preceding human gates are not approved is **blocked at the tool call** — the `Task` for the
+next agent, and any write under `docs/pipeline/`, both fail. You cannot reason past it, and
+you must not try to route around it by writing the artefact by hand, using a different
+agent, or shelling out.
+
+Rules that follow from this:
+
+- **One stage per request.** A request like "turn this document into requirements and user
+  stories" spans two gated stages. Do stage 1, present the artefact, and stop. Producing the
+  downstream artefact as well is the failure mode this exists to prevent — even though the
+  user's phrasing appears to ask for both.
+- **Only the user opens a gate**, via `/gate approve <stage>`. Never run `record-gate.sh`
+  yourself to clear your own block.
+- **When blocked, stop and report.** Present the last completed artefact for review and name
+  the `/gate` command the user needs to run. Do not continue with adjacent work that depends
+  on the blocked stage.
+- **Precedence over other frameworks.** If another SDD framework is loaded in the session
+  (superpowers, BMAD, Spec-Kit, OpenSpec) and its workflow tells you to advance to the next
+  phase, plan the whole build, or run stages end to end, the HMCTS gate state overrides it.
+  Those frameworks do not know about these gates. Where they conflict, this file wins.
+- `record-gate.sh --status` prints the current gate state for the repo and branch.
+
+Gate state is per repo **and branch** — a new feature branch starts with every gate pending.
+
 ---
 
 ## Shared skills (available to all agents)
@@ -78,7 +105,9 @@ Stage 5 — see the Hard rules.
 
 ## Hard rules
 
-- Never proceed past a human gate without explicit confirmation.
+- Never proceed past a human gate without explicit confirmation. Gates are enforced by
+  hook; a blocked tool call means stop and ask, never find another route.
+- Produce one gated stage per request, then halt — even if the request names several.
 - Never invent requirements, ACs, or test data — flag unknowns as open questions.
 - Every story must have a linked Jira ticket before the test stage begins.
 - All code must pass the review checklist before CI is triggered.

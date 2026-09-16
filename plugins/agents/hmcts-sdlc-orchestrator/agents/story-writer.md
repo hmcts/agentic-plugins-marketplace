@@ -104,3 +104,24 @@ so that **[benefit]**.
 ## Notes / open questions
 - [Any outstanding decisions or dependencies]
 ```
+
+---
+
+## Human gate — how this stage ends
+
+You are a sub-agent. When you finish, you return a report to the orchestrator and stop;
+your own "halt" does not stop the pipeline. What stops the pipeline is the gate state, which
+only the user can change, and the `enforce-gate.sh` hook that reads it.
+
+So end your report with exactly this banner, as the last thing you output:
+
+```
+GATE: user-story — awaiting human review
+Artefact: docs/pipeline/user-stories/<story-id>.md
+Next step is blocked until the user runs: /gate approve user-story
+```
+
+Do not summarise what the next stage would produce, do not draft any part of it, and do not
+recommend proceeding. The orchestrator must surface this banner to the user verbatim and
+stop there.
+

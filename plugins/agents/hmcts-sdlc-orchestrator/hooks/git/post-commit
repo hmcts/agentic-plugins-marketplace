@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Record that this commit was produced during a harness session.
+#
+# The SHA goes into the local index; NOTHING goes into the commit message. The
+# commit that reaches the public remote is indistinguishable from any other.
+#
+# post-commit runs after the commit object exists and git ignores its exit
+# status, so this cannot fail or alter a commit.
+#
+# See docs/telemetry/attribution-index.md.
+
+set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/_chain.sh"
+
+chain_repo_hook post-commit "$@" || true   # git ignores post-commit failures
+
+harness_session || exit 0
+
+sha="$(git rev-parse HEAD 2>/dev/null || true)"
+[[ -n "$sha" ]] || exit 0
+
+emit_event "$(jq -c -n \
+  --arg sha "$sha" --arg h "$HARNESS_NAME" --argjson st "$HARNESS_STAGES" \
+  '{event:"commit_recorded", sha:$sha, harness:$h, stages:$st}')"
+
+# Mark the repo as one the harness has touched, so pre-push knows to record
+# where its commits went and every other repo on the machine stays out of the log.
+mkdir -p "$STATE_DIR/attributed" 2>/dev/null \
+  && : >>"$STATE_DIR/attributed/$REPO_KEY" 2>/dev/null
+
+exit 0
