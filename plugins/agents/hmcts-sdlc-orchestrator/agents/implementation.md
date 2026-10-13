@@ -32,6 +32,8 @@ red → green → refactor cycle. Never write code ahead of a failing test.
 - context/azure-cloud-native.md (Cloud-Native posture on Azure)
 - context/logging-standards.md (mandatory JSON logging)
 - context/azure-sdk-guide.md (load when the work touches any Azure integration)
+- context/springboot-mbd-gotchas.md (load for MbD `cp-*`/`cpp-mbd-*` work — cp-task-manager, Azure SDK
+  credential switching, Jackson 3, Testcontainers/Awaitility pitfalls)
 
 ## Output
 - Production code committed to the feature branch
@@ -50,11 +52,17 @@ HMCTS templates. Any deviation from the template structure requires an ADR.
 If modifying an existing service, confirm it aligns with the template conventions
 before adding to it.
 
-### Step 0b — Precondition: an implementation-plan artifact exists
-Do **not** write code until an implementation-plan HTML artifact exists at
-`docs/pipeline/artifacts/` and has been surfaced at the Stage 4 human gate. If it is missing,
-stop and export it first with skill: `skills/export-design-artifact/` (template
-`03-implementation-plan-roadmap.html`). The plan is mandatory even when the design is clean.
+### Step 0b — Precondition: an implementation-plan artifact exists AND is approved
+Do **not** write production code until an implementation-plan HTML artifact exists at
+`docs/pipeline/artifacts/<NNN>-<story>-implementation-plan.html` (template
+`03-implementation-plan-roadmap.html` via skill: `skills/export-design-artifact/`) **and has been
+approved at the Stage 4 human gate.**
+
+If the artifact is **missing**, produce the plan draft — then **HALT and return it as your final
+message for approval; do NOT write any production code in the same run.** The plan is a *human* gate:
+since you cannot obtain that approval mid-run, generating a plan and coding straight through it in one
+pass **bypasses the gate**. Only proceed to Step 1 once you are resumed with confirmation that the plan
+is approved. The plan is mandatory even when the design is clean.
 
 ### Step 1 — Run the tests first
 Before writing any code, run the test suite to confirm the stubs are failing.
@@ -70,8 +78,28 @@ Order of implementation:
 3. API layer (controllers, request/response mapping)
 4. UI layer (templates, components) — if applicable
 
+When acceptance (BDD) scenarios are in scope, also implement the **Cucumber step definitions + Spring
+glue in the `…/acceptance/` package** (plain Cucumber on JUnit Platform + `cucumber-spring`, **not
+Serenity**) so the scenarios go green — reuse the sanity test's base config. If the Cucumber harness is
+not in the repo yet, add it per skill: `skills/bdd-test-strategy/SKILL.md` (§5) and record the ADR
+(template divergence); do not hand-roll build config beyond the `testImplementation` deps.
+
+Follow skill: `skills/bdd-test-strategy/SKILL.md` (§6) for step-definition glue organisation (no 1:1
+feature→step-def class, thin steps, scenario-scoped state not statics, declarative Gherkin / imperative
+glue). Drive stubbed boundaries (HTTP providers, blob, message brokers) through fluent, fixture-backed
+stub services per skill: `skills/test-stub-dsl/SKILL.md` — never raw WireMock/SDK calls in the glue.
+
+Any test code you write or adjust to reach green follows skill:
+`skills/test-authoring-conventions/SKILL.md` — behaviour-level granularity (no per-AC/per-column tests),
+no AC/ticket ids in test names, no comments/javadoc in tests, DTOs via factories/builders, DB access via
+`*TestRepository` helpers (no `JdbcTemplate` in test classes).
+
 ### Step 3 — Refactor
 Once all tests are green, refactor for clarity and maintainability:
+- **Apply SRP & cohesion** — each class does one thing; extract distinct responsibilities (validation →
+  validator, persistence → repository, external calls → client, mapping → mapper, orchestration →
+  service) into their own collaborators, depending on abstractions at seams. Don't over-fragment into
+  anemic classes. See `context/coding-standards.md` § Design principles (SOLID, cohesion).
 - Extract shared logic into named methods
 - Remove duplication
 - Ensure naming matches the domain language from the story (ubiquitous language)
@@ -97,8 +125,8 @@ action, or other externally reachable entry point:
   failure mode. Cover behaviour the unit tests cannot reach (real persistence/SQL, event flow,
   status-code mapping). For CQRS contexts this lives under `<context>-integration-test/`.
 - **Run the full integration-test suite locally and confirm it is green** before committing:
-  - if `./runIntegrationTests.sh` exists at the repo root, run `mvn clean && ./runIntegrationTests.sh`
-  - otherwise use the repo's documented IT command (e.g. `mvn verify -Pintegration-test`).
+  - **MbD (Gradle):** `./gradlew test` (or the service's Gradle integration task, e.g. `./gradlew integrationTest`, if the build defines one)
+  - **legacy CQRS (Maven):** `mvn clean && ./runIntegrationTests.sh` if it exists at the repo root, otherwise the repo's documented IT command (e.g. `mvn verify -Pintegration-test`).
 - If an IT cannot be made green, **halt and surface it** — never weaken, skip, or `@Disabled` an IT
   to proceed. Paste the IT summary (pass/fail counts) into the PR description.
 
@@ -114,9 +142,36 @@ using skill: skills/adr-template.md before committing.
 ## Hard rules
 - Never commit directly to `main` or `master`
 - Never delete or weaken a test to make it pass — fix the code instead
-- Never start coding without an implementation-plan artifact at `docs/pipeline/artifacts/` (Step 0b)
+- Never start coding without an **approved** implementation-plan artifact at `docs/pipeline/artifacts/`
+  (Step 0b) — if it is missing, generate it and halt for approval; never generate-then-code in one run
 - A new or changed endpoint MUST ship with at least one integration test, and the IT suite MUST be
-  green locally (`mvn clean && ./runIntegrationTests.sh` when available) before the PR — see Step 4b
+  green locally before the PR — MbD: `./gradlew test`; legacy CQRS: `mvn clean && ./runIntegrationTests.sh` — see Step 4b
 - Never suppress linting warnings with inline ignores without a comment explaining why
 - If implementation reveals a gap in the requirements, ACs, or design, halt and surface it — and
   capture the gap as an artifact via `skills/export-design-artifact/` — before proceeding
+
+---
+
+## Gotchas & hard-won notes
+
+Durable, generalizable, easy-to-miss lessons that don't belong in the linear step flow above — advisory
+reminders to consult while implementing, **not** sequential steps. Only add an entry if it is
+**generalizable** (not a one-off), **non-obvious**, and has a **slow or misleading feedback loop** (fails
+far from its cause). Keep each entry short.
+
+**Stack-specific MbD gotchas** (cp-task-manager, Azure SDK credential switching, Jackson 3,
+Testcontainers/Awaitility) live in `context/springboot-mbd-gotchas.md` — consult it for MbD work rather
+than growing this section with stack-specific detail. Keep entries below to cross-stack, generalizable
+lessons.
+
+- **Keep every "boots the whole app" surface in sync when you add a startup-required backing service**
+  (database, message broker/emulator, cache, blob store, …). Update *all* of:
+  - **Tests** — the Testcontainers / emulator wiring the integration & acceptance bases use.
+  - **`docker-compose.yml`** — add the service (`healthcheck` + `depends_on: condition: service_healthy`)
+    and point the app at it via env. Compose boots the whole app for **local dev and the CI DAST/ZAP job**;
+    a missing dependency there means the app never becomes healthy and **DAST fails with a misleading
+    `connection refused` (exit 3)** — far from the real cause, and not specific to any one dependency.
+  - **Deploy config** — flag the Helm values / env (managed instance, secrets via Managed Identity) for
+    the ops side; never bake connection strings/secrets into the image.
+  Keep the **Dockerfile app-only** — the dependency comes from compose (local/DAST) and managed services
+  (real envs), never the published image. Stateless apps need none of this.

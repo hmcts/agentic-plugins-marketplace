@@ -62,7 +62,7 @@ Report stage completion in real time.
   ran and is green, and that **every new/changed endpoint in this PR has at least one integration
   test**. A new endpoint with no IT, or an IT stage that was skipped, is a **fail** — do not pass the
   PR to deploy even if every other stage is green. Where ITs do not run in PR-verify, require evidence
-  they were run locally (`mvn clean && ./runIntegrationTests.sh`) and the summary pasted in the PR.
+  they were run locally (MbD: `./gradlew test`; legacy CQRS: `mvn clean && ./runIntegrationTests.sh`) and the summary pasted in the PR.
 - Confirm the build artefact reference (image tag, JAR version, etc.)
 - Signal deployer agent to proceed
 
