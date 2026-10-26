@@ -166,6 +166,11 @@ you notice and let stage 6b own the finding.
 - [ ] No internal HMCTS domains in the spec (CI will reject: `cjscp.org.uk`, `justice.gov.uk`, `hmcts.net`, etc.)
 - [ ] Each JSON schema has a paired `*.example.json`
 
+#### L. Environment config (if the PR adds an env var, secret mount or config default)
+
+- [ ] No default names a specific environment (sbox tenant id, APIM name, client id, inbox, URL); otherwise every other environment silently uses it
+- [ ] For CNP-hosted apps (Path C): the `promote-cnp-environment` skill has been run in delta mode and each target environment's infra PR is listed in the PR body
+
 ---
 
 ### Step 3 — Post review

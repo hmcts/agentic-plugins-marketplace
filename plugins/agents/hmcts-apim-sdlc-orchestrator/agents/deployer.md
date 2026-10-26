@@ -26,6 +26,9 @@ goes green. Deployment is **fully automated via GitHub Actions + ADO** — this 
 monitors the pipeline, verifies completion, runs smoke checks, and records the deployment.
 It does not issue `kubectl` or `helm` commands directly.
 
+CNP-hosted apps (Jenkins + `cnp-flux-config`, Path C) are out of scope here: promoting them to
+AAT, demo or prod is the `promote-cnp-environment` skill.
+
 ## Deployment architecture
 
 ```

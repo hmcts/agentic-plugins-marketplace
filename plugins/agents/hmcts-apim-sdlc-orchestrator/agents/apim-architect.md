@@ -95,6 +95,9 @@ Work through these; omit a section only if genuinely not applicable, and say so.
 - Stateless proxy vs DB-backed (Postgres + Flyway). Default to stateless proxy; justify a DB.
 - Layer model per `context/service-shared.md` (Controller → Manager → Service → Mapper → Repository → Client).
 - Backend integrations, `CJSCPPUID` propagation, feature-toggle placement.
+- New infra the design needs (identity, role, secret, Entra app, env var). For CNP-hosted apps
+  (Path C), run the `promote-cnp-environment` skill in delta mode so the infra waves are planned
+  before the code depends on them.
 
 ### 6. Risks & alternatives
 - At least one alternative considered and rejected, with reason.
