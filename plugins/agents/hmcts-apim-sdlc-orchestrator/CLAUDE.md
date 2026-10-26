@@ -70,6 +70,7 @@ One-time service lifecycle skills (run once per repo, not per feature):
 | Skill | When |
 |---|---|
 | `wire-service-deployment` | After Azure provisioning and `cp-vp-aks-deploy` registration — wires `deploy-dev` and `deploy-sit` CI jobs, then chains to `exclude-db-from-priming-clear` if the service owns a database |
+| `promote-cnp-environment` | A CNP-hosted (Jenkins + Flux) app works in one environment and must be brought up in AAT, demo or prod — gap analysis, ordered PR waves raised for owner review (owners approve and merge), gated per wave and before prod |
 | `exclude-db-from-priming-clear` | Chained from `wire-service-deployment` for new services with a dedicated database, or run standalone to remediate an existing service after a priming data-loss incident |
 | `entra-token-validation` | When adding, auditing or fixing Entra JWT token validation — scored conformance report against the estate standard, then applies the code fixes. `amp-security` hands off to it for Lens 1 |
 
@@ -117,6 +118,21 @@ No code, no deploy. Output of Path A is a published `api-cp-*` artefact register
 | 9 | Sync AMP catalog if spec metadata changed | **`catalog-publisher`** | Auto (on drift) | 7 | — |
 | 10 | Raise PR | `gh` + `conventional-commit` skill | Human | — | — |
 | 10b | Post JIRA update (optional) | `context/jira-integration.md` convention | Human (only when requested) | — | Comment posted, linking the PR(s) → done |
+
+### Path C — CNP-hosted marketplace apps (`web-api-marketplace`, `service-api-marketplace`)
+
+These run on CNP (Jenkins + `cnp-flux-config`), environments sbox → AAT/staging → demo → prod,
+not on GHA + ADO + `cp-vp-aks-deploy`. Stages 1–6b are the same as Path B; delivery differs.
+
+| # | Stage | Driver | Gate | MbD stage | Signal to next |
+|---|---|---|---|---|---|
+| 7 | Build, test, deploy to sbox | Jenkins `Jenkinsfile_CNP` + Flux image automation | Auto | 5–6 | sbox `/health` shows the commit → 8 |
+| 8 | Promote to AAT/staging | **`promote-cnp-environment`** skill | **Human** per wave; owners approve and merge each PR | 6 | AAT smoke test passed → 8b / 8c |
+| 8b | Promote to demo | **`promote-cnp-environment`** skill | **Human**: scope decision (full parity or features off) | 6 | Demo healthy |
+| 8c | Promote to prod | **`promote-cnp-environment`** skill | **Prod gate**: AAT passed, prod checklist, named approver, prod owners merge | 6–7 | Prod smoke test passed → observe |
+
+Run the skill once per environment to stand it up, and again in delta mode whenever a change
+adds infra (secret, vault mount, Entra app, env var, role). The agent never merges or applies.
 
 ## Definition of Ready / Definition of Done
 
