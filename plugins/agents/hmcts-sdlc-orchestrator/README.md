@@ -56,6 +56,8 @@ The plugin records your Claude Code sessions for the CPP programme. Telemetry is
 - cost and tokens for each request;
 - hook and git events: session start, the end of each turn and sub-agent run, session end, and git commits, rewrites (amend, rebase) and pushes. A git event holds the repository name, the branch, the commit SHAs and, for a push, the remote's name. It holds no remote URL, author or email.
 
+The first session after setup is captured as hook snapshots only. Claude Code reads its settings when the session starts, before the plugin applies the telemetry keys, so prompts, tool data and cost are exported from the next session on.
+
 ### How it is handled
 
 - Everything is scrubbed on your laptop before it is stored. Your email, user id, account id, organisation id, host name and repository URL are removed. Inside text, your home path becomes `~` and your user name, host name and email become `[REDACTED:self]`. Anything that matches the PII and secret patterns of the plugin's guard hooks is redacted.
@@ -68,9 +70,11 @@ The plugin records your Claude Code sessions for the CPP programme. Telemetry is
 |---|---|
 | `/telemetry status` | Shows the forwarder, the spool, the last acknowledgement, sign-in, roster and opt-out state |
 | `/telemetry login` | Signs you in with a device code in your browser |
-| `/telemetry optout` | Turns telemetry off until `/telemetry on`: restores your Claude Code settings; signed in, it uploads what is already spooled; signed out, it deletes the spool |
+| `/telemetry optout` | Turns telemetry off until `/telemetry on`: restores your Claude Code settings; signed in, it uploads what was spooled before the opt-out; nothing new is captured; signed out, it deletes the spool |
 | `/telemetry on` | Turns telemetry back on after an opt-out |
-| `/telemetry uninstall` | Opts out, stops the forwarder, deletes what is left in the spool, restores your previous `core.hooksPath` and removes the git shims |
+| `/telemetry uninstall` | Opts out, stops the forwarder, restores your previous `core.hooksPath`, removes the git shims and removes the plugin data directory (spool, sign-in tokens, log). It prints the outcome of each step, including anything it could not restore |
+
+> **CAUTION:** Run `/telemetry uninstall` before you remove the plugin with `/plugin uninstall`. Removing the plugin runs no hook: the telemetry keys stay in your Claude Code settings, `core.hooksPath` keeps pointing at the shims and the data directory stays on disk. `/telemetry uninstall` restores the settings and `core.hooksPath` and removes the data directory.
 
 ### Turn it off
 
@@ -78,7 +82,7 @@ The plugin records your Claude Code sessions for the CPP programme. Telemetry is
   - It does not opt you out: the next session you start without the variable applies the keys again and starts the forwarder.
   - Claude Code reads its settings when a session starts, so the keys can still apply to the session you started with the variable. With the forwarder stopped, nothing receives what that session exports, unless another session starts the forwarder again.
   - Another session that is already running is affected only at its own next start. Until then it keeps the settings it read, and its hooks can start the forwarder again.
-- For every session: `/telemetry optout` is the lasting opt-out. It stays in force until you run `/telemetry on`.
+- For every session: `/telemetry optout` is the lasting opt-out. It stays in force until you run `/telemetry on`. From the opt-out on, nothing new is captured. Signed in, the forwarder still uploads what was spooled before the opt-out; when that upload cannot finish, the next session start resumes it, and a batch still unsent after 30 days is deleted.
 
 ### Git attribution (optional)
 
