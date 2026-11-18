@@ -36,7 +36,7 @@ from typing import Callable, List, Optional, Tuple
 
 from . import log
 from .config import PORT_MAX, PORT_MIN, Config
-from .receiver import TOKEN_HEADER, healthz_proof
+from .receiver import TOKEN_HEADER, healthz_proof, valid_version
 from .spool import Spool
 
 LOCK_FILE = "forwarder.lock"
@@ -271,18 +271,23 @@ def _read_json(conn: http.client.HTTPConnection, method: str, path: str) -> Tupl
 
 
 def _is_ours(body: Optional[dict], port: int, nonce: str, token: Optional[str]) -> bool:
-    """Our forwarder: the healthz shape plus a proof made with this data directory's token."""
+    """Our forwarder: the healthz shape plus a proof made with this data directory's token.
+
+    Never raises: a malformed body (a non-ASCII or non-string version, a port that is
+    not an int, a proof that is not a string) is simply not ours.
+    """
     if token is None or not isinstance(body, dict):
         return False
-    proof = body.get("proof")
-    return (
-        body.get("status") == "ok"
-        and isinstance(body.get("version"), str)
-        and body.get("port") == port
-        and isinstance(proof, str)
-        and hmac.compare_digest(proof.encode("utf-8", "replace"),
-                                healthz_proof(token, nonce, port, body["version"]).encode("ascii"))
-    )
+    version, reported, proof = body.get("version"), body.get("port"), body.get("proof")
+    if body.get("status") != "ok" or not valid_version(version) or not isinstance(proof, str):
+        return False
+    if not isinstance(reported, int) or isinstance(reported, bool) or reported != port:
+        return False
+    try:
+        expected = healthz_proof(token, nonce, port, version)
+        return hmac.compare_digest(proof.encode("utf-8", "replace"), expected.encode("ascii"))
+    except Exception:  # noqa: BLE001 - anything odd in the answer means the listener is not ours
+        return False
 
 
 def healthz(port: int, data_dir: Path, timeout: float = 0.5) -> Optional[dict]:

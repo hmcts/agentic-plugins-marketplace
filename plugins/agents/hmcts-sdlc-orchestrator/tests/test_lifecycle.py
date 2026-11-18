@@ -495,3 +495,53 @@ def test_proof_only_holder_counts_as_held(tmp_path, unrelated):
         ours.close()
         thread.join(5)
     assert not lifecycle.lock_held(tmp_path)
+
+
+class _RawHealthz(BaseHTTPRequestHandler):
+    """Answers /healthz with a fixed raw JSON body; ``{port}`` is filled with the listener's own port."""
+
+    template = b"{}"
+
+    def do_GET(self):
+        body = self.template.replace(b"{port}", str(self.server.server_address[1]).encode())
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.mark.parametrize("template", [
+    b'{"status": "ok", "version": "\\ud800", "port": {port}, "proof": "x"}',
+    b'{"status": "ok", "version": 110, "port": {port}, "proof": "x"}',
+    b'{"status": "ok", "version": "1.1.0", "port": "{port}", "proof": "x"}',
+    b'{"status": "ok", "version": "1.1.0", "port": {port}.0, "proof": "x"}',
+    b'{"status": "ok", "version": "1.1.0 beta", "port": {port}, "proof": "x"}',
+    b'{"status": "ok", "version": "' + b"1" * 33 + b'", "port": {port}, "proof": "x"}',
+], ids=["lone-surrogate-version", "int-version", "string-port", "float-port", "space-in-version", "long-version"])
+def test_malformed_healthz_bodies_are_foreign(tmp_path, template):
+    base = free_port_run()
+    _token(tmp_path)
+    handler = type("Raw", (_RawHealthz,), {"template": template})
+    listener = ThreadingHTTPServer(("127.0.0.1", base), handler)
+    thread = threading.Thread(target=listener.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+    thread.start()
+    try:
+        assert lifecycle._probe(base, tmp_path)[0] == lifecycle.FOREIGN
+        assert lifecycle.healthz(base, tmp_path) is None
+        assert lifecycle.choose_port(_cfg(base), tmp_path) == base + 1
+    finally:
+        listener.shutdown()
+        listener.server_close()
+        thread.join(5)
+
+
+def test_receiver_refuses_a_version_it_could_not_prove(tmp_path):
+    cfg = _cfg(free_port_run())
+    for bad in ("1.1.0\u00e9", "", "1" * 33):
+        with pytest.raises(ValueError):
+            receiver.Receiver(cfg, spool.Spool(tmp_path, cfg), receiver.IdentityProvider(), bad,
+                              lambda hook: [], lambda event: None, receiver.ForwarderState(), token=_token(tmp_path))

@@ -71,6 +71,12 @@ SLOT_WAIT_S = 10.0
 TOKEN_HEADER = "X-Cpp-Telemetry-Token"
 CONTROL_PATHS = frozenset({"/hook", "/event", "/flush", "/shutdown"})
 _NONCE_RE = re.compile(r"[0-9a-f]{16,128}")
+_VERSION_RE = re.compile(r"[0-9A-Za-z._-]{1,32}")
+
+
+def valid_version(version: Any) -> bool:
+    """A version the healthz proof can carry: 1-32 ASCII characters from ``[0-9A-Za-z._-]``."""
+    return isinstance(version, str) and _VERSION_RE.fullmatch(version) is not None
 
 
 def healthz_proof(token: str, nonce: str, port: int, version: str) -> str:
@@ -128,7 +134,8 @@ class IdentityProvider:
     ``~/.claude.json``, read at forwarder start) always leads and is never evicted;
     each new plausible ``user.email`` found in a raw body (case-insensitive, up to
     ``MAX_EMAILS``) is added after it. The payload walk runs outside the lock and
-    only when the raw body holds the bytes ``user.email``.
+    only when the raw body holds the bytes ``email`` (so a JSON-escaped key such as
+    ``user\\u002eemail`` is still walked; the walk decides).
     """
 
     def __init__(self, build: Callable[[Optional[str]], scrub.Identity] = scrub.identity_from_environment,
@@ -154,7 +161,7 @@ class IdentityProvider:
                 self._ident = self._compose()
             room = len(self._emails) < MAX_EMAILS
         found: List[str] = []
-        if room and raw is not None and b"user.email" in raw and isinstance(payload, (dict, list)):
+        if room and raw is not None and b"email" in raw and isinstance(payload, (dict, list)):
             found = scrub.user_emails(payload, MAX_EMAILS + 1)
         with self._lock:
             known = {email.lower() for email in self._emails}
@@ -476,6 +483,8 @@ class Receiver:
         clock: Callable[[], float] = time.time,
         token: Optional[str] = None,
     ) -> None:
+        if not valid_version(version):
+            raise ValueError("version must be 1-32 characters of [0-9A-Za-z._-]")
         self._cfg = cfg
         self._spool = spool
         self._ident_provider = ident_provider

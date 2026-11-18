@@ -468,3 +468,10 @@ def test_flush_and_shutdown_need_no_slot(harness):
     finally:
         for _ in range(4):
             slots.release()
+
+
+def test_escaped_user_email_key_is_still_walked():
+    provider = receiver.IdentityProvider(lambda email: _invented_identity(email))
+    raw = json.dumps(_with_email("escaped@example.invalid")).replace("user.email", "user\\u002eemail").encode()
+    assert b"user.email" not in raw
+    assert provider(json.loads(raw), raw).email == "escaped@example.invalid"
