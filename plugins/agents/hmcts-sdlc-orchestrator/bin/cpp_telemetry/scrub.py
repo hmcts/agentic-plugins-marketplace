@@ -9,12 +9,16 @@ Every string value goes through ``scrub_text``, in this order:
 3. any other email address becomes ``[REDACTED:email]``;
 4. each PII or secret shape of ``hooks/block-pii.sh`` and
    ``hooks/block-secrets.sh`` becomes ``[REDACTED:<label>]``, where the label
-   is the one the guard script prints for that pattern.
+   is the one the guard script prints for that pattern. For the markers on
+   ``VALUE_MARKERS`` the secret value after the marker goes too: a PEM block
+   through its ``END`` line, a kubeconfig ``*-data:`` value to its end.
 
 ``scrub_payload`` also removes every attribute whose key is on ``DROP_KEYS``,
 wherever it appears (resource, scope, record, data point, span, span event).
-A scalar string directly under an id key on ``ID_KEYS`` skips steps 1 and 2,
-so an id never gains a placeholder; steps 3 and 4 still apply to it. Dict keys
+A scalar string directly under an id key on ``ID_KEYS`` that has an opaque id
+shape (1-256 characters of ``[A-Za-z0-9._:-]``) skips steps 1 and 2, so an id
+never gains a placeholder; steps 3 and 4 still apply to it. Any other value
+under an id key (free text, a path) gets every step. Dict keys
 and kvlist keys are scrubbed like values; OTLP attribute names are not.
 
 An object whose keys are scrubbed may hold at most ``MAX_KEYS`` keys. A larger
@@ -333,6 +337,70 @@ def _sub_extending(text: str, compiled: "re.Pattern[str]", rest_of_run: "re.Patt
 
 _CANDIDATE_SCANS = {"JWT": _jwt_candidates, "DB connection w/ creds": _db_candidates}
 
+# --- markers whose secret is the value after them ----------------------------------
+#
+# The PEM and kubeconfig guard patterns match only a marker; the key material is
+# what follows it. Redaction therefore runs from the marker to the end of its value:
+# - a PEM ``BEGIN`` marker: through the matching ``END`` line, found with one bounded
+#   ``str.find`` (_WINDOW characters after the marker); with none in reach the whole
+#   window goes (fail closed);
+# - a kubeconfig ``*-data:`` marker: the rest of its line, then every following
+#   non-blank line indented deeper than the marker (a block or folded scalar).
+# Each scan resumes after the span it redacted, so the step stays linear.
+
+_PEM_BEGIN = "-----BEGIN "
+_PEM_END = "-----END "
+_LINE_INDENT = re.compile(r"[ \t]*")
+
+
+def _pem_block_end(text: str, match: "re.Match[str]") -> int:
+    marker = match.group(0)
+    end_line = _PEM_END + marker[len(_PEM_BEGIN):] if marker.startswith(_PEM_BEGIN) else None
+    limit = min(len(text), match.end() + _WINDOW)
+    found = text.find(end_line, match.end(), limit) if end_line else -1
+    return found + len(end_line) if found != -1 else limit  # type: ignore[arg-type]
+
+
+def _kubeconfig_value_end(text: str, match: "re.Match[str]") -> int:
+    start = match.start()
+    newline = text.rfind("\n", max(0, start - _WINDOW), start)
+    # The marker's column; a line start out of reach counts as column 0 (more lines are taken).
+    column = start - newline - 1 if newline != -1 or start <= _WINDOW else 0
+    pos = text.find("\n", match.end())
+    while pos != -1:
+        first = _LINE_INDENT.match(text, pos + 1).end()
+        if first - (pos + 1) <= column or first >= len(text) or text[first] in "\r\n":
+            return pos  # not deeper, or blank: the value ended with the previous line
+        pos = text.find("\n", first)
+    return len(text)
+
+
+_VALUE_ENDS = {
+    "Private key block": _pem_block_end,
+    "PEM certificate body": _pem_block_end,
+    "Kubeconfig marker": _kubeconfig_value_end,
+}
+# The guard labels whose redaction also takes the value after the marker.
+VALUE_MARKERS = frozenset(_VALUE_ENDS)
+
+
+def _sub_to_value_end(text: str, compiled: "re.Pattern[str]", value_end, placeholder: str) -> str:
+    """Like ``compiled.sub``, but each match runs on to the end of the secret value after it."""
+    pieces: List[str] = []
+    last = pos = 0
+    while True:
+        match = compiled.search(text, pos)
+        if match is None:
+            break
+        end = max(match.end(), value_end(text, match))
+        pieces.append(text[last:match.start()])
+        pieces.append(placeholder)
+        last = pos = end
+    if not pieces:
+        return text
+    pieces.append(text[last:])
+    return "".join(pieces)
+
 
 def _constant(replacement: str):
     return lambda _match: replacement
@@ -344,6 +412,7 @@ _RUNTIME_STEPS = [
         _REQUIRED_LITERALS.get(name),
         _CANDIDATE_SCANS.get(name),
         _final_run(original.pattern),
+        _VALUE_ENDS.get(name),
         "[REDACTED:" + name + "]",
     )
     for (name, compiled), (_, original) in zip(RUNTIME_PATTERNS, PATTERNS)
@@ -351,11 +420,13 @@ _RUNTIME_STEPS = [
 
 
 def _redact_patterns(text: str) -> str:
-    """Step 4 only: replace every RUNTIME_PATTERNS match with its guard label."""
-    for compiled, required, scan, rest_of_run, placeholder in _RUNTIME_STEPS:
+    """Step 4 only: replace every RUNTIME_PATTERNS match (and a marker's secret value) with its guard label."""
+    for compiled, required, scan, rest_of_run, value_end, placeholder in _RUNTIME_STEPS:
         if required is not None and required not in text:
             continue
-        if scan is not None:
+        if value_end is not None:
+            text = _sub_to_value_end(text, compiled, value_end, placeholder)
+        elif scan is not None:
             text = _sub_at_candidates(text, compiled, scan(text), placeholder)
         elif rest_of_run is not None:
             text = _sub_extending(text, compiled, rest_of_run, placeholder)
@@ -522,6 +593,14 @@ def _is_id_key(key: Any) -> bool:
     return isinstance(key, str) and key in ID_KEYS
 
 
+_OPAQUE_ID = re.compile(r"[A-Za-z0-9._:-]{1,256}")
+
+
+def _is_opaque_id(value: Any) -> bool:
+    """A value shaped like an id (1-256 of ``[A-Za-z0-9._:-]``); free text under an id key is not one."""
+    return isinstance(value, str) and _OPAQUE_ID.fullmatch(value) is not None
+
+
 def _is_dropped(key: Any) -> bool:
     return isinstance(key, str) and key in DROP_KEYS
 
@@ -613,7 +692,7 @@ def _scrub_otlp(node: Any, walk: _Walk, depth: int, id_scalar: bool = False) -> 
             elif key in _OTLP_RECORD_LISTS and isinstance(value, list):
                 out[key] = _scrub_records(value, walk, depth + 1)
             elif key in _OTLP_TEXT_KEYS:
-                out[key] = _redact(value, walk.ident, not (id_scalar and key == "stringValue"))
+                out[key] = _redact(value, walk.ident, not (id_scalar and key == "stringValue" and _is_opaque_id(value)))
             else:
                 out[key] = _scrub_otlp(value, walk, depth + 1)
         return out
@@ -646,7 +725,7 @@ def _scrub_any(node: Any, walk: _Walk, depth: int) -> Any:
             if _is_dropped(key):
                 continue
             new_key = _unique(scrub_text(key, walk.ident), out, counters) if isinstance(key, str) else key
-            if _is_id_key(key) and isinstance(value, str):
+            if _is_id_key(key) and _is_opaque_id(value):
                 out[new_key] = _redact(value, walk.ident, False)
             else:
                 out[new_key] = _scrub_any(value, walk, depth + 1)
@@ -693,7 +772,7 @@ def _scrub_values(node: Any, walk: _Walk, depth: int) -> Any:
         for key, value in node.items():
             if _is_dropped(key):
                 continue
-            if _is_id_key(key) and isinstance(value, str):
+            if _is_id_key(key) and _is_opaque_id(value):
                 out[key] = _redact(value, walk.ident, False)
             else:
                 out[key] = _scrub_values(value, walk, depth + 1)
@@ -708,7 +787,7 @@ def scrub_values(payload: dict, ident: Identity) -> dict:
 
     Keys are kept as they are (a username inside a structural key such as
     ``branch`` must not rename it); DROP_KEYS entries are removed and an id
-    value skips the self steps, as in ``scrub_payload``.
+    value of opaque shape skips the self steps, as in ``scrub_payload``.
     """
     walk = _Walk(ident)
     out = _scrub_values(payload, walk, 0)

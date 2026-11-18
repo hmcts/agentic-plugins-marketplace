@@ -266,7 +266,13 @@ def test_linearise_keeps_matches_identical():
             assert [m.span() for m in runtime.finditer(text)] == expected, name
             hits += len(expected)
         assert hits, name + " never matched the corpus"
-    for text in texts:
+    # A PEM or kubeconfig marker also takes the value after it (test_scrub_secret_bodies.py), so the
+    # plain reference below holds only for the texts without one.
+    value_markers = [compiled for name, compiled in scrub.PATTERNS if name in scrub.VALUE_MARKERS]
+    plain = [s for s in corpus if not any(marker.search(s) for marker in value_markers)]
+    assert len(plain) == len(corpus) - 3
+    fixture_strings = [s for name in FIXTURE_BY_SIGNAL.values() for s in _strings(_load(name))]
+    for text in fixture_strings + plain + ["\n".join(plain)]:
         reference = text
         for name, original in scrub.PATTERNS:
             reference = original.sub(lambda _m, label=name: "[REDACTED:" + label + "]", reference)
