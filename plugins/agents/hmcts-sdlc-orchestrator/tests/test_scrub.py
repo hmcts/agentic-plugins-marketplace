@@ -149,24 +149,77 @@ def test_tool_output_span_event_is_scrubbed():
     assert span["spanId"] == "b7ad6b7169203331"
 
 
-def test_id_attribute_values_keep_identity_literals():
+def _logs_with(attributes):
+    return {"resourceLogs": [{"scopeLogs": [{"logRecords": [{"attributes": attributes}]}]}]}
+
+
+def _record_attributes(out):
+    return out["resourceLogs"][0]["scopeLogs"][0]["logRecords"][0]["attributes"]
+
+
+def test_id_values_skip_only_the_self_steps():
     short = scrub.Identity(username="ab", home="/home/ab", hostname="laptop-01", email="")
-    ids = {"tool_use_id": "toolu_01abXYZ", "request_id": "req_011CabDEF", "session.id": "sess-devuser-01"}
-    attributes = [{"key": key, "value": {"stringValue": value}} for key, value in ids.items()]
-    attributes.append({"key": "prompt", "value": {"stringValue": "sess-devuser-01 by ab"}})
-    attributes.append({"key": "custom.id", "value": {"stringValue": "AK" + "IA" + "Q" * 16}})
-    payload = {"resourceLogs": [{"scopeLogs": [{"logRecords": [{"attributes": attributes}]}]}]}
-    for ident in (short, IDENT):
-        out = scrub.scrub_payload("logs", payload, ident)
-        record = out["resourceLogs"][0]["scopeLogs"][0]["logRecords"][0]
-        got = {item["key"]: item["value"]["stringValue"] for item in record["attributes"]}
-        for key, value in ids.items():
-            assert got[key] == value, (ident.username, key)
-        # The guard patterns still apply to id values.
-        assert got["custom.id"] == "[REDACTED:AWS access key]"
-    assert got["prompt"] == "sess-[REDACTED:self]-01 by ab"
-    hook = {"session_id": "sess-devuser-01", "cwd": "/home/devuser/x"}
-    assert scrub.scrub_payload("hook", hook, IDENT) == {"session_id": "sess-devuser-01", "cwd": "~/x"}
+    attributes = [
+        # "ab" stands as a whole word here, so without the exemption the short-name rule would redact it.
+        {"key": "tool_use_id", "value": {"stringValue": "toolu_01x-ab-y"}},
+        {"key": "tool_use_id", "value": {"stringValue": "toolu_01devuserXYZ"}},
+        {"key": "request_id", "value": {"stringValue": "req_011CdevuserDEF"}},
+        {"key": "session.id", "value": {"stringValue": "sess-devuser-01"}},
+        {"key": "prompt", "value": {"stringValue": "toolu_01x-ab-y by devuser"}},
+        {"key": "custom.id", "value": {"stringValue": "x-ab-devuser"}},  # not on the allowlist
+        {"key": "request.id", "value": {"stringValue": "req:colleague@example.invalid"}},
+        {"key": "span_id", "value": {"stringValue": "AK" + "IA" + "Q" * 16}},
+        {"key": "tool.use_id", "value": {"arrayValue": {"values": [{"stringValue": "devuser ab"}]}}},
+    ]
+    payload = _logs_with(attributes)
+
+    by_short = [item["value"] for item in _record_attributes(scrub.scrub_payload("logs", payload, short))]
+    assert by_short[0] == {"stringValue": "toolu_01x-ab-y"}
+    assert by_short[4] == {"stringValue": "toolu_01x-[REDACTED:self]-y by devuser"}
+    assert by_short[5] == {"stringValue": "x-[REDACTED:self]-devuser"}
+
+    by_long = [item["value"] for item in _record_attributes(scrub.scrub_payload("logs", payload, IDENT))]
+    assert by_long[1] == {"stringValue": "toolu_01devuserXYZ"}
+    assert by_long[2] == {"stringValue": "req_011CdevuserDEF"}
+    assert by_long[3] == {"stringValue": "sess-devuser-01"}
+    assert by_long[4] == {"stringValue": "toolu_01x-ab-y by [REDACTED:self]"}
+    assert by_long[5] == {"stringValue": "x-ab-[REDACTED:self]"}
+    # The generic email step and the guard patterns still apply to id values.
+    assert by_long[6] == {"stringValue": "req:[REDACTED:email]"}
+    assert by_long[7] == {"stringValue": "[REDACTED:AWS access key]"}
+    # Only a scalar directly under the id key is exempt, never a nested container.
+    assert by_long[8] == {"arrayValue": {"values": [{"stringValue": "[REDACTED:self] ab"}]}}
+
+    hook = {"tool_use_id": "toolu_01devuserXYZ", "session_id": "sess-devuser-01", "request_id": ["devuser"]}
+    assert scrub.scrub_payload("hook", hook, IDENT) == {
+        "tool_use_id": "toolu_01devuserXYZ",
+        "session_id": "sess-[REDACTED:self]-01",  # hook stdin key, not on the allowlist (ruling 8)
+        "request_id": ["[REDACTED:self]"],
+    }
+
+
+def test_keys_are_scrubbed_and_collisions_keep_both_values():
+    hook = {"devuser": "one", "laptop-01": "two", "plain": "/home/devuser/x"}
+    assert scrub.scrub_payload("hook", hook, IDENT) == {
+        "[REDACTED:self]": "one",
+        "[REDACTED:self]#2": "two",
+        "plain": "~/x",
+    }
+    kvlist = {
+        "kvlistValue": {
+            "values": [
+                {"key": "/home/devuser/a", "value": {"stringValue": "1"}},
+                {"key": "devuser", "value": {"stringValue": "2"}},
+                {"key": "laptop-01", "value": {"stringValue": "3"}},
+            ]
+        }
+    }
+    out = scrub.scrub_payload("logs", _logs_with([{"key": "body.map", "value": kvlist}]), IDENT)
+    entries = _record_attributes(out)[0]["value"]["kvlistValue"]["values"]
+    assert [entry["key"] for entry in entries] == ["~/a", "[REDACTED:self]", "[REDACTED:self]#2"]
+    assert [entry["value"]["stringValue"] for entry in entries] == ["1", "2", "3"]
+    # OTLP attribute names are schema names and stay as they are.
+    assert _record_attributes(out)[0]["key"] == "body.map"
 
 
 def test_patterns_match_guard_scripts():
@@ -244,22 +297,39 @@ def test_long_runs_scrub_quickly():
 
 
 def test_jwt_pattern_is_linear_on_2mb():
-    unclosed = "eyJ" * (TWO_MB // 3)
+    # One 2 MB token run from an "eyJ" start is longer than the window: redacted whole (fail closed).
+    out, seconds = _timed_scrub("eyJ" * (TWO_MB // 3))
+    assert out == "[REDACTED:JWT]"
+    assert seconds < 2.0, seconds
     dotted = ("eyJ" * 1365 + ".!") * (TWO_MB // 4097)
-    for text in (unclosed, dotted):
-        out, seconds = _timed_scrub(text)
-        assert out == text
-        assert seconds < 2.0, seconds
+    out, seconds = _timed_scrub(dotted)
+    assert out == dotted
+    assert seconds < 2.0, seconds
 
 
 def test_db_pattern_is_linear_on_2mb():
     repeated = ("postgres" + "://user") * (TWO_MB // 15)
     out, seconds = _timed_scrub(repeated)
-    assert out == repeated
+    assert out == "[REDACTED:DB connection w/ creds]"  # 2 MB without whitespace: fail closed
     assert seconds < 2.0, seconds
-    out, seconds = _timed_scrub(repeated + "@db")
-    assert out.endswith("[REDACTED:DB connection w/ creds]db")
+    spaced = (("postgres" + "://user") * 270 + " ") * (TWO_MB // 4051)
+    out, seconds = _timed_scrub(spaced)
+    assert out == spaced
     assert seconds < 2.0, seconds
+    with_at = (("postgres" + "://user") * 500 + "@ ") * (TWO_MB // 7502)
+    out, seconds = _timed_scrub(with_at)
+    assert out.count("[REDACTED:DB connection w/ creds]") == TWO_MB // 7502
+    assert seconds < 2.0, seconds
+
+
+def test_bounded_repeats_fail_closed():
+    segment = "a" * 23_330
+    jwt = "eyJ" + segment + "." + segment + "." + segment  # about 70 KB
+    assert scrub.scrub_text("Bearer " + jwt + " end", IDENT) == "Bearer [REDACTED:JWT] end"
+    storage_key = "Account" + "Key=" + "A" * 70_000
+    assert scrub.scrub_text(storage_key + " end", IDENT) == "[REDACTED:Azure Storage key] end"
+    long_user = "postgres" + "://" + "u" * 70_000 + ":p@h"
+    assert scrub.scrub_text(long_user + " end", IDENT) == "[REDACTED:DB connection w/ creds] end"
 
 
 def test_vault_pattern_is_linear_on_2mb_with_its_literal_present():
@@ -357,9 +427,21 @@ def test_depth_is_capped_with_one_log_line():
     finally:
         logger.removeHandler(handler)
     dumped = json.dumps(out)
-    assert "[REDACTED:depth]" in dumped and "devuser" not in dumped
+    assert "devuser" not in dumped
+    inner = out["deep"]
+    for _ in range(63):  # the containers at depths 1..63 survive; the one at depth 64 is emptied
+        assert isinstance(inner, list) and len(inner) == 1
+        inner = inner[0]
+    assert inner == []
     assert out["flat"] == "[REDACTED:self]"
     assert len(records) == 1 and "devuser" not in records[0].getMessage()
+    # An OTLP attribute list at the cap becomes an empty list, never a string.
+    deep_kv = {"key": "k", "value": {"stringValue": "devuser"}}
+    node = {"attributes": [deep_kv]}
+    for _ in range(40):
+        node = {"kvlistValue": {"values": [{"key": "k", "value": node}]}}
+    flat = json.dumps(scrub.scrub_payload("logs", {"resourceLogs": [{"resource": node}]}, IDENT))
+    assert "devuser" not in flat and '"values": []' in flat
 
 
 def test_empty_identity_values_change_nothing():
@@ -369,7 +451,7 @@ def test_empty_identity_values_change_nothing():
     assert scrub.scrub_text("/etc/hosts by devuser", root_home) == "/etc/hosts by [REDACTED:self]"
 
 
-def test_non_otlp_signal_scrubs_every_string_value_but_no_key():
+def test_non_otlp_signal_scrubs_every_string_value_and_key():
     hook = {
         "cwd": "/home/devuser/repo",
         "prompt": "hi devuser",
@@ -383,7 +465,7 @@ def test_non_otlp_signal_scrubs_every_string_value_but_no_key():
         "prompt": "hi [REDACTED:self]",
         "count": 1,
         "nested": ["[REDACTED:self]"],
-        "devuser": "[REDACTED:self]",
+        "[REDACTED:self]": "[REDACTED:self]",
     }
 
 

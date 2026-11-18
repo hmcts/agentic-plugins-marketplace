@@ -13,9 +13,9 @@ Every string value goes through ``scrub_text``, in this order:
 
 ``scrub_payload`` also removes every attribute whose key is on ``DROP_KEYS``,
 wherever it appears (resource, scope, record, data point, span, span event).
-Values of id attributes (``session.id``, ``tool_use_id``, any key ending in
-``.id`` or ``_id``, ...) skip steps 1-3, so an id never gains a placeholder;
-step 4 still applies to them. Attribute names and dict keys are never changed.
+A scalar string directly under an id key on ``ID_KEYS`` skips steps 1 and 2,
+so an id never gains a placeholder; steps 3 and 4 still apply to it. Dict keys
+and kvlist keys are scrubbed like values; OTLP attribute names are not.
 """
 from __future__ import annotations
 
@@ -41,9 +41,27 @@ DROP_KEYS = frozenset(
     }
 )
 
+# Exact keys whose scalar string value is an id (no suffix rule).
+ID_KEYS = frozenset(
+    {
+        "session.id",
+        "prompt.id",
+        "tool_use_id",
+        "tool.use_id",
+        "request_id",
+        "request.id",
+        "client_request_id",
+        "trace_id",
+        "span_id",
+        "parent_span_id",
+        "traceId",
+        "spanId",
+        "parentSpanId",
+    }
+)
+
 SELF_PLACEHOLDER = "[REDACTED:self]"
 EMAIL_PLACEHOLDER = "[REDACTED:email]"
-DEPTH_PLACEHOLDER = "[REDACTED:depth]"
 
 _LOG = logging.getLogger(LOGGER_NAME)
 
@@ -110,22 +128,32 @@ PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
 #    anyway, so matches are unchanged);
 # 3. JWT and DB are tried only at candidate starts found by a linear pre-scan
 #    (``eyJ``; a scheme before ``://``), each within _WINDOW characters.
-# Matches whose repeats fit within _BOUND characters are the same as with
-# PATTERNS. A longer run is redacted only up to _BOUND characters, or not at
-# all when a fixed character must follow it.
+# The bounds fail closed:
+# - a pattern that ends in a run (keys, tokens, ``\S+``) has its match extended
+#   over the rest of that run, so a run longer than _BOUND is redacted whole;
+# - a JWT or DB candidate whose token run (JWT: token characters and dots; DB:
+#   non-whitespace) is longer than _WINDOW is redacted whole.
+# Matches within the bounds are the same as with PATTERNS.
 
-_BOUND = 4096
-_WINDOW = 8192
+_BOUND = 65536
+_WINDOW = 65536
 _UNBOUNDED_RANGE = re.compile(r"\{(\d+),\}")
 _CLASS_REPEAT = re.compile(r"(\]|\\[sSdDwW])([+*])")
+_FINAL_RUN = re.compile(r"(\[(?:\\.|[^\]\\])*\]|\\[sSdDwW])(?:\+|\*|\{\d+,\})$")
 
 
 def _linearise(pattern: str) -> str:
-    """Bound every repeat: ``{n,}`` -> ``{n,4096}``; ``+`` / ``*`` after a class -> ``{1,4096}`` / ``{0,4096}``."""
+    """Bound every repeat: ``{n,}`` -> ``{n,65536}``; ``+`` / ``*`` after a class -> ``{1,65536}`` / ``{0,65536}``."""
     pattern = _UNBOUNDED_RANGE.sub(lambda m: "{%s,%d}" % (m.group(1), _BOUND), pattern)
     return _CLASS_REPEAT.sub(
         lambda m: "%s{%d,%d}" % (m.group(1), 0 if m.group(2) == "*" else 1, _BOUND), pattern
     )
+
+
+def _final_run(pattern: str) -> Optional["re.Pattern[str]"]:
+    """For a pattern ending in an unbounded class repeat, a regex matching the rest of that run."""
+    match = _FINAL_RUN.search(pattern)
+    return re.compile(match.group(1) + "*") if match else None
 
 
 _LOOKBEHIND = {"Azure Key Vault URI": "(?<![a-z0-9-])"}
@@ -140,10 +168,7 @@ _REQUIRED_LITERALS = {"Azure Key Vault URI": ".vault.azure.net"}
 
 
 class _Finder:
-    """First position at or after ``i`` of something, cached for a left-to-right scan.
-
-    Queries must not go backwards; the cache keeps the whole scan linear.
-    """
+    """First position at or after ``i`` of something, cached for a left-to-right scan."""
 
     def __init__(self, search: Callable[[int], Optional[int]]):
         self._search = search
@@ -174,9 +199,14 @@ def _str_finder(text: str, needle: str) -> _Finder:
 
 
 _JWT_NOT_TOKEN_CHAR = re.compile(r"[^A-Za-z0-9_-]")
+_JWT_NOT_TOKEN_OR_DOT = re.compile(r"[^A-Za-z0-9_.-]")
+
+# A candidate is (start, resume_after_failed_match, redact_to). ``redact_to``
+# set means: redact [start, redact_to) whole (fail closed), no match needed.
+_Candidate = Tuple[int, int, Optional[int]]
 
 
-def _jwt_candidates(text: str):
+def _jwt_candidates(text: str) -> Callable[[int], Optional[_Candidate]]:
     """Candidate starts for the JWT pattern.
 
     The first segment is a run of token characters that must end in ".". Every
@@ -185,12 +215,17 @@ def _jwt_candidates(text: str):
     per run (the leftmost ``eyJ`` within _BOUND characters of the run end).
     """
     run_end = _regex_finder(text, _JWT_NOT_TOKEN_CHAR)
+    token_end = _regex_finder(text, _JWT_NOT_TOKEN_OR_DOT)
 
-    def next_candidate(pos: int) -> Optional[Tuple[int, int]]:
+    def next_candidate(pos: int) -> Optional[_Candidate]:
         while True:
             start = text.find("eyJ", pos)
             if start == -1:
                 return None
+            whole = token_end.first_from(start)
+            whole = len(text) if whole is None else whole
+            if whole - start > _WINDOW:
+                return start, whole, whole
             end = run_end.first_from(start + 3)
             if end is None:
                 return None  # the run reaches the end of the text: no "." follows
@@ -204,7 +239,7 @@ def _jwt_candidates(text: str):
             if length < 10:
                 pos = end
                 continue
-            return start, end
+            return start, end, None
 
     return next_candidate
 
@@ -214,7 +249,7 @@ _DB_MAX_SPAN = len("jdbc:postgresql") + 3 + _BOUND + 1 + _BOUND + 1
 _WHITESPACE = re.compile(r"\s")
 
 
-def _db_candidates(text: str):
+def _db_candidates(text: str) -> Callable[[int], Optional[_Candidate]]:
     """Candidate starts for the DB connection pattern.
 
     A match holds no whitespace and ends at an "@", so a candidate is tried only
@@ -223,7 +258,7 @@ def _db_candidates(text: str):
     next_at = _str_finder(text, "@")
     next_space = _regex_finder(text, _WHITESPACE)
 
-    def next_candidate(pos: int) -> Optional[Tuple[int, int]]:
+    def next_candidate(pos: int) -> Optional[_Candidate]:
         while True:
             sep = text.find("://", pos)
             if sep == -1:
@@ -235,17 +270,15 @@ def _db_candidates(text: str):
             if start is None:
                 pos = sep + 1
                 continue
+            space = next_space.first_from(start)
+            token_end = len(text) if space is None else space
+            if token_end - start > _WINDOW:
+                return start, token_end, token_end
             at = next_at.first_from(sep + 3)
-            if at is None:
-                return None
-            space = next_space.first_from(sep + 3)
-            if space is not None and space < at:
-                pos = space + 1
-                continue
-            if at - start > _DB_MAX_SPAN:
+            if at is None or (space is not None and space < at) or at - start > _DB_MAX_SPAN:
                 pos = sep + 1
                 continue
-            return start, sep + 1
+            return start, sep + 1, None
 
     return next_candidate
 
@@ -258,14 +291,34 @@ def _sub_at_candidates(text: str, compiled: "re.Pattern[str]", next_candidate, p
         found = next_candidate(pos)
         if found is None:
             break
-        start, resume = found
-        match = compiled.match(text, start, min(len(text), start + _WINDOW))
-        if match is None:
-            pos = resume
-            continue
+        start, resume, redact_to = found
+        if redact_to is None:
+            match = compiled.match(text, start, min(len(text), start + _WINDOW))
+            if match is None:
+                pos = resume
+                continue
+            redact_to = match.end()
         pieces.append(text[last:start])
         pieces.append(placeholder)
-        last = pos = match.end()
+        last = pos = redact_to
+    if not pieces:
+        return text
+    pieces.append(text[last:])
+    return "".join(pieces)
+
+
+def _sub_extending(text: str, compiled: "re.Pattern[str]", rest_of_run: "re.Pattern[str]", placeholder: str) -> str:
+    """Like ``compiled.sub``, but each match also takes the rest of its final run."""
+    pieces: List[str] = []
+    last = pos = 0
+    while True:
+        match = compiled.search(text, pos)
+        if match is None:
+            break
+        end = rest_of_run.match(text, match.end()).end()
+        pieces.append(text[last:match.start()])
+        pieces.append(placeholder)
+        last = pos = end
     if not pieces:
         return text
     pieces.append(text[last:])
@@ -280,20 +333,28 @@ def _constant(replacement: str):
 
 
 _RUNTIME_STEPS = [
-    (compiled, _REQUIRED_LITERALS.get(name), _CANDIDATE_SCANS.get(name), "[REDACTED:" + name + "]")
-    for name, compiled in RUNTIME_PATTERNS
+    (
+        compiled,
+        _REQUIRED_LITERALS.get(name),
+        _CANDIDATE_SCANS.get(name),
+        _final_run(original.pattern),
+        "[REDACTED:" + name + "]",
+    )
+    for (name, compiled), (_, original) in zip(RUNTIME_PATTERNS, PATTERNS)
 ]
 
 
 def _redact_patterns(text: str) -> str:
     """Step 4 only: replace every RUNTIME_PATTERNS match with its guard label."""
-    for compiled, required, scan, placeholder in _RUNTIME_STEPS:
+    for compiled, required, scan, rest_of_run, placeholder in _RUNTIME_STEPS:
         if required is not None and required not in text:
             continue
-        if scan is None:
-            text = compiled.sub(_constant(placeholder), text)
-        else:
+        if scan is not None:
             text = _sub_at_candidates(text, compiled, scan(text), placeholder)
+        elif rest_of_run is not None:
+            text = _sub_extending(text, compiled, rest_of_run, placeholder)
+        else:
+            text = compiled.sub(_constant(placeholder), text)
     return text
 
 
@@ -306,21 +367,6 @@ _KEY_VALUE_LISTS = frozenset({"attributes", "filteredAttributes"})
 # Free-text string fields in OTLP JSON: AnyValue strings and the span status message.
 # Ids (traceId, spanId) and the time fields are left alone.
 _OTLP_TEXT_KEYS = frozenset({"stringValue", "message"})
-# Keys whose values are ids: they skip the identity and email steps.
-_ID_KEYS = frozenset(
-    {
-        "session.id",
-        "prompt.id",
-        "tool_use_id",
-        "tool.use_id",
-        "request_id",
-        "request.id",
-        "client_request_id",
-        "trace_id",
-        "span_id",
-        "parent_span_id",
-    }
-)
 _SHORT_LITERAL = 4
 _MAX_DEPTH = 64
 
@@ -401,16 +447,17 @@ def _identity_patterns(ident: Identity):
     return home_re, self_re
 
 
-def _redact(text: Any, ident: Identity, identity_steps: bool) -> Any:
+def _redact(text: Any, ident: Identity, self_steps: bool) -> Any:
+    """Run the steps on one string; ``self_steps=False`` skips steps 1 and 2 (id values)."""
     if not isinstance(text, str) or not text:
         return text
-    if identity_steps:
+    if self_steps:
         home_re, self_re = _identity_patterns(ident)
         if home_re is not None:
             text = home_re.sub("~", text)
         if self_re is not None:
             text = self_re.sub(_constant(SELF_PLACEHOLDER), text)
-        text = _EMAIL_RE.sub(_constant(EMAIL_PLACEHOLDER), text)
+    text = _EMAIL_RE.sub(_constant(EMAIL_PLACEHOLDER), text)
     return _redact_patterns(text)
 
 
@@ -423,15 +470,24 @@ def scrub_text(text: str, ident: Identity) -> str:
 
 
 def _is_id_key(key: Any) -> bool:
-    return isinstance(key, str) and (key in _ID_KEYS or key.endswith(".id") or key.endswith("_id"))
+    return isinstance(key, str) and key in ID_KEYS
 
 
 def _is_dropped(key: Any) -> bool:
     return isinstance(key, str) and key in DROP_KEYS
 
 
+def _unique(key: str, taken) -> str:
+    """``key``, or ``key#2``, ``key#3``, ... when an earlier key already holds that name."""
+    candidate, n = key, 1
+    while candidate in taken:
+        n += 1
+        candidate = "%s#%d" % (key, n)
+    return candidate
+
+
 class _Walk:
-    """One payload walk: the identity and a count of subtrees cut at _MAX_DEPTH."""
+    """One payload walk: the identity and a count of containers cut at _MAX_DEPTH."""
 
     __slots__ = ("ident", "cut")
 
@@ -439,62 +495,82 @@ class _Walk:
         self.ident = ident
         self.cut = 0
 
-    def too_deep(self) -> str:
+    def empty(self, container: Any) -> Any:
         self.cut += 1
-        return DEPTH_PLACEHOLDER
+        return {} if isinstance(container, dict) else []
 
 
-def _scrub_key_values(items: list, walk: _Walk, depth: int) -> Any:
+def _scrub_key_values(items: list, walk: _Walk, depth: int, scrub_keys: bool) -> list:
+    """An OTLP ``[{key, value}]`` list: drop DROP_KEYS entries; kvlist keys are scrubbed too."""
     if depth >= _MAX_DEPTH:
-        return walk.too_deep()
+        return walk.empty(items)
     kept = []
+    taken = set()
     for item in items:
-        key = item.get("key") if isinstance(item, dict) else None
+        if not isinstance(item, dict):
+            kept.append(_scrub_otlp(item, walk, depth + 1))
+            continue
+        key = item.get("key")
         if _is_dropped(key):
             continue
-        kept.append(_scrub_otlp(item, walk, depth + 1, _is_id_key(key)))
+        out = {}
+        for field, value in item.items():
+            if field == "key" and scrub_keys and isinstance(value, str):
+                out[field] = _unique(scrub_text(value, walk.ident), taken)
+                taken.add(out[field])
+            elif field == "value":
+                out[field] = _scrub_otlp(value, walk, depth + 1, id_scalar=_is_id_key(key))
+            else:
+                out[field] = _scrub_otlp(value, walk, depth + 1)
+        kept.append(out)
     return kept
 
 
-def _scrub_otlp(node: Any, walk: _Walk, depth: int, is_id: bool = False) -> Any:
+def _scrub_otlp(node: Any, walk: _Walk, depth: int, id_scalar: bool = False) -> Any:
+    """``id_scalar`` exempts only this AnyValue's own ``stringValue``; it is never passed down."""
     if isinstance(node, (dict, list)) and depth >= _MAX_DEPTH:
-        return walk.too_deep()
+        return walk.empty(node)
     if isinstance(node, dict):
         out = {}
         for key, value in node.items():
             if key in _KEY_VALUE_LISTS and isinstance(value, list):
-                out[key] = _scrub_key_values(value, walk, depth + 1)
+                out[key] = _scrub_key_values(value, walk, depth + 1, scrub_keys=False)
             elif key == "kvlistValue" and isinstance(value, dict):
                 out[key] = {
                     inner_key: (
-                        _scrub_key_values(inner, walk, depth + 2)
+                        _scrub_key_values(inner, walk, depth + 2, scrub_keys=True)
                         if inner_key == "values" and isinstance(inner, list)
-                        else _scrub_otlp(inner, walk, depth + 2, is_id)
+                        else _scrub_otlp(inner, walk, depth + 2)
                     )
                     for inner_key, inner in value.items()
                 }
             elif key in _OTLP_TEXT_KEYS:
-                out[key] = _redact(value, walk.ident, not is_id)
+                out[key] = _redact(value, walk.ident, not (id_scalar and key == "stringValue"))
             else:
-                out[key] = _scrub_otlp(value, walk, depth + 1, is_id)
+                out[key] = _scrub_otlp(value, walk, depth + 1)
         return out
     if isinstance(node, list):
-        return [_scrub_otlp(item, walk, depth + 1, is_id) for item in node]
+        return [_scrub_otlp(item, walk, depth + 1) for item in node]
     return node
 
 
-def _scrub_any(node: Any, walk: _Walk, depth: int, is_id: bool = False) -> Any:
+def _scrub_any(node: Any, walk: _Walk, depth: int) -> Any:
     if isinstance(node, (dict, list)) and depth >= _MAX_DEPTH:
-        return walk.too_deep()
+        return walk.empty(node)
     if isinstance(node, dict):
-        return {
-            key: _scrub_any(value, walk, depth + 1, _is_id_key(key))
-            for key, value in node.items()
-            if not _is_dropped(key)
-        }
+        out = {}
+        for key, value in node.items():
+            if _is_dropped(key):
+                continue
+            new_key = _unique(scrub_text(key, walk.ident), out) if isinstance(key, str) else key
+            if _is_id_key(key) and isinstance(value, str):
+                out[new_key] = _redact(value, walk.ident, False)
+            else:
+                out[new_key] = _scrub_any(value, walk, depth + 1)
+        return out
     if isinstance(node, list):
-        return [_scrub_any(item, walk, depth + 1, is_id) for item in node]
-    return _redact(node, walk.ident, not is_id)
+        return [_scrub_any(item, walk, depth + 1) for item in node]
+    return _redact(node, walk.ident, True)
 
 
 def scrub_payload(signal: str, payload: dict, ident: Identity) -> dict:
@@ -502,11 +578,12 @@ def scrub_payload(signal: str, payload: dict, ident: Identity) -> dict:
 
     For ``logs``, ``metrics`` and ``traces`` (OTLP http/json) the walk removes
     the DROP_KEYS attributes and scrubs every ``stringValue`` (attribute values
-    at every level, log bodies, nested array and kvlist values) and span status
-    messages. Any other signal (hook or event JSON) has every string value
-    scrubbed and DROP_KEYS keys removed. Id values skip the identity and email
-    steps. A container nested 64 levels deep is replaced by ``[REDACTED:depth]``
-    and one warning is logged (a count, no content).
+    at every level, log bodies, nested array and kvlist values), kvlist keys and
+    span status messages. Any other signal (hook or event JSON) has every string
+    value and dict key scrubbed and DROP_KEYS keys removed. Scrubbed keys that
+    collide get ``#2``, ``#3``, ... appended to the later key. A container 64
+    levels deep is replaced by an empty one of the same type and one warning is
+    logged (a count, no content).
     """
     walk = _Walk(ident)
     if signal in _OTLP_SIGNALS:
@@ -514,7 +591,7 @@ def scrub_payload(signal: str, payload: dict, ident: Identity) -> dict:
     else:
         out = _scrub_any(payload, walk, 0)
     if walk.cut:
-        _LOG.warning("scrub: replaced %d subtree(s) nested %d or more levels deep", walk.cut, _MAX_DEPTH)
+        _LOG.warning("scrub: emptied %d container(s) nested %d or more levels deep", walk.cut, _MAX_DEPTH)
     return out
 
 
