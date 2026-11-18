@@ -649,6 +649,38 @@ def scrub_payload(signal: str, payload: dict, ident: Identity) -> dict:
     return out
 
 
+def _scrub_values(node: Any, walk: _Walk, depth: int) -> Any:
+    if isinstance(node, (dict, list)) and depth >= _MAX_DEPTH:
+        return walk.empty(node)
+    if isinstance(node, dict):
+        out = {}
+        for key, value in node.items():
+            if _is_dropped(key):
+                continue
+            if _is_id_key(key) and isinstance(value, str):
+                out[key] = _redact(value, walk.ident, False)
+            else:
+                out[key] = _scrub_values(value, walk, depth + 1)
+        return out
+    if isinstance(node, list):
+        return [_scrub_values(item, walk, depth + 1) for item in node]
+    return _redact(node, walk.ident, True)
+
+
+def scrub_values(payload: dict, ident: Identity) -> dict:
+    """Scrub the string values of a payload our own code built with fixed keys.
+
+    Keys are kept as they are (a username inside a structural key such as
+    ``branch`` must not rename it); DROP_KEYS entries are removed and an id
+    value skips the self steps, as in ``scrub_payload``.
+    """
+    walk = _Walk(ident)
+    out = _scrub_values(payload, walk, 0)
+    if walk.cut:
+        _LOG.warning("scrub: emptied %d container(s) nested %d or more levels deep", walk.cut, _MAX_DEPTH)
+    return out
+
+
 # --- guard-script parity -------------------------------------------------------
 
 _ARRAY_START = re.compile(r"^\s*patterns=\(\s*$")
