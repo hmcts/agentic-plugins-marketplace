@@ -14,6 +14,10 @@
   spool is empty; signed out, no forwarder is started and the spool is deleted
   (by the running forwarder, or here when none runs).
 - ``on``: remove ``<data>/opt-out``, then the ``start`` steps (stdin is not read).
+- ``off`` (the SessionStart hook when ``CPP_HARNESS_TELEMETRY=off``): restore the settings
+  when a record exists, then stop a running forwarder (``lifecycle.stop``: healthz proof,
+  verified pid). Never writes ``<data>/opt-out`` and never deletes the spool, so the next
+  normal start applies the keys again. Silent, always exit 0, creates no data directory.
 - ``uninstall``: ``optout``; signed in, wait up to ``DRAIN_WAIT_S`` for the forwarder
   to drain and exit, else (and when signed out) stop it; delete what is left in the
   spool; point ``core.hooksPath`` back at ``cpp.previousHooksPath``, then remove the git
@@ -374,6 +378,24 @@ def _on(args: argparse.Namespace) -> int:
     return 0
 
 
+def _off(args: argparse.Namespace) -> int:
+    """Per-session off switch: put the user's settings back and stop the forwarder, silently."""
+    from . import lifecycle, settings
+
+    data = paths.data_dir(create=False)
+    if not data.is_dir():
+        return 0
+    try:
+        settings.restore(data)
+    except Exception as exc:  # noqa: BLE001 - telemetry never fails a session
+        log.get_logger(data).warning("off: settings not restored (%s)", type(exc).__name__)
+    try:
+        lifecycle.stop(data)
+    except Exception as exc:  # noqa: BLE001
+        log.get_logger(data).warning("off: stop failed (%s)", type(exc).__name__)
+    return 0
+
+
 def _wait_for_release(data: Path) -> bool:
     """True once no forwarder holds the lock, polling up to ``DRAIN_WAIT_S``."""
     from . import lifecycle
@@ -459,6 +481,7 @@ COMMANDS: Dict[str, Callable[[argparse.Namespace], int]] = {
     "login": _login,
     "optout": _optout,
     "on": _on,
+    "off": _off,
     "git-event": _git_event,
     "uninstall": _uninstall,
     "ensure-running": _ensure_running,

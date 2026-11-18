@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 
 PACKAGE_DIR = Path(__file__).resolve().parent.parent / "bin" / "cpp_telemetry"
-SUBCOMMANDS = ["start", "forwarder", "status", "login", "optout", "on", "git-event", "uninstall", "ensure-running"]
+SUBCOMMANDS = ["start", "forwarder", "status", "login", "optout", "on", "off", "git-event", "uninstall",
+               "ensure-running"]
 
 
 def test_start_is_dormant_without_override(tmp_path, monkeypatch, capsys):
@@ -41,8 +42,15 @@ DORMANT_EXIT = {"status": 0, "login": 1, "optout": 0, "on": 0, "uninstall": 0}
 
 def test_every_subcommand_is_known():
     from cpp_telemetry import cli
-    assert set(DORMANT_EXIT) | {"start", "forwarder", "ensure-running", "git-event"} == set(SUBCOMMANDS) \
+    assert set(DORMANT_EXIT) | {"start", "forwarder", "ensure-running", "git-event", "off"} == set(SUBCOMMANDS) \
         == set(cli.COMMANDS)
+
+
+def test_dormant_off_is_silent_and_writes_no_files(data_dir, capsys):
+    from cpp_telemetry import cli
+    assert cli.main(["off"]) == 0
+    assert capsys.readouterr() == ("", "")
+    assert list(data_dir.iterdir()) == []
 
 
 @pytest.mark.parametrize("kind", ["commit", "rewrite", "push"])

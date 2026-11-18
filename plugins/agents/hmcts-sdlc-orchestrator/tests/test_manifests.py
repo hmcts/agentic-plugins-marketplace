@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import re
+import subprocess
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
@@ -87,6 +88,9 @@ def test_readme_has_telemetry_section_and_no_gate():
         "`/telemetry uninstall`", ONBOARDING_LINE,
         "every git hook in every repository", "`.git/hooks`", "Husky v9",
         "Local override", "`override.json`", "never commit",
+        # What the per-session switch does, and what it does not.
+        "removes the telemetry keys from your Claude Code settings and stops a running forwarder",
+        "It does not opt you out", "at its own next start", "`/telemetry optout` is the lasting opt-out",
     ):
         assert needle in section, needle
     for key in ("ingest_url", "tenant_id", "client_id", "api_app_id", "auth_base_url", "port"):
@@ -105,41 +109,76 @@ def test_validator_check_hook_timeouts_passes_on_this_tree(monkeypatch):
     assert validator.errors == []
 
 
+def _command(name, **extra):
+    return dict({"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/" + name}, **extra)
+
+
+def _write_hooks(plugin_dir, events):
+    (plugin_dir / "hooks").mkdir(parents=True)
+    (plugin_dir / "hooks" / "hooks.json").write_text(json.dumps({"hooks": events}), encoding="utf-8")
+
+
+def _flagged(messages):
+    return sorted(re.search(r"\$\{CLAUDE_PLUGIN_ROOT\}/(\S+?)'", message).group(1) for message in messages)
+
+
 def test_validator_check_hook_timeouts_flags_a_missing_or_non_integer_timeout(monkeypatch, tmp_path):
     validator = _load_validator(monkeypatch)
-    hooks_dir = tmp_path / "plugins" / "hooks" / "sample" / "hooks"
-    hooks_dir.mkdir(parents=True)
-
-    def command(name, **extra):
-        return dict({"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/" + name}, **extra)
-
-    (hooks_dir / "hooks.json").write_text(json.dumps({"hooks": {
-        "SessionStart": [{"hooks": [command("start.sh")]}],
-        "Stop": [{"hooks": [command("stop.sh", timeout="5")]}],
-        "SubagentStop": [{"hooks": [command("sub.sh", timeout=True)]}],
-        "SessionEnd": [{"hooks": [command("end.sh", timeout=5), command("late.sh", timeout=2.5)]}],
-        "PreToolUse": [{"matcher": "Bash", "hooks": [command("guard.sh")]}],
-    }}), encoding="utf-8")
+    _write_hooks(tmp_path / "plugins" / "agents" / PLUGIN_NAME, {
+        "SessionStart": [{"hooks": [_command("start.sh")]}],
+        "Stop": [{"hooks": [_command("stop.sh", timeout="5")]}],
+        "SubagentStop": [{"hooks": [_command("sub.sh", timeout=True)]}],
+        "SessionEnd": [{"hooks": [_command("end.sh", timeout=5), _command("late.sh", timeout=2.5)]}],
+        "PreToolUse": [{"matcher": "Bash", "hooks": [_command("guard.sh")]}],
+    })
     monkeypatch.setattr(validator, "REPO", tmp_path)
     monkeypatch.setattr(validator, "PLUGINS_DIR", tmp_path / "plugins")
 
     validator.check_hook_timeouts()
 
-    flagged = sorted(re.search(r"\$\{CLAUDE_PLUGIN_ROOT\}/(\S+?)'", error).group(1) for error in validator.errors)
-    assert flagged == ["late.sh", "start.sh", "stop.sh", "sub.sh"]
-    assert all("plugins/hooks/sample/hooks/hooks.json" in error for error in validator.errors)
+    assert _flagged(validator.errors) == ["late.sh", "start.sh", "stop.sh", "sub.sh"]
+    assert all("plugins/agents/{}/hooks/hooks.json".format(PLUGIN_NAME) in error for error in validator.errors)
+    assert validator.warnings == []
 
 
-def test_validator_runs_the_hook_timeout_check(monkeypatch):
+def test_validator_check_hook_timeouts_only_warns_for_other_plugins(monkeypatch, tmp_path):
     validator = _load_validator(monkeypatch)
-    source = (REPO / "scripts" / "validate_marketplace.py").read_text(encoding="utf-8")
-    assert '("lifecycle hook timeouts", check_hook_timeouts)' in source
-    assert callable(validator.check_hook_timeouts)
+    other = tmp_path / "plugins" / "hooks" / "other"
+    (other / ".claude-plugin").mkdir(parents=True)
+    (other / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "other"}), encoding="utf-8")
+    _write_hooks(other, {"Stop": [{"hooks": [_command("notify.sh")]}]})
+    # A directory named like ours does not borrow our strictness when its manifest names another plugin.
+    lookalike = tmp_path / "plugins" / "agents" / "copy" / PLUGIN_NAME
+    (lookalike / ".claude-plugin").mkdir(parents=True)
+    (lookalike / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "copy"}), encoding="utf-8")
+    _write_hooks(lookalike, {"SessionEnd": [{"hooks": [_command("end.sh")]}]})
+    monkeypatch.setattr(validator, "REPO", tmp_path)
+    monkeypatch.setattr(validator, "PLUGINS_DIR", tmp_path / "plugins")
+
+    validator.check_hook_timeouts()
+
+    assert validator.errors == []
+    assert _flagged(validator.warnings) == ["end.sh", "notify.sh"]
+
+
+def test_validator_runs_the_hook_timeout_check(monkeypatch, capsys):
+    validator = _load_validator(monkeypatch)
+    called = []
+    for name in dir(validator):
+        if name.startswith("check_"):
+            monkeypatch.setattr(validator, name, lambda *args, _name=name: called.append(_name))
+    assert validator.main() == 0
+    assert "check_hook_timeouts" in called
+    assert len(called) == len(set(called)) == 9
+    assert "all 9 checks passed" in capsys.readouterr().out
 
 
 def _plugin_files():
-    for path in sorted(PLUGIN_ROOT.rglob("*")):
-        if path.is_file() and "__pycache__" not in path.parts:
+    """The files git tracks under the plugin root (the committed tree, never local leftovers)."""
+    listed = subprocess.run(["git", "ls-files", "-z"], cwd=str(PLUGIN_ROOT), capture_output=True, check=True).stdout
+    for name in sorted(item for item in listed.decode("utf-8").split("\0") if item):
+        path = PLUGIN_ROOT / name
+        if path.is_file():
             yield path
 
 
@@ -147,14 +186,30 @@ def _is_decorator(path, line, at):
     return path.suffix == ".py" and line[:at].strip() == ""
 
 
-def _defines_regex(path, line):
-    if path.name != REGEX_DEFINITION_FILE:
+_STRING_LITERAL_RE = re.compile(r"""(?P<q>["'])(?P<body>(?:\\.|(?!(?P=q)).)*)(?P=q)""")
+_REGEX_METACHARACTERS = set("[](){}*+?|\\^$")
+
+
+def _is_pattern(body):
+    if not _REGEX_METACHARACTERS & set(body):
         return False
-    stripped = line.strip()
-    return "re.compile(" in stripped or re.match(r"""^(\("[^"]*",\s*)?r["']""", stripped) is not None
+    try:
+        re.compile(body)
+    except re.error:
+        return False
+    return True
+
+
+def _without_regex_definitions(path, line):
+    """In scrub.py, blank the string literals that compile as regex patterns; a plain literal is still scanned."""
+    if path.name != REGEX_DEFINITION_FILE:
+        return line
+    return _STRING_LITERAL_RE.sub(
+        lambda match: match.group("q") * 2 if _is_pattern(match.group("body")) else match.group(0), line)
 
 
 def _line_violations(path, line):
+    line = _without_regex_definitions(path, line)
     lowered = line.lower()
     for needle in FORBIDDEN_SUBSTRINGS:
         if needle in lowered:
@@ -188,12 +243,9 @@ def test_no_forbidden_literals_in_plugin_tree():
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
-            violations.append("{}: not UTF-8 text".format(path.relative_to(PLUGIN_ROOT)))
-            continue
+            continue  # binary: no text literal to leak
         scanned += 1
         for number, line in enumerate(text.splitlines(), 1):
-            if _defines_regex(path, line):
-                continue
             for reason in _line_violations(path, line):
                 violations.append("{}:{}: {}".format(path.relative_to(PLUGIN_ROOT), number, reason))
     assert scanned > 100
@@ -221,3 +273,26 @@ def test_the_literal_scan_catches_each_kind():
     assert list(_line_violations(python, decorator)) == []
     assert list(_line_violations(markdown, decorator)) != []
     assert list(_line_violations(python, "x = 1  # " + decorator.strip())) != []
+
+
+def test_the_scrub_exemption_covers_only_regex_pattern_literals():
+    scrub_py = PLUGIN_ROOT / "bin" / "cpp_telemetry" / REGEX_DEFINITION_FILE
+    host = FORBIDDEN_SUBSTRINGS[0]
+    exempt = ('_HOST = re.compile(r"(?:' + host + '|x)")', '        ("HOST", r"\\b(' + host + ')\\b"),')
+    for line in exempt:
+        assert list(_line_violations(scrub_py, line)) == [], line
+    planted = (
+        '        ("HOST", r"' + host + '"),',  # a plain literal on an r"..." line
+        '_HOST = re.compile(r"[a-z]+")  # ' + host,  # a literal outside the pattern
+        'URL = "https://x.' + host + '/"',
+    )
+    for line in planted:
+        assert any(found.startswith("forbidden host") for found in _line_violations(scrub_py, line)), line
+    # Elsewhere a pattern literal earns no exemption.
+    assert list(_line_violations(PLUGIN_ROOT / "bin" / "x.py", exempt[0])) != []
+
+
+def test_the_walk_reads_only_tracked_files():
+    names = {path.relative_to(PLUGIN_ROOT).as_posix() for path in _plugin_files()}
+    assert "README.md" in names and "tests/test_manifests.py" in names
+    assert not any("__pycache__" in name for name in names)

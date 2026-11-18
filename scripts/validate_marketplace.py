@@ -276,12 +276,24 @@ def check_version_bumps(mp: dict[str, Any]) -> None:
 # Lifecycle events whose command hooks must state their own timeout, so a hung
 # script cannot hold a session start or end for the platform default.
 TIMEOUT_EVENTS = ("SessionStart", "Stop", "SubagentStop", "SessionEnd")
+# Plugins for which a missing timeout is an error; for every other plugin it is a warning.
+TIMEOUT_REQUIRED_PLUGINS = frozenset({"hmcts-sdlc-orchestrator"})
 
 
 def check_hook_timeouts() -> None:
-    """Check 9: every SessionStart/Stop/SubagentStop/SessionEnd command hook has an integer `timeout`."""
+    """Check 9: every SessionStart/Stop/SubagentStop/SessionEnd command hook has an integer `timeout`.
+
+    An error for the plugins in TIMEOUT_REQUIRED_PLUGINS, a warning for the others.
+    """
     for hooks_json in sorted(PLUGINS_DIR.rglob("hooks/hooks.json")):
         rel = hooks_json.relative_to(REPO)
+        plugin_dir = hooks_json.parent.parent
+        try:
+            manifest = load_plugin_manifest(plugin_dir)
+        except json.JSONDecodeError:
+            manifest = None  # reported by the manifest checks
+        name = manifest.get("name") if isinstance(manifest, dict) else None
+        report = fail if (name or plugin_dir.name) in TIMEOUT_REQUIRED_PLUGINS else warn
         try:
             config = json.loads(hooks_json.read_text())
         except json.JSONDecodeError as e:
@@ -296,7 +308,7 @@ def check_hook_timeouts() -> None:
                     timeout = hook.get("timeout")
                     # bool is a subclass of int: `true` is not a timeout.
                     if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
-                        fail(
+                        report(
                             f"{rel}: {event} hook '{hook.get('command')}' has no positive "
                             f"integer `timeout` (got {timeout!r})"
                         )

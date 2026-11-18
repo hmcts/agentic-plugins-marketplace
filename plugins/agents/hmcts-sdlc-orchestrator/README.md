@@ -74,8 +74,11 @@ The plugin records your Claude Code sessions for the CPP programme. Telemetry is
 
 ### Turn it off
 
-- For one session: start Claude Code with `CPP_HARNESS_TELEMETRY=off` in the environment. The plugin's session hooks and git shims then do nothing.
-- Until you turn it back on: run `/telemetry optout`.
+- For one session: start Claude Code with `CPP_HARNESS_TELEMETRY=off` in the environment. At session start the plugin then removes the telemetry keys from your Claude Code settings and stops a running forwarder. Any values of your own that the plugin moved aside are put back. Its other hooks and the git shims do nothing in that environment.
+  - It does not opt you out: the next session you start without the variable applies the keys again and starts the forwarder.
+  - Claude Code reads its settings when a session starts, so the keys can still apply to the session you started with the variable. With the forwarder stopped, nothing receives what that session exports, unless another session starts the forwarder again.
+  - Another session that is already running is affected only at its own next start. Until then it keeps the settings it read, and its hooks can start the forwarder again.
+- For every session: `/telemetry optout` is the lasting opt-out. It stays in force until you run `/telemetry on`.
 
 ### Git attribution (optional)
 

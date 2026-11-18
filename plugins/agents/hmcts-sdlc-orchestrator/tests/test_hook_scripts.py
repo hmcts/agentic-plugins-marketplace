@@ -156,11 +156,27 @@ def _stub_calls(env):
 # ---------------------------------------------------------------- start script
 
 
-def test_start_script_exits_0_when_off(env):
+def test_start_script_when_off_calls_only_off_isolated_and_silently(env, hostile_cwd):
+    cwd, marker = hostile_cwd
+    env["CPP_HARNESS_TELEMETRY"] = "off"
+    done, _ = _run(START, env, cwd=str(cwd))
+    assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+    calls = _stub_calls(env)
+    assert all(call.startswith("-I -B ") for call in calls)
+    assert calls[-1] == "-I -B %s/bin/cpp_telemetry off" % PLUGIN_ROOT
+    assert not any(call.endswith(("cpp_telemetry start", "ensure-running")) for call in calls)
+    assert not Path(env["STUB_STDIN"]).exists()  # the hook JSON is not passed on
+    assert _stub_cwds(env) == {env["CLAUDE_PLUGIN_DATA"]}
+    assert not marker.exists()
+
+
+def test_start_script_when_off_is_silent_without_python(env, tmp_path):
+    empty = tmp_path / "empty-bin"
+    empty.mkdir()
+    env["PATH"] = str(empty)
     env["CPP_HARNESS_TELEMETRY"] = "off"
     done, _ = _run(START, env)
     assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
-    assert _stub_calls(env) == []
 
 
 def test_start_script_prints_one_line_without_python(env, tmp_path):

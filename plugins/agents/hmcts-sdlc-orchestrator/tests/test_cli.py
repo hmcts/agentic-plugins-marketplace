@@ -428,3 +428,75 @@ def test_login_prints_the_device_message_and_polls(configured, fake_auth, monkey
     monkeypatch.setattr(auth, "poll_device_flow", lambda cfg, flow, cache=None: False)
     fake_auth.script(DEVICECODE_PATH, (200, dict(polled[0]._asdict(), expires_in=900, interval=1)))
     assert cli.main(["login"]) == 1
+
+
+# ---------------------------------------------------------------- off (CPP_HARNESS_TELEMETRY=off)
+
+
+def test_off_restores_the_settings_and_stops_the_forwarder_without_opting_out(fake_forwarder, monkeypatch, capsys):
+    key = settings.COMPETING_KEYS[0]
+    fake_forwarder.settings.write_text(json.dumps({"env": {key: COLLECTOR}}))
+    assert cli.main(["start"]) == 0
+    assert settings.ENDPOINT_KEY in json.loads(fake_forwarder.settings.read_text())["env"]
+    capsys.readouterr()
+    stopped = []
+    monkeypatch.setattr(lifecycle, "stop", lambda data: stopped.append(Path(data)) or True)
+    monkeypatch.setattr(cli.sys, "stdin", _NoRead())
+
+    assert cli.main(["off"]) == 0
+
+    assert json.loads(fake_forwarder.settings.read_text())["env"] == {key: COLLECTOR}
+    assert not (fake_forwarder.data / settings.MANAGED_KEYS_FILE).exists()
+    assert stopped == [fake_forwarder.data]
+    assert not (fake_forwarder.data / lifecycle.OPT_OUT_FILE).exists()
+    assert fake_forwarder.events == [] and fake_forwarder.hooks == []
+    assert capsys.readouterr() == ("", "")
+    # Not an opt-out: the next normal session start applies the keys again.
+    monkeypatch.setattr(cli.sys, "stdin", io.StringIO(""))
+    assert cli.main(["start"]) == 0
+    env = json.loads(fake_forwarder.settings.read_text())["env"]
+    assert env[settings.ENDPOINT_KEY] == "http://127.0.0.1:%d" % fake_forwarder.port
+
+
+def test_off_stops_a_real_forwarder_through_the_proof_checked_path(fake_forwarder, monkeypatch):
+    shutdowns = []
+    monkeypatch.setattr(lifecycle, "_post", lambda port, path, data, *a, **k: shutdowns.append((port, path)))
+    monkeypatch.setattr(lifecycle, "STOP_WAIT_S", 0.1)
+    monkeypatch.setattr(lifecycle, "TERM_WAIT_S", 0.1)
+    assert cli.main(["off"]) == 0
+    assert shutdowns == [(fake_forwarder.port, "/shutdown")]
+
+
+def test_off_without_a_data_dir_creates_nothing_and_is_silent(tmp_path, monkeypatch, capsys):
+    missing = tmp_path / "absent"
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(missing))
+    called = []
+    monkeypatch.setattr(settings, "restore", lambda data: called.append("restore") or [])
+    monkeypatch.setattr(lifecycle, "stop", lambda data: called.append("stop") or False)
+    assert cli.main(["off"]) == 0
+    assert called == [] and not missing.exists()
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("failing", ["restore", "stop"])
+def test_off_is_silent_and_exits_0_when_a_step_fails(data_dir, monkeypatch, capsys, failing):
+    calls = []
+
+    def restore(data):
+        calls.append("restore")
+        if failing == "restore":
+            raise settings.SettingsError("unreadable")
+        return []
+
+    def stop(data):
+        calls.append("stop")
+        if failing == "stop":
+            raise RuntimeError("boom")
+        return True
+
+    monkeypatch.setattr(settings, "restore", restore)
+    monkeypatch.setattr(lifecycle, "stop", stop)
+    assert cli.main(["off"]) == 0  # dormant (no override) still restores and stops
+    assert calls == ["restore", "stop"]
+    assert capsys.readouterr() == ("", "")
+    assert not (data_dir / lifecycle.OPT_OUT_FILE).exists()
