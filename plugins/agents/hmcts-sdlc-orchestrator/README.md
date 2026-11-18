@@ -8,8 +8,9 @@ Bundled Claude Code plugin that ships the **HMCTS SDLC pipeline** for the Crime 
 |---|---|
 | **Agents** (`agents/`) | requirements-analyst, architecture-designer, story-writer, test-engineer, implementation, code-reviewer, ci-orchestrator, deployer, plus auxiliaries (doc-generator, event-flow-mapper, helm-config-validator, migration-reviewer, rbac-auditor, research, test-analyzer) |
 | **Skills** (`skills/`) | springboot-service-from-template, springboot-api-from-template, cpp-test-authoring, context-service-guide, context-scaffold, api-contract-check, architecture-design, dependency-audit, pipeline-debug, review-pr, export-design-artifact, terraform-validate, openspec-* |
-| **Hooks** (`hooks/`) | guard-bash, guard-paths, block-pii, block-secrets |
-| **Commands** (`commands/`) | opsx/* |
+| **Hooks** (`hooks/`) | guard-bash, guard-paths, block-pii, block-secrets, telemetry-start, telemetry-nudge |
+| **Commands** (`commands/`) | opsx/*, telemetry |
+| **Telemetry** (`bin/cpp_telemetry/`, `git-hooks/`) | local forwarder, scrubber and spool; pass-through git hook shims (see [Telemetry](#telemetry)) |
 | **Context** (`context/`) | tech-stack, hmcts-standards, azure-cloud-native, azure-sdk-guide, cloud-adoption-rationale, coding-standards, logging-standards |
 | **Orchestration** | `CLAUDE.md` — the 8-stage pipeline definition |
 
@@ -43,6 +44,58 @@ For standalone skills:
 > "Review this PR against CPP standards" — triggers `review-pr`
 > "Validate the Helm chart for cpp-hearing" — triggers `helm-config-validator`
 > "Trace the CaseOpened event" — triggers `event-flow-mapper`
+
+## Telemetry
+
+The plugin records your Claude Code sessions for the CPP programme. Telemetry is opt-out: once the programme has configured the plugin, it runs in every session until you turn it off. A telemetry failure never stops a session or a git command.
+
+### What is collected
+
+- your prompts and the replies you get;
+- tool inputs and outputs (commands, file reads and edits, search results);
+- cost and tokens for each request;
+- hook and git events: session start, the end of each turn and sub-agent run, session end, and git commits, rewrites (amend, rebase) and pushes. A git event holds the repository name, the branch, the commit SHAs and, for a push, the remote's name. It holds no remote URL, author or email.
+
+### How it is handled
+
+- Everything is scrubbed on your laptop before it is stored. Your email, user id, account id, organisation id, host name and repository URL are removed. Inside text, your home path becomes `~` and your user name, host name and email become `[REDACTED:self]`. Anything that matches the PII and secret patterns of the plugin's guard hooks is redacted.
+- The scrubbed records wait in a local spool in the plugin data directory for up to 30 days. Each batch is deleted as soon as the ingest acknowledges it. A batch that is still unsent after 30 days is deleted.
+- The records go to the CPP-internal telemetry ingest configured by the programme (sign in with your Entra account: `/telemetry login`). Until you sign in, they stay in the spool.
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `/telemetry status` | Shows the forwarder, the spool, the last acknowledgement, sign-in, roster and opt-out state |
+| `/telemetry login` | Signs you in with a device code in your browser |
+| `/telemetry optout` | Turns telemetry off until `/telemetry on`: restores your Claude Code settings; signed in, it uploads what is already spooled; signed out, it deletes the spool |
+| `/telemetry on` | Turns telemetry back on after an opt-out |
+| `/telemetry uninstall` | Opts out, stops the forwarder, deletes what is left in the spool, restores your previous `core.hooksPath` and removes the git shims |
+
+### Turn it off
+
+- For one session: start Claude Code with `CPP_HARNESS_TELEMETRY=off` in the environment. The plugin's session hooks and git shims then do nothing.
+- Until you turn it back on: run `/telemetry optout`.
+
+### Git attribution (optional)
+
+To record commits, rewrites and pushes, point your global git hooks at the plugin's shims. Run this line once:
+
+```bash
+prev=$(git config --global --get core.hooksPath); [ "$prev" != "$HOME/.cpp-harness/git-hooks" ] && git config --global cpp.previousHooksPath "$prev"; git config --global core.hooksPath ~/.cpp-harness/git-hooks
+```
+
+The line saves your current global `core.hooksPath` in `cpp.previousHooksPath`, unless it already names the shims directory, so running it twice is harmless.
+
+> **CAUTION:** Run the line only when `~/.cpp-harness/git-hooks/` exists. The plugin creates it at the start of a session once telemetry is configured and on. While that directory is missing, git runs no hooks at all, not even each repository's own `.git/hooks`.
+
+The global `core.hooksPath` means every git hook in every repository now runs through the plugin's pass-through shims. Each shim runs the hook of the same name from your previous global hooks directory first, then the repository's own `.git/hooks` hook. A failing hook still blocks the commit or push as before. Only commits, rewrites and pushes are recorded. A repository-local `core.hooksPath` (a Husky v9 setup, for example) keeps precedence: git uses it in that repository, so the shims do not run there and its git events are not recorded.
+
+`/telemetry uninstall` restores the previous value: it sets `core.hooksPath` back to `cpp.previousHooksPath`, or unsets it when there was none, before it removes the shims directory.
+
+### Local override (maintainers)
+
+The plugin ships its four ingest constants empty, so an installed plugin is dormant: it starts no forwarder, changes no settings and records nothing. A maintainer can point a laptop at an ingest with an `override.json` file in the plugin data directory (the directory Claude Code passes as `CLAUDE_PLUGIN_DATA`; the fallback is `~/.claude/plugins/data/hmcts-sdlc-orchestrator/`). The file is one JSON object with the keys `ingest_url`, `tenant_id`, `client_id` and `api_app_id`, and optionally `auth_base_url` and `port`. Both URLs must be HTTPS, except to 127.0.0.1 or localhost. An override is for one laptop only; never commit one.
 
 ## Source
 

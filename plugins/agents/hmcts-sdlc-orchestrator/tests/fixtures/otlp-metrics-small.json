@@ -25,7 +25,7 @@
                       {"key": "session.id", "value": {"stringValue": "session-a"}},
                       {"key": "type", "value": {"stringValue": "input"}},
                       {"key": "user.email", "value": {"stringValue": "devuser@example.invalid"}},
-                      {"key": "user.account_uuid", "value": {"stringValue": "00000000-0000-0000-0000-00000000aaaa"}},
+                      {"key": "user.account_uuid", "value": {"stringValue": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}},
                       {"key": "organization.id", "value": {"stringValue": "org-0001"}}
                     ]
                   }

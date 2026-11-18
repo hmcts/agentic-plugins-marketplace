@@ -10,7 +10,11 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -23,8 +27,21 @@ jobs:
       - name: Install dependencies
         run: pip install pyyaml
 
-      - name: Install shellcheck
+      - name: Install shellcheck (Linux)
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Install shellcheck (macOS)
+        if: runner.os == 'macOS'
+        run: brew install shellcheck
 
       - name: Run validator
         run: python scripts/validate_marketplace.py
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run orchestrator plugin tests
+        env:
+          SHELLCHECK: shellcheck  # a missing binary fails the shellcheck tests instead of skipping them
+        run: python -m pytest plugins/agents/hmcts-sdlc-orchestrator/tests -q

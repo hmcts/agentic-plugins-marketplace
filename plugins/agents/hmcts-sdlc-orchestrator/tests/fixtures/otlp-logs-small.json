@@ -20,7 +20,7 @@
                 {"key": "session.id", "value": {"stringValue": "session-a"}},
                 {"key": "user.email", "value": {"stringValue": "devuser@example.invalid"}},
                 {"key": "user.id", "value": {"stringValue": "user-hash-0001"}},
-                {"key": "user.account_uuid", "value": {"stringValue": "00000000-0000-0000-0000-00000000aaaa"}},
+                {"key": "user.account_uuid", "value": {"stringValue": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}},
                 {"key": "organization.id", "value": {"stringValue": "org-0001"}},
                 {"key": "prompt", "value": {"stringValue": "open /home/devuser/repo/app.py on laptop-01"}}
               ]
