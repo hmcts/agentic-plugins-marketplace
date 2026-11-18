@@ -24,6 +24,30 @@ MISSING = (
 )
 CHANGED = (ENDPOINT, LIMIT)
 EQUAL = tuple(k for k in config.r22_keys(PORT) if k not in MISSING and k not in CHANGED)
+CREATED_ENTRY = {"source": {"source": "github", "repo": "hmcts/agentic-plugins-marketplace"}, "autoUpdate": True}
+AUTOUPDATE_PATH = "extraKnownMarketplaces.{}.autoUpdate".format(MARKETPLACE)
+ENTRY_PATH = "extraKnownMarketplaces.{}".format(MARKETPLACE)
+_SIGNALS = ("LOGS", "METRICS", "TRACES")
+COMPETING = (
+    ["OTEL_EXPORTER_OTLP_{}_ENDPOINT".format(s) for s in _SIGNALS]
+    + ["OTEL_EXPORTER_OTLP_HEADERS"]
+    + ["OTEL_EXPORTER_OTLP_{}_HEADERS".format(s) for s in _SIGNALS]
+    + ["OTEL_EXPORTER_OTLP_{}_PROTOCOL".format(s) for s in _SIGNALS]
+    + ["OTEL_EXPORTER_OTLP_CERTIFICATE", "OTEL_EXPORTER_OTLP_CLIENT_KEY", "OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE"]
+    + ["OTEL_EXPORTER_OTLP_{}_{}".format(s, k) for s in _SIGNALS for k in ("CERTIFICATE", "CLIENT_KEY", "CLIENT_CERTIFICATE")]
+    + ["OTEL_EXPORTER_OTLP_INSECURE"]
+    + ["OTEL_EXPORTER_OTLP_{}_INSECURE".format(s) for s in _SIGNALS]
+)
+# Invented values for a developer's own collector settings.
+COMPETING_SUBSET = {
+    "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://localhost:4318/v1/logs",
+    "OTEL_EXPORTER_OTLP_HEADERS": "x-example-header=invented-value",
+    "OTEL_EXPORTER_OTLP_TRACES_HEADERS": "x-example-trace=invented-value",
+    "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "grpc",
+    "OTEL_EXPORTER_OTLP_CERTIFICATE": "/opt/example/ca.pem",
+    "OTEL_EXPORTER_OTLP_LOGS_CLIENT_KEY": "/opt/example/client.key",
+    "OTEL_EXPORTER_OTLP_TRACES_INSECURE": "true",
+}
 
 
 @pytest.fixture(autouse=True)
@@ -80,14 +104,16 @@ def test_apply_writes_all_18_keys_into_empty_file(data_dir, content):
 
     result = settings.apply(PORT, data_dir, "1.1.0")
 
-    assert _read_settings() == {"env": config.r22_keys(PORT)}
-    assert result.written == list(config.r22_keys(PORT)) and result.unchanged == []
-    assert result.prior_endpoint is None and result.autoupdate_set is False
+    assert _read_settings() == {"env": config.r22_keys(PORT), "extraKnownMarketplaces": {MARKETPLACE: CREATED_ENTRY}}
+    assert result.written == list(config.r22_keys(PORT)) and result.unchanged == [] and result.removed == []
+    assert result.prior_endpoint is None and result.autoupdate_set is True
     assert _record(data_dir) == {
         "plugin_version": "1.1.0",
         "port": PORT,
         "written": {k: {"prior": None} for k in config.r22_keys(PORT)},
+        "removed": {},
         "autoupdate_prior": None,
+        "autoupdate_entry_created": True,
         "prior_endpoint": None,
     }
 
@@ -188,40 +214,109 @@ def test_repeated_apply_keeps_first_priors_across_a_port_change(data_dir):
 
 @pytest.mark.parametrize("prior", [None, False], ids=["absent", "false"])
 def test_autoupdate_true_written_when_absent_and_restored(data_dir, prior):
-    _write_settings(_own_sink_doc(auto_update=prior))
+    before = _own_sink_doc(auto_update=prior)
+    _write_settings(before)
 
     result = settings.apply(PORT, data_dir, "1.1.0")
 
     entry = _read_settings()["extraKnownMarketplaces"][MARKETPLACE]
     assert entry == {"source": INVENTED_SOURCE, "autoUpdate": True}
-    assert result.autoupdate_set is True and _record(data_dir)["autoupdate_prior"] is False
+    assert result.autoupdate_set is True
+    record = _record(data_dir)
+    assert record["autoupdate_prior"] is prior and record["autoupdate_entry_created"] is False
 
     restored = settings.restore(data_dir)
 
-    entry = _read_settings()["extraKnownMarketplaces"][MARKETPLACE]
-    assert entry["source"] == INVENTED_SOURCE and entry.get("autoUpdate", False) is False
-    assert "extraKnownMarketplaces.{}.autoUpdate".format(MARKETPLACE) in restored
+    assert _read_settings() == before
+    assert AUTOUPDATE_PATH in restored
 
 
-def test_autoupdate_already_true_is_not_recorded(data_dir):
-    _write_settings(_own_sink_doc(auto_update=True))
+def test_autoupdate_already_true_stays_true(data_dir):
+    before = _own_sink_doc(auto_update=True)
+    _write_settings(before)
 
     result = settings.apply(PORT, data_dir, "1.1.0")
 
-    assert result.autoupdate_set is True and _record(data_dir)["autoupdate_prior"] is None
-    settings.restore(data_dir)
-    assert _read_settings()["extraKnownMarketplaces"][MARKETPLACE]["autoUpdate"] is True
+    record = _record(data_dir)
+    assert result.autoupdate_set is True and record["autoupdate_prior"] is True
+    assert record["autoupdate_entry_created"] is False
+    assert AUTOUPDATE_PATH not in settings.restore(data_dir)
+    assert _read_settings() == before
 
 
-def test_autoupdate_not_written_when_marketplace_entry_absent(data_dir):
-    doc = _own_sink_doc()
-    del doc["extraKnownMarketplaces"][MARKETPLACE]
+@pytest.mark.parametrize("others", [True, False], ids=["other-marketplaces", "no-marketplaces-key"])
+def test_autoupdate_entry_created_when_absent_and_removed_by_restore(data_dir, others):
+    before = _own_sink_doc()
+    if others:
+        del before["extraKnownMarketplaces"][MARKETPLACE]
+    else:
+        del before["extraKnownMarketplaces"]
+    _write_settings(before)
+
+    result = settings.apply(PORT, data_dir, "1.1.0")
+
+    assert _read_settings()["extraKnownMarketplaces"][MARKETPLACE] == CREATED_ENTRY
+    record = _record(data_dir)
+    assert result.autoupdate_set is True
+    assert record["autoupdate_prior"] is None and record["autoupdate_entry_created"] is True
+
+    restored = settings.restore(data_dir)
+
+    assert ENTRY_PATH in restored
+    assert _read_settings() == before
+
+
+def test_competing_key_set_is_exact_and_disjoint_from_r22():
+    assert set(settings.COMPETING_KEYS) == set(COMPETING) and len(settings.COMPETING_KEYS) == 26
+    assert not set(settings.COMPETING_KEYS) & set(config.r22_keys(PORT))
+
+
+def test_apply_removes_competing_exporter_keys_and_restore_puts_them_back(data_dir):
+    before = _own_sink_doc()
+    before["env"].update(COMPETING_SUBSET)
+    _write_settings(before)
+
+    result = settings.apply(PORT, data_dir, "1.1.0")
+
+    env = _read_settings()["env"]
+    assert not any(k in env for k in COMPETING)
+    assert sorted(result.removed) == sorted(COMPETING_SUBSET)
+    assert not set(result.written) & set(COMPETING) and not set(result.unchanged) & set(COMPETING)
+    assert _record(data_dir)["removed"] == {k: {"prior": v} for k, v in COMPETING_SUBSET.items()}
+
+    again = settings.apply(PORT, data_dir, "1.1.0")
+    assert again.removed == [] and _record(data_dir)["removed"] == {k: {"prior": v} for k, v in COMPETING_SUBSET.items()}
+
+    restored = settings.restore(data_dir)
+
+    assert set(COMPETING_SUBSET) <= set(restored)
+    assert _read_settings() == before
+
+
+def test_developer_change_after_apply_refreshes_the_prior(data_dir):
+    before = _own_sink_doc()
+    _write_settings(before)
+    settings.apply(PORT, data_dir, "1.1.0")
+    doc = _read_settings()
+    doc["env"][ENDPOINT] = "http://localhost:4999"
+    del doc["env"][LIMIT]
+    doc["env"]["OTEL_EXPORTER_OTLP_HEADERS"] = "x-example-header=later-value"
     _write_settings(doc)
 
     result = settings.apply(PORT, data_dir, "1.1.0")
 
-    assert result.autoupdate_set is False and _record(data_dir)["autoupdate_prior"] is None
-    assert MARKETPLACE not in _read_settings()["extraKnownMarketplaces"]
+    assert result.prior_endpoint == "http://localhost:4999"
+    assert result.removed == ["OTEL_EXPORTER_OTLP_HEADERS"]
+    record = _record(data_dir)
+    assert record["written"][ENDPOINT] == {"prior": "http://localhost:4999"}
+    assert record["written"][LIMIT] == {"prior": None}
+    assert record["removed"]["OTEL_EXPORTER_OTLP_HEADERS"] == {"prior": "x-example-header=later-value"}
+
+    settings.restore(data_dir)
+
+    env = _read_settings()["env"]
+    assert env[ENDPOINT] == "http://localhost:4999" and LIMIT not in env
+    assert env["OTEL_EXPORTER_OTLP_HEADERS"] == "x-example-header=later-value"
 
 
 def test_restore_without_record_changes_nothing(data_dir):
@@ -232,16 +327,20 @@ def test_restore_without_record_changes_nothing(data_dir):
     assert path.read_bytes() == original
 
 
-@pytest.mark.parametrize("content", ["{not json", "[]\n", '{"env": ["x"]}\n'], ids=["invalid", "array", "env-array"])
+@pytest.mark.parametrize(
+    "content",
+    [b"{not json", b"[]\n", b'{"env": ["x"]}\n', b'{"env": {"A": "\xff\xfe"}}\n'],
+    ids=["invalid", "array", "env-array", "not-utf8"],
+)
 def test_unparseable_settings_are_left_alone(data_dir, content):
     path = _settings_file()
     path.parent.mkdir(parents=True)
-    path.write_text(content, encoding="utf-8")
+    path.write_bytes(content)
 
     with pytest.raises(settings.SettingsError):
         settings.apply(PORT, data_dir, "1.1.0")
 
-    assert path.read_text(encoding="utf-8") == content
+    assert path.read_bytes() == content
     assert not settings.managed_keys_path(data_dir).exists()
     assert list(path.parent.glob("settings.json.tmp-*")) == []
 

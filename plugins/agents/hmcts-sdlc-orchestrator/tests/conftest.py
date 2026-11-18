@@ -16,6 +16,8 @@ def _isolated_environment(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("CLAUDE_PLUGIN_DATA", raising=False)
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    # settings.user_settings_path() honours CLAUDE_CONFIG_DIR; never reach a real settings file.
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
 
 
 @pytest.fixture
