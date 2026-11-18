@@ -1,7 +1,7 @@
 """The detached forwarder process: lock, reaper, receiver thread and the 5-second loop.
 
 ``run`` takes ``<data>/forwarder.lock`` first (another live forwarder means exit 0),
-then reaps orphaned open batches, binds the receiver (the port in ``<data>/port``
+then reaps orphaned open batches, writes ``<data>/token`` when absent, binds the receiver (the port in ``<data>/port``
 when it is one of the configured candidates, else ``lifecycle.choose_port``) and
 calls ``tick(now)`` every ``LOOP_INTERVAL_S``. There is no idle exit. The loop
 ends on SIGTERM, on ``POST /shutdown``, or once ``<data>/opt-out`` exists and the
@@ -109,6 +109,7 @@ def _serve(cfg: Config, data_dir: Path, version: str, tick: Optional[Tick], on_h
     spool = Spool(data_dir, cfg, clock=clock)
     spool.reap_orphans()
     state = ForwarderState(rejected_until=_read_rejected_until(data_dir))
+    token = lifecycle.ensure_token(data_dir)
     stop = threading.Event()
     reasons: List[str] = []
     start_ts = clock()
@@ -120,7 +121,7 @@ def _serve(cfg: Config, data_dir: Path, version: str, tick: Optional[Tick], on_h
     def make(port: int) -> Receiver:
         return Receiver(cfg, spool, IdentityProvider(), version,
                         on_hook or _default_on_hook(version, state), lambda event: None, state,
-                        port=port, start_ts=start_ts, on_shutdown=on_shutdown, clock=clock)
+                        port=port, start_ts=start_ts, on_shutdown=on_shutdown, clock=clock, token=token)
 
     receiver = _bind(cfg, data_dir, make, logger)
     if receiver is None:

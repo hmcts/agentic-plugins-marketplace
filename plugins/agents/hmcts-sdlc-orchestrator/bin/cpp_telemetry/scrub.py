@@ -392,6 +392,8 @@ class Identity:
     home: str
     hostname: str
     email: str
+    # Further own emails seen in exports (the receiver keeps the union of distinct values).
+    other_emails: Tuple[str, ...] = ()
 
 
 def _lookup(read) -> str:
@@ -410,6 +412,29 @@ def identity_from_environment(records_email: Optional[str]) -> Identity:
         hostname=_lookup(socket.gethostname),
         email=records_email if isinstance(records_email, str) else "",
     )
+
+
+def user_emails(payload: Any, limit: int = 8) -> List[str]:
+    """Distinct non-empty ``user.email`` attribute values in an OTLP payload, first seen first."""
+    found: List[str] = []
+    seen = set()
+    stack = [payload]
+    while stack and len(found) < limit:
+        node = stack.pop()
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in _KEY_VALUE_LISTS and isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, dict) and item.get("key") == "user.email":
+                            inner = item.get("value")
+                            text = inner.get("stringValue") if isinstance(inner, dict) else None
+                            if isinstance(text, str) and text and text.lower() not in seen and len(found) < limit:
+                                seen.add(text.lower())
+                                found.append(text)
+            stack.extend(reversed(list(node.values())))
+        elif isinstance(node, list):
+            stack.extend(reversed(node))
+    return found
 
 
 def first_user_email(payload: Any) -> Optional[str]:
@@ -445,9 +470,10 @@ def _identity_patterns(ident: Identity):
     home_re = re.compile(re.escape(home) + r"(?![\w-])") if len(home) > 1 else None
 
     alternatives = []
-    email = _text(ident.email)
-    if email:
-        # First, so the email wins over a username it starts with.
+    others = ident.other_emails if isinstance(ident.other_emails, tuple) else ()
+    emails = {value for value in (_text(ident.email),) + tuple(_text(e) for e in others) if value}
+    for email in sorted(emails, key=len, reverse=True):
+        # First, so an email wins over a username it starts with.
         alternatives.append("(?i:" + re.escape(email) + ")")
     literals = {value for value in (_text(ident.username), _text(ident.hostname)) if value}
     for literal in sorted(literals, key=len, reverse=True):

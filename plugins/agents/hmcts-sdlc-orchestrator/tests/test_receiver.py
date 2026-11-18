@@ -1,5 +1,8 @@
 import copy
 import gzip
+import hashlib
+import hmac
+import secrets
 import json
 import socket
 import threading
@@ -10,11 +13,13 @@ import pytest
 
 from cpp_telemetry import PLUGIN_VERSION, receiver, scrub, spool
 from cpp_telemetry.config import Config
-from tests.helpers_net import free_port_run, post_json, request
+from tests.helpers_net import TOKEN_HEADER, free_port_run, post_json, request
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 START_TS = 1_800_000_000
 IDENT_FIELDS = dict(username="devuser", home="/home/devuser", hostname="laptop-01")
+TOKEN = secrets.token_hex(16)  # built at run time
+JSON = {"Content-Type": "application/json"}
 
 
 def _fixture(name):
@@ -49,7 +54,7 @@ class Harness:
         self.receiver = receiver.Receiver(
             self.cfg, self.spool, receiver.IdentityProvider(build), PLUGIN_VERSION,
             on_hook or default_on_hook, self.events.append, self.state,
-            start_ts=START_TS, on_shutdown=self.shut.set,
+            start_ts=START_TS, on_shutdown=self.shut.set, token=TOKEN,
         )
         self.port = self.receiver.port
         self.thread = threading.Thread(target=self.receiver.serve_forever, daemon=True)
@@ -96,9 +101,6 @@ def test_logs_export_is_scrubbed_and_spooled(harness):
         assert literal not in dumped, literal
     assert "open ~/repo/app.py on [REDACTED:self]" in dumped
     assert "session-a" in dumped
-    # The identity is built once, from the first user.email seen.
-    post_json(harness.port, "/v1/logs", _fixture("otlp-logs-small.json"))
-    assert harness.built == ["devuser@example.invalid"]
 
 
 def _logs_record(session=None, body="r"):
@@ -178,8 +180,8 @@ def test_chunked_export_accepted(harness):
     body = json.dumps(_fixture("otlp-logs-small.json")).encode("utf-8")
     pieces = [body[i:i + 500] for i in range(0, len(body), 500)]
     chunks = b"".join(b"%x\r\n" % len(piece) + piece + b"\r\n" for piece in pieces)
-    raw = (b"POST /v1/logs HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n"
-           b"Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n" + chunks + b"0\r\n\r\n")
+    head = b"POST /v1/logs HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nContent-Type: application/json\r\n" % harness.port
+    raw = head + b"Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n" + chunks + b"0\r\n\r\n"
     reply = b""
     with socket.create_connection(("127.0.0.1", harness.port), timeout=5) as sock:
         sock.sendall(raw)
@@ -195,12 +197,12 @@ def test_chunked_export_accepted(harness):
 def test_503_when_spool_full(harness, monkeypatch):
     monkeypatch.setattr(harness.spool, "is_full", lambda: True)
     assert post_json(harness.port, "/v1/logs", _fixture("otlp-logs-small.json"))[0] == 503
-    assert post_json(harness.port, "/hook", {"hook_event_name": "Stop"})[0] == 503
+    assert post_json(harness.port, "/hook", {"hook_event_name": "Stop"}, token=TOKEN)[0] == 503
     assert harness.hooks == []
     monkeypatch.setattr(harness.spool, "is_full", lambda: False)
     harness.state.rejected_until = time.time() + 60
     assert post_json(harness.port, "/v1/logs", _fixture("otlp-logs-small.json"))[0] == 503
-    assert post_json(harness.port, "/event", {"signal": "event", "payload": {"name": "x"}})[0] == 503
+    assert post_json(harness.port, "/event", {"signal": "event", "payload": {"name": "x"}}, token=TOKEN)[0] == 503
     harness.state.rejected_until = time.time() - 1
     assert post_json(harness.port, "/v1/logs", _fixture("otlp-logs-small.json"))[0] == 200
     assert list(harness.batches()) == ["session-a"]
@@ -219,7 +221,7 @@ def test_hook_post_calls_on_hook(tmp_path):
 
     h = Harness(tmp_path, on_hook=on_hook)
     try:
-        assert post_json(h.port, "/hook", hook) == (200, {})
+        assert post_json(h.port, "/hook", hook, token=TOKEN) == (200, {})
         assert seen == [hook]
         batches = h.batches()
     finally:
@@ -232,27 +234,27 @@ def test_hook_post_calls_on_hook(tmp_path):
 def test_event_post_scrubs_values_only_and_calls_on_event(harness):
     payload = {"name": "git", "branch": "devuser/feature", "remote": "origin", "repo": "repo",
                "session_id": "sess-devuser-01", "user.email": "devuser@example.invalid"}
-    assert post_json(harness.port, "/event", {"signal": "event", "payload": payload}) == (200, {})
+    assert post_json(harness.port, "/event", {"signal": "event", "payload": payload}, token=TOKEN) == (200, {})
     expected = {"name": "git", "branch": "[REDACTED:self]/feature", "remote": "origin", "repo": "repo",
                 "session_id": "sess-devuser-01"}
     assert harness.events == [{"signal": "event", "payload": expected}]
     assert harness.batches()["sess-devuser-01"][0]["payload"] == expected
-    assert post_json(harness.port, "/event", {"signal": "logs", "payload": {}})[0] == 400
+    assert post_json(harness.port, "/event", {"signal": "logs", "payload": {}}, token=TOKEN)[0] == 400
 
 
 def test_flush_closes_batches_and_counts(harness):
     post_json(harness.port, "/v1/logs", _fixture("otlp-logs-small.json"))
-    assert post_json(harness.port, "/flush", {}) == (200, {"closed": 1})
+    assert post_json(harness.port, "/flush", {}, token=TOKEN) == (200, {"closed": 1})
     assert len(harness.spool.closed_batches_oldest_first()) == 1
 
 
 def test_bad_requests_and_unknown_routes(harness):
-    assert request(harness.port, "POST", "/v1/logs", body=b"{not json")[0] == 400
-    assert request(harness.port, "POST", "/v1/logs", body=b"[]")[0] == 400
-    assert request(harness.port, "POST", "/v1/logs", body=b"x", headers={"Content-Encoding": "br"})[0] == 415
-    assert request(harness.port, "POST", "/v1/logs", body=b"not gzip", headers={"Content-Encoding": "gzip"})[0] == 400
+    assert request(harness.port, "POST", "/v1/logs", body=b"{not json", headers=JSON)[0] == 400
+    assert request(harness.port, "POST", "/v1/logs", body=b"[]", headers=JSON)[0] == 400
+    assert request(harness.port, "POST", "/v1/logs", body=b"x", headers=dict(JSON, **{"Content-Encoding": "br"}))[0] == 415
+    assert request(harness.port, "POST", "/v1/logs", body=b"not gzip", headers=dict(JSON, **{"Content-Encoding": "gzip"}))[0] == 400
     assert request(harness.port, "GET", "/v1/logs")[0] == 404
-    assert request(harness.port, "POST", "/nothing", body=b"{}")[0] == 404
+    assert request(harness.port, "POST", "/nothing", body=b"{}", headers=JSON)[0] == 404
     assert request(harness.port, "PUT", "/healthz", body=b"{}")[0] == 404
     assert request(harness.port, "GET", "/healthz?x=1")[0] == 200
     log_file = harness.data / "forwarder.log"
@@ -262,7 +264,7 @@ def test_bad_requests_and_unknown_routes(harness):
 def test_shutdown_drains_open_batches(harness):
     post_json(harness.port, "/v1/logs", _fixture("otlp-logs-small.json"))
     assert list((harness.data / "spool" / "session-a").glob("*.open.jsonl"))
-    assert post_json(harness.port, "/shutdown", {}) == (200, {"closed": 1})
+    assert post_json(harness.port, "/shutdown", {}, token=TOKEN) == (200, {"closed": 1})
     assert harness.shut.wait(5)
     harness.thread.join(5)
     assert not harness.thread.is_alive()
@@ -272,11 +274,72 @@ def test_shutdown_drains_open_batches(harness):
         request(harness.port, "GET", "/healthz", timeout=1)
 
 
-def test_identity_provider_keeps_the_first_email():
+def test_identity_provider_keeps_the_union_of_emails_up_to_8():
     built = []
     provider = receiver.IdentityProvider(lambda email: built.append(email) or _invented_identity(email))
     assert provider({"resourceLogs": []}).email == ""
-    assert provider(_fixture("otlp-logs-small.json")).email == "devuser@example.invalid"
-    other = json.loads(json.dumps(_fixture("otlp-logs-small.json")).replace("devuser@", "other@"))
-    assert provider(other).email == "devuser@example.invalid"
-    assert built == [None, "devuser@example.invalid"]
+    first = provider(_fixture("otlp-logs-small.json"))
+    assert first.email == "devuser@example.invalid" and first.other_emails == ()
+    other = json.loads(json.dumps(_fixture("otlp-logs-small.json")).replace("devuser@", "second@"))
+    both = provider(other)
+    assert both.email == "devuser@example.invalid" and both.other_emails == ("second@example.invalid",)
+    for n in range(20):
+        provider(json.loads(json.dumps(_fixture("otlp-logs-small.json")).replace("devuser@", "extra%d@" % n)))
+    final = provider({})
+    assert 1 + len(final.other_emails) == 8 and built == [None]
+
+
+def test_second_distinct_email_is_also_redacted_as_self(harness):
+    assert post_json(harness.port, "/v1/logs", _fixture("otlp-logs-small.json"))[0] == 200
+    second = json.loads(json.dumps(_fixture("otlp-logs-small.json")).replace("devuser@", "second@"))
+    prompt = second["resourceLogs"][0]["scopeLogs"][0]["logRecords"][0]["attributes"][-1]["value"]
+    prompt["stringValue"] = "mail second@example.invalid and devuser@example.invalid"
+    assert post_json(harness.port, "/v1/logs", second)[0] == 200
+    dumped = json.dumps(harness.batches())
+    assert "mail [REDACTED:self] and [REDACTED:self]" in dumped
+    assert "second@example.invalid" not in dumped
+
+
+def test_healthz_nonce_returns_hmac_proof(harness):
+    nonce = secrets.token_hex(16)
+    status, body = request(harness.port, "GET", "/healthz?nonce=" + nonce)
+    expected = hmac.new(TOKEN.encode("ascii"), nonce.encode("ascii"), hashlib.sha256).hexdigest()
+    assert status == 200 and body == {"status": "ok", "version": "1.1.0", "port": harness.port, "proof": expected}
+    assert "proof" not in request(harness.port, "GET", "/healthz?nonce=not-hex")[1]
+
+
+def test_requests_need_loopback_host_no_origin_and_json(harness):
+    logs = json.dumps(_fixture("otlp-logs-small.json")).encode("utf-8")
+    assert request(harness.port, "GET", "/healthz", headers={"Host": "evil.example:%d" % harness.port})[0] == 421
+    assert request(harness.port, "POST", "/v1/logs", body=logs,
+                   headers=dict(JSON, Host="127.0.0.1:1"))[0] == 421
+    assert request(harness.port, "GET", "/healthz", headers={"Host": "localhost:%d" % harness.port})[0] == 200
+    assert request(harness.port, "GET", "/healthz", headers={"Origin": "http://127.0.0.1"})[0] == 403
+    assert request(harness.port, "POST", "/v1/logs", body=logs, headers=dict(JSON, Origin="null"))[0] == 403
+    assert request(harness.port, "POST", "/v1/logs", body=logs, headers={"Content-Type": "text/plain"})[0] == 415
+    assert request(harness.port, "POST", "/v1/logs", body=logs)[0] == 415
+    shut = {"Content-Type": "text/plain", TOKEN_HEADER: TOKEN}
+    assert request(harness.port, "POST", "/shutdown", body=b"", headers=shut)[0] == 415
+    assert request(harness.port, "POST", "/v1/logs", body=logs,
+                   headers={"Content-Type": "application/json; charset=utf-8"})[0] == 200
+    assert harness.spool.closed_batches_oldest_first() == [] and not harness.shut.is_set()
+
+
+def test_control_endpoints_need_the_token(harness):
+    for path in ("/shutdown", "/flush", "/hook", "/event"):
+        assert post_json(harness.port, path, {"signal": "event", "payload": {}})[0] == 403, path
+        assert post_json(harness.port, path, {"signal": "event", "payload": {}}, token="0" * 32)[0] == 403, path
+    assert harness.hooks == [] and harness.events == [] and not harness.shut.is_set()
+    assert request(harness.port, "GET", "/healthz")[0] == 200
+    assert post_json(harness.port, "/v1/logs", _fixture("otlp-logs-small.json"))[0] == 200
+
+
+def test_server_error_replies_500_with_nothing_on_stderr(harness, monkeypatch, capfd):
+    def broken(signal, payload):
+        raise RuntimeError("devuser detail")
+
+    monkeypatch.setattr(harness.receiver, "handle_export", broken)
+    assert post_json(harness.port, "/v1/logs", {"resourceLogs": []})[0] == 500
+    assert capfd.readouterr().err == ""
+    text = (harness.data / "forwarder.log").read_text()
+    assert "RuntimeError" in text and "devuser" not in text

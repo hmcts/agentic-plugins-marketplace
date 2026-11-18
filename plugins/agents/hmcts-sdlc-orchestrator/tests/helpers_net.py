@@ -42,9 +42,14 @@ def request(port: int, method: str, path: str, body: Optional[bytes] = None, hea
         conn.close()
 
 
-def post_json(port: int, path: str, payload, gzipped: bool = False) -> Tuple[int, object]:
+TOKEN_HEADER = "X-Cpp-Telemetry-Token"
+
+
+def post_json(port: int, path: str, payload, gzipped: bool = False, token: Optional[str] = None) -> Tuple[int, object]:
     body = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json"}
+    if token is not None:
+        headers[TOKEN_HEADER] = token
     if gzipped:
         body = gzip.compress(body)
         headers["Content-Encoding"] = "gzip"

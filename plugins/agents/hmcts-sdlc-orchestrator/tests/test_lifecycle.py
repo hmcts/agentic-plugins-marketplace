@@ -15,6 +15,8 @@ from cpp_telemetry import PLUGIN_VERSION, cli, forwarder, lifecycle, receiver, s
 from cpp_telemetry.config import Config
 from tests.helpers_net import free_port_run, post_json, request
 
+HOLDER_CODE = "import time; time.sleep(60)"
+
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 CONFIGURED = {
@@ -38,6 +40,44 @@ def _a_dead_pid():
     proc = subprocess.Popen([sys.executable, "-B", "-c", "pass"])
     proc.wait()
     return proc.pid
+
+
+@pytest.fixture
+def holder():
+    """A live process whose command line names cpp_telemetry, standing in for a running forwarder."""
+    proc = subprocess.Popen([sys.executable, "-B", "-c", HOLDER_CODE, "cpp_telemetry"])
+    yield proc.pid
+    proc.kill()
+    proc.wait(5)
+
+
+@pytest.fixture
+def unrelated():
+    """A live process whose command line does not name the forwarder (never the test's parent shell)."""
+    proc = subprocess.Popen([sys.executable, "-B", "-c", HOLDER_CODE])
+    yield proc.pid
+    proc.kill()
+    proc.wait(5)
+
+
+def _token(data_dir):
+    return lifecycle.ensure_token(data_dir)
+
+
+class _Mimic(BaseHTTPRequestHandler):
+    """Echoes a healthz body without a valid proof."""
+
+    def do_GET(self):
+        port = self.server.server_address[1]
+        body = json.dumps({"status": "ok", "version": PLUGIN_VERSION, "port": port, "proof": "0" * 64}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
 
 
 class _Foreign(BaseHTTPRequestHandler):
@@ -65,9 +105,12 @@ def spawned(monkeypatch):
     yield procs
     for proc, data in procs:
         if proc.poll() is None:
-            port = lifecycle.read_port(data)
-            if port is not None:
-                lifecycle._post(port, "/shutdown", timeout=1)
+            try:
+                port = lifecycle.read_port(data)
+                if port is not None:
+                    lifecycle._post(port, "/shutdown", data, timeout=1)
+            except Exception:  # noqa: BLE001 - the kill below must always run
+                pass
             try:
                 proc.wait(5)
             except subprocess.TimeoutExpired:
@@ -100,7 +143,7 @@ def test_choose_port_accepts_our_own_forwarder_and_fails_when_all_foreign(tmp_pa
     base = free_port_run()
     cfg = _cfg(base)
     ours = receiver.Receiver(cfg, spool.Spool(tmp_path, cfg), receiver.IdentityProvider(), "1.1.0",
-                             lambda hook: [], lambda event: None, receiver.ForwarderState())
+                             lambda hook: [], lambda event: None, receiver.ForwarderState(), token=_token(tmp_path))
     thread = threading.Thread(target=ours.serve_forever, daemon=True)
     thread.start()
     try:
@@ -122,7 +165,7 @@ def test_choose_port_accepts_our_own_forwarder_and_fails_when_all_foreign(tmp_pa
             s.server_close()
 
 
-def test_lock_holds_the_pid_and_a_stale_lock_is_taken_over(tmp_path):
+def test_lock_holds_the_pid_and_a_stale_lock_is_taken_over(tmp_path, holder):
     lock = lifecycle.acquire_lock(tmp_path)
     assert lock is not None
     assert lifecycle.lock_path(tmp_path) == tmp_path / "forwarder.lock"
@@ -134,21 +177,21 @@ def test_lock_holds_the_pid_and_a_stale_lock_is_taken_over(tmp_path):
     taken = lifecycle.acquire_lock(tmp_path)
     assert taken is not None and lifecycle.read_lock_pid(tmp_path) == os.getpid()
     taken.release()
-    (tmp_path / "forwarder.lock").write_text("%d\n" % os.getppid())
+    (tmp_path / "forwarder.lock").write_text("%d\n" % holder)
     assert lifecycle.lock_held(tmp_path) and lifecycle.acquire_lock(tmp_path) is None
 
 
 # ---------------------------------------------------------------- forwarder.run in-process
 
 
-def test_forwarder_exits_0_when_a_live_pid_holds_the_lock(tmp_path, monkeypatch):
-    (tmp_path / "forwarder.lock").write_text("%d\n" % os.getppid())
+def test_forwarder_exits_0_when_a_live_pid_holds_the_lock(tmp_path, monkeypatch, holder):
+    (tmp_path / "forwarder.lock").write_text("%d\n" % holder)
     assert lifecycle.lock_held(tmp_path)  # else run() would take the lock and never return
     reaped = []
     monkeypatch.setattr(spool.Spool, "reap_orphans", lambda self: reaped.append(1) or [])
     assert forwarder.run(_cfg(free_port_run()), tmp_path, PLUGIN_ROOT, PLUGIN_VERSION) == 0
     assert reaped == [] and not (tmp_path / "port").exists()
-    assert (tmp_path / "forwarder.lock").read_text().strip() == str(os.getppid())
+    assert (tmp_path / "forwarder.lock").read_text().strip() == str(holder)
 
 
 def test_forwarder_takes_the_lock_before_reaping_and_exits_on_opt_out(tmp_path, monkeypatch):
@@ -178,19 +221,24 @@ def test_forwarder_loop_ticks_and_waits_for_an_empty_spool_before_opt_out_exit(t
         target=lambda: result.append(forwarder.run(_cfg(base), tmp_path, PLUGIN_ROOT, PLUGIN_VERSION,
                                                    tick=ticks.append)), daemon=True)
     thread.start()
-    deadline = time.monotonic() + 5
-    while lifecycle.healthz(base) is None and time.monotonic() < deadline:
-        time.sleep(0.02)
-    assert post_json(base, "/v1/logs", json.loads((FIXTURES / "otlp-logs-small.json").read_text()))[0] == 200
-    (tmp_path / "opt-out").write_text("")
-    time.sleep(0.3)
-    assert thread.is_alive() and len(ticks) > 3 and all(isinstance(t, float) for t in ticks)
-    sp = spool.Spool(tmp_path, _cfg(base))
-    assert post_json(base, "/flush", {})[0] == 200
-    for path in sp.closed_batches_oldest_first():
-        sp.delete(path)
-    thread.join(5)
-    assert result == [0] and lifecycle.healthz(base) is None
+    try:
+        deadline = time.monotonic() + 5
+        while lifecycle.healthz(base, tmp_path) is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert post_json(base, "/v1/logs", json.loads((FIXTURES / "otlp-logs-small.json").read_text()))[0] == 200
+        (tmp_path / "opt-out").write_text("")
+        time.sleep(0.3)
+        assert thread.is_alive() and len(ticks) > 3 and all(isinstance(t, float) for t in ticks)
+        sp = spool.Spool(tmp_path, _cfg(base))
+        assert post_json(base, "/flush", {}, token=lifecycle.read_token(tmp_path))[0] == 200
+        for path in sp.closed_batches_oldest_first():
+            sp.delete(path)
+        thread.join(5)
+        assert result == [0] and lifecycle.healthz(base, tmp_path) is None
+    finally:
+        if thread.is_alive():
+            post_json(base, "/shutdown", {}, token=lifecycle.read_token(tmp_path))
+            thread.join(5)
 
 
 def test_forwarder_tick_errors_are_logged_by_type_only(tmp_path, monkeypatch):
@@ -229,14 +277,17 @@ def test_ensure_running_starts_process_and_healthz_answers(tmp_path, spawned):
     _write_override(tmp_path, base)
     port = lifecycle.ensure_running(_cfg(base), tmp_path, PLUGIN_ROOT, PLUGIN_VERSION)
     assert port == base and len(spawned) == 1
-    assert lifecycle.healthz(port) == {"status": "ok", "version": PLUGIN_VERSION, "port": port}
+    body = lifecycle.healthz(port, tmp_path)
+    assert body is not None and (body["status"], body["version"], body["port"]) == ("ok", PLUGIN_VERSION, port)
+    assert len(body["proof"]) == 64 and lifecycle.lock_held(tmp_path)
+    assert ((tmp_path / "token").stat().st_mode & 0o777) == 0o600
     assert lifecycle.read_lock_pid(tmp_path) == spawned[0][0].pid
     # A second call finds the running forwarder and starts nothing.
     assert lifecycle.ensure_running(_cfg(base), tmp_path, PLUGIN_ROOT, PLUGIN_VERSION) == port
     assert len(spawned) == 1
     assert lifecycle.stop(tmp_path) is True
     assert spawned[0][0].wait(5) == 0
-    assert lifecycle.healthz(port) is None and not (tmp_path / "forwarder.lock").exists()
+    assert lifecycle.healthz(port, tmp_path) is None and not (tmp_path / "forwarder.lock").exists()
     assert lifecycle.stop(tmp_path) is False
 
 
@@ -264,14 +315,15 @@ def test_ensure_running_replaces_an_older_forwarder(tmp_path, spawned):
     cfg = _cfg(base)
     stopped = threading.Event()
     old = receiver.Receiver(cfg, spool.Spool(tmp_path, cfg), receiver.IdentityProvider(), "1.0.9",
-                            lambda hook: [], lambda event: None, receiver.ForwarderState(), on_shutdown=stopped.set)
+                            lambda hook: [], lambda event: None, receiver.ForwarderState(), on_shutdown=stopped.set,
+                            token=_token(tmp_path))
     thread = threading.Thread(target=old.serve_forever, daemon=True)
     thread.start()
     (tmp_path / "port").write_text(str(base))
     try:
         port = lifecycle.ensure_running(cfg, tmp_path, PLUGIN_ROOT, PLUGIN_VERSION)
         assert stopped.is_set() and len(spawned) == 1
-        assert lifecycle.healthz(port)["version"] == PLUGIN_VERSION
+        assert lifecycle.healthz(port, tmp_path)["version"] == PLUGIN_VERSION
     finally:
         old.close()
         thread.join(5)
@@ -290,7 +342,7 @@ def test_cli_ensure_running_and_forwarder_bodies(data_dir, spawned, capsys):
     base = free_port_run()
     _write_override(data_dir, base)
     assert cli.main(["ensure-running"]) == 0
-    assert len(spawned) == 1 and lifecycle.healthz(base)["version"] == PLUGIN_VERSION
+    assert len(spawned) == 1 and lifecycle.healthz(base, data_dir)["version"] == PLUGIN_VERSION
     # A second forwarder finds the lock held and exits 0 at once.
     assert cli.main(["forwarder"]) == 0
     captured = capsys.readouterr()
@@ -298,15 +350,16 @@ def test_cli_ensure_running_and_forwarder_bodies(data_dir, spawned, capsys):
     assert lifecycle.stop(data_dir) is True
 
 
-def test_ensure_running_finds_a_locked_forwarder_on_a_scan_port(tmp_path, spawned):
+def test_ensure_running_finds_a_locked_forwarder_on_a_scan_port(tmp_path, spawned, holder):
     # The forwarder sits on base+1 (base was foreign when it started); base is free now and the port file is stale.
     base = free_port_run()
     cfg = _cfg(base)
     running = receiver.Receiver(cfg, spool.Spool(tmp_path, cfg), receiver.IdentityProvider(), PLUGIN_VERSION,
-                                lambda hook: [], lambda event: None, receiver.ForwarderState(), port=base + 1)
+                                lambda hook: [], lambda event: None, receiver.ForwarderState(), port=base + 1,
+                                token=_token(tmp_path))
     thread = threading.Thread(target=running.serve_forever, daemon=True)
     thread.start()
-    (tmp_path / "forwarder.lock").write_text("%d\n" % os.getppid())
+    (tmp_path / "forwarder.lock").write_text("%d\n" % holder)
     (tmp_path / "port").write_text(str(base))
     try:
         assert lifecycle.ensure_running(cfg, tmp_path, PLUGIN_ROOT, PLUGIN_VERSION) == base + 1
@@ -314,3 +367,51 @@ def test_ensure_running_finds_a_locked_forwarder_on_a_scan_port(tmp_path, spawne
     finally:
         running.close()
         thread.join(5)
+
+
+def test_mimic_listener_echoing_healthz_is_foreign(tmp_path):
+    base = free_port_run()
+    _token(tmp_path)
+    mimic = ThreadingHTTPServer(("127.0.0.1", base), _Mimic)
+    thread = threading.Thread(target=mimic.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+    thread.start()
+    try:
+        assert lifecycle.healthz(base, tmp_path) is None
+        assert lifecycle.choose_port(_cfg(base), tmp_path) == base + 1
+    finally:
+        mimic.shutdown()
+        mimic.server_close()
+        thread.join(5)
+
+
+def test_unrelated_live_pid_in_lock_is_stale_and_never_signalled(tmp_path, unrelated, monkeypatch):
+    (tmp_path / "forwarder.lock").write_text("%d\n" % unrelated)
+    (tmp_path / "port").write_text(str(free_port_run(1)))
+    sent = []
+    real_kill = lifecycle.os.kill
+
+    def kill(pid, sig):
+        if sig != 0:
+            sent.append((pid, sig))
+            return None
+        return real_kill(pid, sig)
+
+    monkeypatch.setattr(lifecycle.os, "kill", kill)
+    try:
+        assert not lifecycle.lock_held(tmp_path)
+        assert lifecycle.stop(tmp_path) is False
+    finally:
+        monkeypatch.setattr(lifecycle.os, "kill", real_kill)  # the fixtures' own kills must be real
+    assert sent == []
+    lock = lifecycle.acquire_lock(tmp_path)
+    assert lock is not None and lifecycle.read_lock_pid(tmp_path) == os.getpid()
+    lock.release()
+
+
+def test_token_is_32_hex_and_0600_and_kept(tmp_path):
+    token = lifecycle.ensure_token(tmp_path)
+    assert len(token) == 32 and int(token, 16) >= 0
+    assert ((tmp_path / "token").stat().st_mode & 0o777) == 0o600
+    assert lifecycle.ensure_token(tmp_path) == token == lifecycle.read_token(tmp_path)
+    (tmp_path / "token").write_text("not a token")
+    assert lifecycle.read_token(tmp_path) is None and lifecycle.ensure_token(tmp_path) != token

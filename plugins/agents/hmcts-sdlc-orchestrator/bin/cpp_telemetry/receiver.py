@@ -18,18 +18,34 @@ Routes:
   stop serving (from another thread).
 - ``GET /healthz`` -- ``200 {"status": "ok", "version": <plugin version>, "port": <port>}``.
 
+Every request must name ``Host: 127.0.0.1:<port>`` or ``localhost:<port>`` (else
+``421``) and carry no ``Origin`` header (else ``403``): a web page or a DNS-rebound
+name cannot reach the receiver. Every POST needs ``Content-Type: application/json``
+(else ``415``). The control routes ``/hook``, ``/event``, ``/flush`` and ``/shutdown``
+also need ``X-Cpp-Telemetry-Token`` equal to ``<data>/token`` (else ``403``); the OTLP
+routes stay token-less because the exporter cannot add a header.
+``GET /healthz?nonce=<hex>`` adds ``"proof": HMAC-SHA256(token, nonce)`` so a client
+holding the token can tell this forwarder from a listener that only echoes the body.
+
 Exports, hooks and events get ``503`` while the spool is full or the ingest has
 refused this developer (``state.rejected_until`` in the future). Anything else is
-``404``. Nothing about a request is written to stderr; log lines carry counts and
-error types only.
+``404``. Bodies are capped at 8 MiB (compressed and decompressed); at most 8 bodies
+are handled at once. Nothing about a request is written to stderr; log lines carry
+counts and error types only.
 """
 from __future__ import annotations
 
+import dataclasses
+import hashlib
+import hmac
 import json
+import re
+import sys
 import threading
 import time
 import zlib
 from dataclasses import dataclass
+from urllib.parse import parse_qs, urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -37,7 +53,19 @@ from . import log, scrub
 from .config import Config
 from .spool import Spool, valid_session_id
 
-MAX_BODY_BYTES = 64 * 1024 * 1024
+MAX_BODY_BYTES = 8 * 1024 * 1024
+MAX_TRAILER_LINES = 64
+MAX_EMAILS = 8
+HANDLER_SLOTS = 8
+SLOT_WAIT_S = 10.0
+TOKEN_HEADER = "X-Cpp-Telemetry-Token"
+CONTROL_PATHS = frozenset({"/hook", "/event", "/flush", "/shutdown"})
+_NONCE_RE = re.compile(r"[0-9a-f]{16,128}")
+
+
+def healthz_proof(token: str, nonce: str) -> str:
+    """HMAC-SHA256 of the nonce under the data directory's token, hex."""
+    return hmac.new(token.encode("ascii"), nonce.encode("ascii"), hashlib.sha256).hexdigest()
 EXPORT_PATHS = {"/v1/logs": "logs", "/v1/metrics": "metrics", "/v1/traces": "traces"}
 
 # signal -> (resource list key, scope list key, record list key)
@@ -60,27 +88,32 @@ class ForwarderState:
 
 
 class IdentityProvider:
-    """The scrub identity, built once from the first ``user.email`` seen.
+    """The scrub identity: the environment's literals plus every distinct ``user.email`` seen.
 
-    Until an export carries ``user.email`` the identity has no email literal; the
-    first one seen is kept for the life of the process.
+    The username, home and hostname are read once; each new ``user.email`` value
+    (case-insensitive, up to ``MAX_EMAILS``) joins the identity, so no first value
+    can pin it.
     """
 
     def __init__(self, build: Callable[[Optional[str]], scrub.Identity] = scrub.identity_from_environment) -> None:
         self._build = build
         self._lock = threading.Lock()
+        self._base: Optional[scrub.Identity] = None
+        self._emails: List[str] = []
         self._ident: Optional[scrub.Identity] = None
-        self._has_email = False
 
     def __call__(self, payload: Any) -> scrub.Identity:
         with self._lock:
-            if not self._has_email:
-                email = scrub.first_user_email(payload) if isinstance(payload, (dict, list)) else None
-                if email:
-                    self._ident = self._build(email)
-                    self._has_email = True
-                elif self._ident is None:
-                    self._ident = self._build(None)
+            if self._base is None:
+                self._base = self._build(None)
+                self._ident = self._base
+            if len(self._emails) < MAX_EMAILS and isinstance(payload, (dict, list)):
+                known = {email.lower() for email in self._emails}
+                fresh = [e for e in scrub.user_emails(payload, MAX_EMAILS) if e.lower() not in known]
+                if fresh:
+                    self._emails.extend(fresh[:MAX_EMAILS - len(self._emails)])
+                    self._ident = dataclasses.replace(
+                        self._base, email=self._emails[0], other_emails=tuple(self._emails[1:]))
             assert self._ident is not None
             return self._ident
 
@@ -195,12 +228,24 @@ def _gunzip(raw: bytes) -> bytes:
 class _Server(ThreadingHTTPServer):
     daemon_threads = True
     receiver: "Receiver"
+    slots: threading.BoundedSemaphore
+
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        """Log the exception type and reply 500; nothing goes to stderr."""
+        exc_type = sys.exc_info()[0]
+        self.receiver.log_error_type("request failed", exc_type.__name__ if exc_type else "unknown")
+        try:
+            request.sendall(b"HTTP/1.0 500 Internal Server Error\r\nContent-Type: application/json\r\n"
+                            b"Content-Length: 2\r\n\r\n{}")
+        except OSError:
+            pass
 
 
 class _Handler(BaseHTTPRequestHandler):
     server: _Server
     server_version = "cpp-telemetry"
     sys_version = ""
+    timeout = 10
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - stdlib signature
         """No request lines on stderr or in the log."""
@@ -225,9 +270,10 @@ class _Handler(BaseHTTPRequestHandler):
             except ValueError:
                 raise _HttpError(400)
             if size == 0:
-                while self.rfile.readline(1024) not in (b"\r\n", b"\n", b""):
-                    pass  # trailers
-                return bytes(out)
+                for _ in range(MAX_TRAILER_LINES):
+                    if self.rfile.readline(1024) in (b"\r\n", b"\n", b""):
+                        return bytes(out)
+                raise _HttpError(400)
             if size < 0 or len(out) + size > MAX_BODY_BYTES:
                 raise _HttpError(413)
             chunk = self.rfile.read(size)
@@ -267,15 +313,45 @@ class _Handler(BaseHTTPRequestHandler):
 
     # -------------------------------------------------------------- verbs
 
+    def _guarded(self) -> bool:
+        """Reply 421 for a foreign Host and 403 for any Origin; True when the request may go on."""
+        port = self.server.receiver.port
+        host = (self.headers.get("Host") or "").strip().lower()
+        if host not in ("127.0.0.1:%d" % port, "localhost:%d" % port):
+            self._reply(421)
+            return False
+        if self.headers.get("Origin") is not None:
+            self._reply(403)
+            return False
+        return True
+
     def do_GET(self) -> None:  # noqa: N802 - stdlib naming
-        if self.path.split("?", 1)[0] == "/healthz":
-            self._reply(200, self.server.receiver.health())
+        if not self._guarded():
+            return
+        parts = urlsplit(self.path)
+        if parts.path == "/healthz":
+            nonce = parse_qs(parts.query).get("nonce", [""])[0]
+            self._reply(200, self.server.receiver.health(nonce))
         else:
             self._reply(404)
 
     def do_POST(self) -> None:  # noqa: N802
+        if not self._guarded():
+            return
         receiver = self.server.receiver
-        path = self.path.split("?", 1)[0]
+        path = urlsplit(self.path).path
+        if path not in EXPORT_PATHS and path not in CONTROL_PATHS:
+            self._reply(404)
+            return
+        if self.headers.get_content_type() != "application/json":
+            self._reply(415)
+            return
+        if path in CONTROL_PATHS and not receiver.token_ok(self.headers.get(TOKEN_HEADER)):
+            self._reply(403)
+            return
+        if not self.server.slots.acquire(timeout=SLOT_WAIT_S):
+            self._reply(503)
+            return
         try:
             if path in EXPORT_PATHS:
                 receiver.gate()
@@ -288,18 +364,19 @@ class _Handler(BaseHTTPRequestHandler):
                 status, body = receiver.handle_event(self._json())
             elif path == "/flush":
                 status, body = 200, {"closed": receiver.flush()}
-            elif path == "/shutdown":
+            else:  # /shutdown
                 self._reply(200, {"closed": receiver.flush()})
                 receiver.shutdown_soon()
                 return
-            else:
-                status, body = 404, {}
         except _HttpError as exc:
             status, body = exc.status, {}
+        finally:
+            self.server.slots.release()
         self._reply(status, body)
 
     def _not_found(self) -> None:
-        self._reply(404)
+        if self._guarded():
+            self._reply(404)
 
     do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = _not_found  # noqa: N815
 
@@ -321,6 +398,7 @@ class Receiver:
         start_ts: Optional[float] = None,
         on_shutdown: Optional[Callable[[], None]] = None,
         clock: Callable[[], float] = time.time,
+        token: Optional[str] = None,
     ) -> None:
         self._cfg = cfg
         self._spool = spool
@@ -337,8 +415,10 @@ class Receiver:
         self._serving = False
         self._closing = False
         self._closed = False
+        self._token = token
         self._server = _Server(("127.0.0.1", cfg.port if port is None else port), _Handler)
         self._server.receiver = self
+        self._server.slots = threading.BoundedSemaphore(HANDLER_SLOTS)
 
     @property
     def port(self) -> int:
@@ -381,8 +461,20 @@ class Receiver:
 
     # -------------------------------------------------------------- handlers
 
-    def health(self) -> dict:
-        return {"status": "ok", "version": self._version, "port": self.port}
+    def health(self, nonce: str = "") -> dict:
+        body: Dict[str, Any] = {"status": "ok", "version": self._version, "port": self.port}
+        if self._token and _NONCE_RE.fullmatch(nonce or ""):
+            body["proof"] = healthz_proof(self._token, nonce)
+        return body
+
+    def token_ok(self, presented: Optional[str]) -> bool:
+        """True when the control token matches; always False when this receiver has none."""
+        if not self._token or not presented:
+            return False
+        return hmac.compare_digest(presented.encode("utf-8", "replace"), self._token.encode("ascii"))
+
+    def log_error_type(self, what: str, type_name: str) -> None:
+        self._logger.error("%s: %s", what, type_name)
 
     def gate(self) -> None:
         """503 while the developer is refused by the ingest or the spool is full."""

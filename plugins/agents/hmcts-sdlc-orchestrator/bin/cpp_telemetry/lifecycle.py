@@ -1,11 +1,18 @@
 """Start, find, replace and stop the detached forwarder.
 
-- ``<data>/forwarder.lock`` holds the pid of the running forwarder. A lock whose
-  pid is dead (or is this process's own) is stale and is taken over.
+- ``<data>/forwarder.lock`` holds the pid of the running forwarder. The lock is held
+  only while that pid is alive and is a forwarder: its command line names
+  ``cpp_telemetry``, or a forwarder answers the healthz proof for this data
+  directory. Anything else (a dead pid, this process's own, a pid reused by an
+  unrelated process after a reboot) is stale: it is taken over and never signalled.
+- ``<data>/token`` holds 32 random hex characters (mode 0600), written by the
+  forwarder at start when absent. Control requests carry it in
+  ``X-Cpp-Telemetry-Token``; ``read_token`` serves the nudge script, git shims and CLI.
 - ``<data>/port`` holds the port the forwarder listens on. The default port comes
   first, then the scan range; a port is usable when it refuses connections or
-  answers ``/healthz`` as one of our forwarders (status ok, a version string and
-  its own port number).
+  answers ``/healthz?nonce=<fresh hex>`` as one of our forwarders: status ok, a
+  version string, its own port number and ``proof`` = HMAC-SHA256(token, nonce).
+  A listener without a valid proof is foreign, whatever body it echoes.
 - ``ensure_running`` keeps a forwarder of the same or a newer version, replaces an
   older one through ``POST /shutdown``, and otherwise starts a detached process
   with ``python3 -B`` and waits up to 3 s for its ``/healthz``.
@@ -14,9 +21,12 @@ All loopback calls use ``http.client`` directly, so no proxy setting applies.
 """
 from __future__ import annotations
 
+import hmac
 import http.client
 import json
 import os
+import re
+import secrets
 import signal
 import subprocess
 import sys
@@ -26,10 +36,13 @@ from typing import Callable, List, Optional, Tuple
 
 from . import log
 from .config import PORT_MAX, PORT_MIN, Config
+from .receiver import TOKEN_HEADER, healthz_proof
 from .spool import Spool
 
 LOCK_FILE = "forwarder.lock"
 PORT_FILE = "port"
+TOKEN_FILE = "token"
+_TOKEN_RE = re.compile(r"[0-9a-f]{32}")
 OPT_OUT_FILE = "opt-out"
 START_WAIT_S = 3.0
 STOP_WAIT_S = 5.0
@@ -71,6 +84,62 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
+def read_token(data_dir: Path) -> Optional[str]:
+    """The control token in ``<data>/token``, or None when absent or malformed."""
+    try:
+        text = (Path(data_dir) / TOKEN_FILE).read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return text if _TOKEN_RE.fullmatch(text) else None
+
+
+def ensure_token(data_dir: Path) -> str:
+    """Return the token, writing a fresh one (mode 0600) when it is absent or malformed."""
+    existing = read_token(data_dir)
+    if existing is not None:
+        return existing
+    token = secrets.token_hex(16)
+    path = Path(data_dir) / TOKEN_FILE
+    tmp = path.with_name("%s.%d.tmp" % (TOKEN_FILE, os.getpid()))
+    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(token + "\n")
+        os.chmod(str(tmp), 0o600)
+        os.replace(str(tmp), str(path))
+    finally:
+        try:
+            os.remove(str(tmp))
+        except FileNotFoundError:
+            pass
+    return token
+
+
+def _names_forwarder(pid: int) -> bool:
+    """True when the process's command line names ``cpp_telemetry``."""
+    if os.path.exists("/proc/self/cmdline"):
+        try:
+            with open("/proc/%d/cmdline" % pid, "rb") as fh:
+                return b"cpp_telemetry" in fh.read()
+        except OSError:
+            return False
+    try:
+        out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=2, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return b"cpp_telemetry" in out.stdout
+
+
+def _holder_is_forwarder(pid: int, data_dir: Path) -> bool:
+    if pid == os.getpid() or not _pid_alive(pid):
+        return False
+    if _names_forwarder(pid):
+        return True
+    port = read_port(data_dir)
+    return port is not None and healthz(port, data_dir) is not None
+
+
 def read_lock_pid(data_dir: Path) -> Optional[int]:
     try:
         text = lock_path(data_dir).read_text(encoding="utf-8").strip()
@@ -80,9 +149,9 @@ def read_lock_pid(data_dir: Path) -> Optional[int]:
 
 
 def lock_held(data_dir: Path) -> bool:
-    """True when the lock names a live process other than this one."""
+    """True when the lock names a live forwarder other than this process."""
     pid = read_lock_pid(data_dir)
-    return pid is not None and pid != os.getpid() and _pid_alive(pid)
+    return pid is not None and _holder_is_forwarder(pid, data_dir)
 
 
 class Lock:
@@ -136,9 +205,9 @@ def acquire_lock(data_dir: Path) -> Optional[Lock]:
         if _create_lock(path, me):
             return Lock(path, me)
         holder = read_lock_pid(data_dir)
-        if holder is not None and holder != me and _pid_alive(holder):
+        if holder is not None and _holder_is_forwarder(holder, data_dir):
             return None
-        # Stale: a dead pid, this process's own pid, or unreadable content.
+        # Stale: a dead pid, this process's own pid, a pid that is not a forwarder, or unreadable content.
         if read_lock_pid(data_dir) == holder:
             try:
                 os.remove(str(path))
@@ -191,28 +260,29 @@ def _read_json(conn: http.client.HTTPConnection, method: str, path: str) -> Tupl
     return resp.status, data if isinstance(data, dict) else None
 
 
-def _is_ours(body: Optional[dict], port: int) -> bool:
+def _is_ours(body: Optional[dict], port: int, nonce: str, token: Optional[str]) -> bool:
+    """Our forwarder: the healthz shape plus a proof made with this data directory's token."""
+    if token is None or not isinstance(body, dict):
+        return False
+    proof = body.get("proof")
     return (
-        isinstance(body, dict)
-        and body.get("status") == "ok"
+        body.get("status") == "ok"
         and isinstance(body.get("version"), str)
         and body.get("port") == port
+        and isinstance(proof, str)
+        and hmac.compare_digest(proof.encode("utf-8", "replace"), healthz_proof(token, nonce).encode("ascii"))
     )
 
 
-def healthz(port: int, timeout: float = 0.5) -> Optional[dict]:
-    """The ``/healthz`` body of one of our forwarders on ``port``, else None."""
-    conn = _connection(port, timeout)
-    try:
-        status, body = _read_json(conn, "GET", "/healthz")
-    except (OSError, http.client.HTTPException):
-        return None
-    finally:
-        conn.close()
-    return body if status == 200 and _is_ours(body, port) else None
+def healthz(port: int, data_dir: Path, timeout: float = 0.5) -> Optional[dict]:
+    """The ``/healthz`` body of our forwarder on ``port`` (proof checked with ``data_dir``'s token), else None."""
+    kind, body = _probe(port, data_dir, timeout)
+    return body if kind == OURS else None
 
 
-def _probe(port: int, timeout: float = 0.5) -> Tuple[str, Optional[dict]]:
+def _probe(port: int, data_dir: Path, timeout: float = 0.5) -> Tuple[str, Optional[dict]]:
+    token = read_token(data_dir)
+    nonce = secrets.token_hex(16)
     conn = _connection(port, timeout)
     try:
         conn.connect()
@@ -223,19 +293,26 @@ def _probe(port: int, timeout: float = 0.5) -> Tuple[str, Optional[dict]]:
         conn.close()
         return FOREIGN, None
     try:
-        status, body = _read_json(conn, "GET", "/healthz")
+        status, body = _read_json(conn, "GET", "/healthz?nonce=" + nonce)
     except (OSError, http.client.HTTPException):
         return FOREIGN, None
     finally:
         conn.close()
-    return (OURS, body) if status == 200 and _is_ours(body, port) else (FOREIGN, None)
+    return (OURS, body) if status == 200 and _is_ours(body, port, nonce, token) else (FOREIGN, None)
 
 
-def _post(port: int, path: str, timeout: float = 2.0) -> Optional[int]:
+def _post(port: int, path: str, data_dir: Path, timeout: float = 2.0) -> Optional[int]:
+    """POST an empty JSON object with the control token; the status, or None on no answer."""
+    headers = {"Content-Type": "application/json"}
+    token = read_token(data_dir)
+    if token is not None:
+        headers[TOKEN_HEADER] = token
     conn = _connection(port, timeout)
     try:
-        status, _ = _read_json(conn, "POST", path)
-        return status
+        conn.request("POST", path, body=b"{}", headers=headers)
+        resp = conn.getresponse()
+        resp.read(65536)
+        return resp.status
     except (OSError, http.client.HTTPException):
         return None
     finally:
@@ -245,7 +322,7 @@ def _post(port: int, path: str, timeout: float = 2.0) -> Optional[int]:
 def choose_port(cfg: Config, data_dir: Path) -> int:
     """The first candidate that refuses or answers our healthz; written to ``<data>/port``."""
     for port in candidates(cfg):
-        kind, _ = _probe(port)
+        kind, _ = _probe(port, data_dir)
         if kind in (FREE, OURS):
             write_port(data_dir, port)
             return port
@@ -294,17 +371,17 @@ def _spawn(plugin_root: Path, data_dir: Path) -> subprocess.Popen:
 
 
 def _stopped(port: int, data_dir: Path) -> bool:
-    return healthz(port) is None and not lock_held(data_dir)
+    return healthz(port, data_dir) is None and not lock_held(data_dir)
 
 
 def _running(port: int, version: str, data_dir: Path) -> Optional[int]:
     """``port`` when our forwarder there is the same or newer; an older one is shut down first."""
-    kind, body = _probe(port)
+    kind, body = _probe(port, data_dir)
     if kind != OURS or body is None:
         return None
-    if not _is_older(body["version"], version):
+    if not _is_older(body["version"], version):  # compared only after the proof passed
         return port
-    _post(port, "/shutdown")
+    _post(port, "/shutdown", data_dir)
     if not _wait_until(lambda: _stopped(port, data_dir), STOP_WAIT_S):
         log.get_logger(data_dir).warning("older forwarder did not stop within %d s", int(STOP_WAIT_S))
     return None
@@ -318,7 +395,7 @@ def _find_locked(cfg: Config, data_dir: Path, version: str) -> Optional[int]:
     deadline = time.monotonic() + START_WAIT_S
     while True:
         for port in candidates(cfg):
-            kind, _ = _probe(port)
+            kind, _ = _probe(port, data_dir)
             if kind == OURS:
                 write_port(data_dir, port)
                 return _running(port, version, data_dir)
@@ -351,7 +428,7 @@ def ensure_running(cfg: Config, data_dir: Path, plugin_root: Path, version: str)
     deadline = time.monotonic() + START_WAIT_S
     while time.monotonic() < deadline:
         current = read_port(data_dir) or port
-        body = healthz(current)
+        body = healthz(current, data_dir)
         if body is not None and body["version"] == version:
             return current
         time.sleep(POLL_S)
@@ -365,14 +442,14 @@ def stop(data_dir: Path) -> bool:
     """
     data_dir = Path(data_dir)
     port = read_port(data_dir)
-    answered = port is not None and healthz(port) is not None
+    answered = port is not None and healthz(port, data_dir) is not None
     if not answered and not lock_held(data_dir):
-        return False
+        return False  # nothing of ours runs: a stale or unrelated pid is never signalled
     if answered:
-        _post(port, "/shutdown")  # type: ignore[arg-type]
+        _post(port, "/shutdown", data_dir)  # type: ignore[arg-type]
 
     def gone() -> bool:
-        return not lock_held(data_dir) and (port is None or healthz(port) is None)
+        return not lock_held(data_dir) and (port is None or healthz(port, data_dir) is None)
 
     if _wait_until(gone, STOP_WAIT_S):
         return True
