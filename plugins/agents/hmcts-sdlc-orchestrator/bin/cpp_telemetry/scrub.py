@@ -414,8 +414,18 @@ def identity_from_environment(records_email: Optional[str]) -> Identity:
     )
 
 
+def is_plausible_email(text: Any) -> bool:
+    """An address worth treating as an identity literal: has ``@``, 6-254 characters, one whole email."""
+    return (
+        isinstance(text, str)
+        and "@" in text
+        and 6 <= len(text) <= 254
+        and _EMAIL_RE.fullmatch(text) is not None
+    )
+
+
 def user_emails(payload: Any, limit: int = 8) -> List[str]:
-    """Distinct non-empty ``user.email`` attribute values in an OTLP payload, first seen first."""
+    """Distinct plausible ``user.email`` attribute values in an OTLP payload, first seen first."""
     found: List[str] = []
     seen = set()
     stack = [payload]
@@ -428,7 +438,7 @@ def user_emails(payload: Any, limit: int = 8) -> List[str]:
                         if isinstance(item, dict) and item.get("key") == "user.email":
                             inner = item.get("value")
                             text = inner.get("stringValue") if isinstance(inner, dict) else None
-                            if isinstance(text, str) and text and text.lower() not in seen and len(found) < limit:
+                            if is_plausible_email(text) and text.lower() not in seen and len(found) < limit:
                                 seen.add(text.lower())
                                 found.append(text)
             stack.extend(reversed(list(node.values())))

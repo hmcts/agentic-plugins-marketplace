@@ -33,7 +33,7 @@ def _invented_identity(email):
 class Harness:
     """An in-process receiver on a free loopback port with the invented identity."""
 
-    def __init__(self, tmp_path, on_hook=None):
+    def __init__(self, tmp_path, on_hook=None, trusted_email=None):
         self.data = tmp_path
         self.cfg = Config(port=free_port_run(1))
         self.spool = spool.Spool(tmp_path, self.cfg)
@@ -52,7 +52,7 @@ class Harness:
             return []
 
         self.receiver = receiver.Receiver(
-            self.cfg, self.spool, receiver.IdentityProvider(build), PLUGIN_VERSION,
+            self.cfg, self.spool, receiver.IdentityProvider(build, trusted_email=trusted_email), PLUGIN_VERSION,
             on_hook or default_on_hook, self.events.append, self.state,
             start_ts=START_TS, on_shutdown=self.shut.set, token=TOKEN,
         )
@@ -277,15 +277,17 @@ def test_shutdown_drains_open_batches(harness):
 def test_identity_provider_keeps_the_union_of_emails_up_to_8():
     built = []
     provider = receiver.IdentityProvider(lambda email: built.append(email) or _invented_identity(email))
-    assert provider({"resourceLogs": []}).email == ""
-    first = provider(_fixture("otlp-logs-small.json"))
+    assert _ask(provider, {"resourceLogs": []}).email == ""
+    # The walk runs only when the raw body holds the bytes user.email.
+    assert provider(_fixture("otlp-logs-small.json"), b"{}").email == ""
+    first = _ask(provider, _fixture("otlp-logs-small.json"))
     assert first.email == "devuser@example.invalid" and first.other_emails == ()
     other = json.loads(json.dumps(_fixture("otlp-logs-small.json")).replace("devuser@", "second@"))
-    both = provider(other)
+    both = _ask(provider, other)
     assert both.email == "devuser@example.invalid" and both.other_emails == ("second@example.invalid",)
     for n in range(20):
-        provider(json.loads(json.dumps(_fixture("otlp-logs-small.json")).replace("devuser@", "extra%d@" % n)))
-    final = provider({})
+        _ask(provider, json.loads(json.dumps(_fixture("otlp-logs-small.json")).replace("devuser@", "extra%d@" % n)))
+    final = _ask(provider, {})
     assert 1 + len(final.other_emails) == 8 and built == [None]
 
 
@@ -303,7 +305,8 @@ def test_second_distinct_email_is_also_redacted_as_self(harness):
 def test_healthz_nonce_returns_hmac_proof(harness):
     nonce = secrets.token_hex(16)
     status, body = request(harness.port, "GET", "/healthz?nonce=" + nonce)
-    expected = hmac.new(TOKEN.encode("ascii"), nonce.encode("ascii"), hashlib.sha256).hexdigest()
+    bound = "%s|%d|%s" % (nonce, harness.port, "1.1.0")
+    expected = hmac.new(TOKEN.encode("ascii"), bound.encode("ascii"), hashlib.sha256).hexdigest()
     assert status == 200 and body == {"status": "ok", "version": "1.1.0", "port": harness.port, "proof": expected}
     assert "proof" not in request(harness.port, "GET", "/healthz?nonce=not-hex")[1]
 
@@ -335,7 +338,7 @@ def test_control_endpoints_need_the_token(harness):
 
 
 def test_server_error_replies_500_with_nothing_on_stderr(harness, monkeypatch, capfd):
-    def broken(signal, payload):
+    def broken(*args):
         raise RuntimeError("devuser detail")
 
     monkeypatch.setattr(harness.receiver, "handle_export", broken)
@@ -343,3 +346,125 @@ def test_server_error_replies_500_with_nothing_on_stderr(harness, monkeypatch, c
     assert capfd.readouterr().err == ""
     text = (harness.data / "forwarder.log").read_text()
     assert "RuntimeError" in text and "devuser" not in text
+
+
+def _ask(provider, payload):
+    return provider(payload, json.dumps(payload).encode("utf-8"))
+
+
+def _with_email(value):
+    return {"resourceLogs": [{"scopeLogs": [{"logRecords": [
+        {"attributes": [{"key": "user.email", "value": {"stringValue": value}}]}]}]}]}
+
+
+def _write_claude_json(directory, email):
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / ".claude.json").write_text(json.dumps({"oauthAccount": {"emailAddress": email}}))
+
+
+def test_trusted_email_is_read_from_claude_json(tmp_path, monkeypatch):
+    home = Path(str(Path.home()))
+    _write_claude_json(home, "home-trusted@example.invalid")
+    assert receiver.read_trusted_email() == "home-trusted@example.invalid"
+    _write_claude_json(tmp_path / "cfg", "trusted@example.invalid")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "cfg"))
+    assert receiver.read_trusted_email() == "trusted@example.invalid"
+    (tmp_path / "cfg" / ".claude.json").write_text(json.dumps({"oauthAccount": {"emailAddress": "x"}}))
+    assert receiver.read_trusted_email() is None
+    (tmp_path / "cfg" / ".claude.json").write_text("{broken")
+    assert receiver.read_trusted_email() is None
+
+
+def test_trusted_email_is_redacted_as_self_and_never_evicted(tmp_path):
+    h = Harness(tmp_path, trusted_email="trusted@example.invalid")
+    try:
+        # "late@" arrives after the 8 payload slots are full; the username "devuser" is kept out of it.
+        payload = json.loads(json.dumps(_fixture("otlp-logs-small.json")).replace("devuser@", "late@"))
+        prompt = payload["resourceLogs"][0]["scopeLogs"][0]["logRecords"][0]["attributes"][-1]["value"]
+        prompt["stringValue"] = "from trusted@example.invalid and late@example.invalid"
+        for n in range(12):  # payload emails are additions; the trusted one stays
+            assert post_json(h.port, "/v1/logs", _with_email("filler%d@example.invalid" % n))[0] == 200
+        assert post_json(h.port, "/v1/logs", payload)[0] == 200
+        dumped = json.dumps(h.batches())
+    finally:
+        h.close()
+    assert "from [REDACTED:self] and [REDACTED:email]" in dumped
+    assert "trusted@example.invalid" not in dumped and h.built == [None]
+    assert "trusted" not in (tmp_path / "forwarder.log").read_text() if (tmp_path / "forwarder.log").exists() else True
+
+
+def test_junk_payload_emails_are_ignored():
+    provider = receiver.IdentityProvider(lambda email: _invented_identity(email))
+    for junk in ("e", "a@b.c", "no-at-sign-here", "x" * 250 + "@example.invalid", "two@@example.invalid"):
+        ident = _ask(provider, _with_email(junk))
+        assert ident.email == "" and ident.other_emails == (), junk
+    assert _ask(provider, _with_email("valid@example.invalid")).email == "valid@example.invalid"
+    assert scrub.scrub_text("e and valid@example.invalid", _ask(provider, {})) == "e and [REDACTED:self]"
+
+
+def _raw_post(port, path, declared, sent, headers=None):
+    """POST declaring ``declared`` body bytes but sending ``sent``; returns the status line and log-safe reply."""
+    head = ["POST %s HTTP/1.1" % path, "Host: 127.0.0.1:%d" % port, "Content-Type: application/json",
+            "Content-Length: %d" % declared, "Connection: close"]
+    head += ["%s: %s" % item for item in (headers or {}).items()]
+    with socket.create_connection(("127.0.0.1", port), timeout=10) as sock:
+        sock.sendall(("\r\n".join(head) + "\r\n\r\n").encode("ascii"))
+        chunk = b"x" * 65536
+        remaining = sent
+        while remaining:
+            piece = chunk[:min(remaining, len(chunk))]
+            sock.sendall(piece)
+            remaining -= len(piece)
+        reply = b""
+        while True:
+            data = sock.recv(65536)
+            if not data:
+                break
+            reply += data
+    return reply.split(b"\r\n", 1)[0]
+
+
+def test_413_per_endpoint_class_is_answered_after_draining(harness):
+    otlp, hook, control = 32 * 1024 * 1024, 8 * 1024 * 1024, 1024 * 1024
+    assert (receiver.OTLP_MAX_BYTES, receiver.HOOK_MAX_BYTES, receiver.CONTROL_MAX_BYTES) == (otlp, hook, control)
+    assert _raw_post(harness.port, "/v1/logs", otlp + 1, otlp).endswith(b"413 Request Entity Too Large")
+    token = {TOKEN_HEADER: TOKEN}
+    assert _raw_post(harness.port, "/hook", hook + 1, hook, token).endswith(b"413 Request Entity Too Large")
+    assert _raw_post(harness.port, "/event", control + 1, control, token).endswith(b"413 Request Entity Too Large")
+    lines = (harness.data / "forwarder.log").read_text().splitlines()
+    assert any(line.endswith("event=export_rejected_413 bytes=%d" % (otlp + 1)) for line in lines)
+    assert sum("rejected_413" in line for line in lines) == 3
+    assert harness.hooks == [] and harness.events == []
+
+
+def test_chunked_trailers_are_capped(harness):
+    body = json.dumps(_fixture("otlp-logs-small.json")).encode("utf-8")
+
+    def send(trailers):
+        head = b"POST /v1/logs HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nContent-Type: application/json\r\n" % harness.port
+        raw = (head + b"Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n" + b"%x\r\n" % len(body) + body
+               + b"\r\n0\r\n" + b"".join(b"X-T%d: v\r\n" % n for n in range(trailers)) + b"\r\n")
+        with socket.create_connection(("127.0.0.1", harness.port), timeout=5) as sock:
+            sock.sendall(raw)
+            reply = b""
+            while True:
+                data = sock.recv(65536)
+                if not data:
+                    break
+                reply += data
+        return reply.split(b"\r\n", 1)[0]
+
+    assert send(3).endswith(b"200 OK")
+    assert send(65).endswith(b"400 Bad Request")
+
+
+def test_flush_and_shutdown_need_no_slot(harness):
+    assert receiver.HANDLER_SLOTS == 4
+    slots = harness.receiver._server.slots
+    for _ in range(4):
+        assert slots.acquire(timeout=1)
+    try:
+        assert post_json(harness.port, "/flush", {}, token=TOKEN) == (200, {"closed": 0})
+    finally:
+        for _ in range(4):
+            slots.release()

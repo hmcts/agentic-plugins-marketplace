@@ -115,20 +115,30 @@ def ensure_token(data_dir: Path) -> str:
     return token
 
 
+def _forwarder_argv(argv: List[str]) -> bool:
+    """An argv entry naming the package (``.../cpp_telemetry`` or ``cpp_telemetry``) followed by ``forwarder``."""
+    for here, after in zip(argv, argv[1:]):
+        if (here == "cpp_telemetry" or here.endswith("/cpp_telemetry")) and after == "forwarder":
+            return True
+    return False
+
+
 def _names_forwarder(pid: int) -> bool:
-    """True when the process's command line names ``cpp_telemetry``."""
+    """True when the process's argv runs the forwarder (``/proc`` on Linux, ``ps -o args=`` elsewhere)."""
     if os.path.exists("/proc/self/cmdline"):
         try:
             with open("/proc/%d/cmdline" % pid, "rb") as fh:
-                return b"cpp_telemetry" in fh.read()
+                raw = fh.read()
         except OSError:
             return False
+        argv = [part.decode("utf-8", "replace") for part in raw.split(b"\0") if part]
+        return _forwarder_argv(argv)
     try:
-        out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], stdin=subprocess.DEVNULL,
+        out = subprocess.run(["ps", "-o", "args=", "-p", str(pid)], stdin=subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=2, check=False)
     except (OSError, subprocess.SubprocessError):
         return False
-    return b"cpp_telemetry" in out.stdout
+    return _forwarder_argv(out.stdout.decode("utf-8", "replace").split())
 
 
 def _holder_is_forwarder(pid: int, data_dir: Path) -> bool:
@@ -270,7 +280,8 @@ def _is_ours(body: Optional[dict], port: int, nonce: str, token: Optional[str]) 
         and isinstance(body.get("version"), str)
         and body.get("port") == port
         and isinstance(proof, str)
-        and hmac.compare_digest(proof.encode("utf-8", "replace"), healthz_proof(token, nonce).encode("ascii"))
+        and hmac.compare_digest(proof.encode("utf-8", "replace"),
+                                healthz_proof(token, nonce, port, body["version"]).encode("ascii"))
     )
 
 
@@ -454,7 +465,7 @@ def stop(data_dir: Path) -> bool:
     if _wait_until(gone, STOP_WAIT_S):
         return True
     pid = read_lock_pid(data_dir)
-    if pid is not None and lock_held(data_dir):
+    if pid is not None and _pid_alive(pid) and _names_forwarder(pid):  # never signal a pid that is not a forwarder
         try:
             os.kill(pid, signal.SIGTERM)
         except OSError:

@@ -29,9 +29,14 @@ holding the token can tell this forwarder from a listener that only echoes the b
 
 Exports, hooks and events get ``503`` while the spool is full or the ingest has
 refused this developer (``state.rejected_until`` in the future). Anything else is
-``404``. Bodies are capped at 8 MiB (compressed and decompressed); at most 8 bodies
-are handled at once. Nothing about a request is written to stderr; log lines carry
-counts and error types only.
+``404``. Body caps (compressed and decompressed): OTLP 32 MiB, ``/hook`` 8 MiB,
+``/event``, ``/flush`` and ``/shutdown`` 1 MiB; an oversized body is drained up to the
+cap and answered ``413`` (one count-only log line). At most 4 bodies are handled at
+once; ``/flush`` and ``/shutdown`` never wait for a slot. Nothing about a request is
+written to stderr; log lines carry counts and error types only.
+
+The healthz proof is bound to the port and version it reports, so a listener that
+relays the nonce to the real forwarder and echoes its body cannot pass as ours.
 """
 from __future__ import annotations
 
@@ -39,12 +44,14 @@ import dataclasses
 import hashlib
 import hmac
 import json
+import os
 import re
 import sys
 import threading
 import time
 import zlib
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -53,19 +60,46 @@ from . import log, scrub
 from .config import Config
 from .spool import Spool, valid_session_id
 
-MAX_BODY_BYTES = 8 * 1024 * 1024
+OTLP_MAX_BYTES = 32 * 1024 * 1024
+HOOK_MAX_BYTES = 8 * 1024 * 1024
+CONTROL_MAX_BYTES = 1024 * 1024
 MAX_TRAILER_LINES = 64
 MAX_EMAILS = 8
-HANDLER_SLOTS = 8
+HANDLER_SLOTS = 4
+UNSLOTTED_PATHS = frozenset({"/flush", "/shutdown"})
 SLOT_WAIT_S = 10.0
 TOKEN_HEADER = "X-Cpp-Telemetry-Token"
 CONTROL_PATHS = frozenset({"/hook", "/event", "/flush", "/shutdown"})
 _NONCE_RE = re.compile(r"[0-9a-f]{16,128}")
 
 
-def healthz_proof(token: str, nonce: str) -> str:
-    """HMAC-SHA256 of the nonce under the data directory's token, hex."""
-    return hmac.new(token.encode("ascii"), nonce.encode("ascii"), hashlib.sha256).hexdigest()
+def healthz_proof(token: str, nonce: str, port: int, version: str) -> str:
+    """HMAC-SHA256 of ``nonce|port|version`` under the data directory's token, hex."""
+    message = "%s|%d|%s" % (nonce, port, version)
+    return hmac.new(token.encode("ascii"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _body_cap(path: str) -> int:
+    if path in EXPORT_PATHS:
+        return OTLP_MAX_BYTES
+    return HOOK_MAX_BYTES if path == "/hook" else CONTROL_MAX_BYTES
+
+
+def claude_json_path() -> Path:
+    """``$CLAUDE_CONFIG_DIR/.claude.json`` when set, else ``~/.claude.json``."""
+    env = os.environ.get("CLAUDE_CONFIG_DIR")
+    return (Path(env) if env else Path.home()) / ".claude.json"
+
+
+def read_trusted_email() -> Optional[str]:
+    """The signed-in account's email (``oauthAccount.emailAddress``); never logged, never written."""
+    try:
+        data = json.loads(claude_json_path().read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
+        return None
+    account = data.get("oauthAccount") if isinstance(data, dict) else None
+    email = account.get("emailAddress") if isinstance(account, dict) else None
+    return email if scrub.is_plausible_email(email) else None
 EXPORT_PATHS = {"/v1/logs": "logs", "/v1/metrics": "metrics", "/v1/traces": "traces"}
 
 # signal -> (resource list key, scope list key, record list key)
@@ -88,32 +122,48 @@ class ForwarderState:
 
 
 class IdentityProvider:
-    """The scrub identity: the environment's literals plus every distinct ``user.email`` seen.
+    """The scrub identity: the environment's literals, the trusted email and payload emails.
 
-    The username, home and hostname are read once; each new ``user.email`` value
-    (case-insensitive, up to ``MAX_EMAILS``) joins the identity, so no first value
-    can pin it.
+    The username, home and hostname are read once. ``trusted_email`` (from
+    ``~/.claude.json``, read at forwarder start) always leads and is never evicted;
+    each new plausible ``user.email`` found in a raw body (case-insensitive, up to
+    ``MAX_EMAILS``) is added after it. The payload walk runs outside the lock and
+    only when the raw body holds the bytes ``user.email``.
     """
 
-    def __init__(self, build: Callable[[Optional[str]], scrub.Identity] = scrub.identity_from_environment) -> None:
+    def __init__(self, build: Callable[[Optional[str]], scrub.Identity] = scrub.identity_from_environment,
+                 trusted_email: Optional[str] = None) -> None:
         self._build = build
+        self._trusted = trusted_email if scrub.is_plausible_email(trusted_email) else None
         self._lock = threading.Lock()
         self._base: Optional[scrub.Identity] = None
         self._emails: List[str] = []
         self._ident: Optional[scrub.Identity] = None
 
-    def __call__(self, payload: Any) -> scrub.Identity:
+    def _compose(self) -> scrub.Identity:
+        assert self._base is not None
+        emails = ([self._trusted] if self._trusted else []) + self._emails
+        if not emails:
+            return self._base
+        return dataclasses.replace(self._base, email=emails[0], other_emails=tuple(emails[1:]))
+
+    def __call__(self, payload: Any = None, raw: Optional[bytes] = None) -> scrub.Identity:
         with self._lock:
             if self._base is None:
                 self._base = self._build(None)
-                self._ident = self._base
-            if len(self._emails) < MAX_EMAILS and isinstance(payload, (dict, list)):
-                known = {email.lower() for email in self._emails}
-                fresh = [e for e in scrub.user_emails(payload, MAX_EMAILS) if e.lower() not in known]
-                if fresh:
-                    self._emails.extend(fresh[:MAX_EMAILS - len(self._emails)])
-                    self._ident = dataclasses.replace(
-                        self._base, email=self._emails[0], other_emails=tuple(self._emails[1:]))
+                self._ident = self._compose()
+            room = len(self._emails) < MAX_EMAILS
+        found: List[str] = []
+        if room and raw is not None and b"user.email" in raw and isinstance(payload, (dict, list)):
+            found = scrub.user_emails(payload, MAX_EMAILS + 1)
+        with self._lock:
+            known = {email.lower() for email in self._emails}
+            if self._trusted:
+                known.add(self._trusted.lower())
+            fresh = [email for email in found if email.lower() not in known]
+            if fresh and len(self._emails) < MAX_EMAILS:
+                self._emails.extend(fresh[:MAX_EMAILS - len(self._emails)])
+                self._ident = self._compose()
             assert self._ident is not None
             return self._ident
 
@@ -207,17 +257,17 @@ def _reject_constant(name: str) -> Any:
     raise ValueError("non-finite number")
 
 
-def _gunzip(raw: bytes) -> bytes:
-    """Decompress every gzip member, refusing output beyond MAX_BODY_BYTES."""
+def _gunzip(raw: bytes, cap: int) -> bytes:
+    """Decompress every gzip member, refusing output beyond ``cap``."""
     out = bytearray()
     data = raw
     while data:
         engine = zlib.decompressobj(16 + zlib.MAX_WBITS)
         try:
-            out += engine.decompress(data, MAX_BODY_BYTES + 1 - len(out))
+            out += engine.decompress(data, cap + 1 - len(out))
         except zlib.error:
             raise _HttpError(400)
-        if len(out) > MAX_BODY_BYTES or engine.unconsumed_tail:
+        if len(out) > cap or engine.unconsumed_tail:
             raise _HttpError(413)
         if not engine.eof:
             raise _HttpError(400)
@@ -261,7 +311,18 @@ class _Handler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(data)
 
-    def _read_chunked(self) -> bytes:
+    def _drain(self, count: int) -> None:
+        while count > 0:
+            data = self.rfile.read(min(count, 65536))
+            if not data:
+                return
+            count -= len(data)
+
+    def _too_large(self, path: str, size: int) -> _HttpError:
+        self.server.receiver.log_413(path, size)
+        return _HttpError(413)
+
+    def _read_chunked(self, path: str, cap: int) -> bytes:
         out = bytearray()
         while True:
             line = self.rfile.readline(1024)
@@ -274,17 +335,22 @@ class _Handler(BaseHTTPRequestHandler):
                     if self.rfile.readline(1024) in (b"\r\n", b"\n", b""):
                         return bytes(out)
                 raise _HttpError(400)
-            if size < 0 or len(out) + size > MAX_BODY_BYTES:
-                raise _HttpError(413)
+            if size < 0:
+                raise _HttpError(400)
+            if len(out) + size > cap:
+                self._drain(cap - len(out))
+                raise self._too_large(path, len(out) + size)
             chunk = self.rfile.read(size)
             if len(chunk) != size:
                 raise _HttpError(400)
             out += chunk
             self.rfile.readline(1024)
 
-    def _body(self) -> bytes:
+    def _body(self, path: str) -> bytes:
+        """The request body, decompressed; 413 past the route's cap (drained up to the cap first)."""
+        cap = _body_cap(path)
         if "chunked" in self.headers.get("Transfer-Encoding", "").lower():
-            raw = self._read_chunked()
+            raw = self._read_chunked(path, cap)
         else:
             try:
                 length = int(self.headers.get("Content-Length", "0") or "0")
@@ -292,26 +358,31 @@ class _Handler(BaseHTTPRequestHandler):
                 raise _HttpError(400)
             if length < 0:
                 raise _HttpError(400)
-            if length > MAX_BODY_BYTES:
-                raise _HttpError(413)
+            if length > cap:
+                self._drain(cap)
+                raise self._too_large(path, length)
             raw = self.rfile.read(length)
         encoding = self.headers.get("Content-Encoding", "").strip().lower()
         if encoding == "gzip":
-            return _gunzip(raw)
+            try:
+                return _gunzip(raw, cap)
+            except _HttpError as exc:
+                if exc.status == 413:
+                    self.server.receiver.log_413(path, len(raw))
+                raise
         if encoding not in ("", "identity"):
             raise _HttpError(415)
         return raw
 
-    def _json(self) -> dict:
+    @staticmethod
+    def _parse(raw: bytes) -> dict:
         try:
-            data = json.loads(self._body().decode("utf-8"), parse_constant=_reject_constant)
+            data = json.loads(raw.decode("utf-8"), parse_constant=_reject_constant)
         except (UnicodeDecodeError, ValueError, RecursionError):
             raise _HttpError(400)
         if not isinstance(data, dict):
             raise _HttpError(400)
         return data
-
-    # -------------------------------------------------------------- verbs
 
     def _guarded(self) -> bool:
         """Reply 421 for a foreign Host and 403 for any Origin; True when the request may go on."""
@@ -349,29 +420,34 @@ class _Handler(BaseHTTPRequestHandler):
         if path in CONTROL_PATHS and not receiver.token_ok(self.headers.get(TOKEN_HEADER)):
             self._reply(403)
             return
-        if not self.server.slots.acquire(timeout=SLOT_WAIT_S):
+        slotted = path not in UNSLOTTED_PATHS
+        if slotted and not self.server.slots.acquire(timeout=SLOT_WAIT_S):
             self._reply(503)
             return
         try:
             if path in EXPORT_PATHS:
                 receiver.gate()
-                status, body = receiver.handle_export(EXPORT_PATHS[path], self._json())
+                raw = self._body(path)
+                status, body = receiver.handle_export(EXPORT_PATHS[path], self._parse(raw), raw)
             elif path == "/hook":
                 receiver.gate()
-                status, body = receiver.handle_hook(self._json())
+                status, body = receiver.handle_hook(self._parse(self._body(path)))
             elif path == "/event":
                 receiver.gate()
-                status, body = receiver.handle_event(self._json())
+                status, body = receiver.handle_event(self._parse(self._body(path)))
             elif path == "/flush":
+                self._body(path)
                 status, body = 200, {"closed": receiver.flush()}
             else:  # /shutdown
+                self._body(path)
                 self._reply(200, {"closed": receiver.flush()})
                 receiver.shutdown_soon()
                 return
         except _HttpError as exc:
             status, body = exc.status, {}
         finally:
-            self.server.slots.release()
+            if slotted:
+                self.server.slots.release()
         self._reply(status, body)
 
     def _not_found(self) -> None:
@@ -388,7 +464,7 @@ class Receiver:
         self,
         cfg: Config,
         spool: Spool,
-        ident_provider: Callable[[Any], scrub.Identity],
+        ident_provider: Callable[[Any, Optional[bytes]], scrub.Identity],
         version: str,
         on_hook: Callable[[dict], List[dict]],
         on_event: Callable[[dict], None],
@@ -464,7 +540,7 @@ class Receiver:
     def health(self, nonce: str = "") -> dict:
         body: Dict[str, Any] = {"status": "ok", "version": self._version, "port": self.port}
         if self._token and _NONCE_RE.fullmatch(nonce or ""):
-            body["proof"] = healthz_proof(self._token, nonce)
+            body["proof"] = healthz_proof(self._token, nonce, self.port, self._version)
         return body
 
     def token_ok(self, presented: Optional[str]) -> bool:
@@ -472,6 +548,12 @@ class Receiver:
         if not self._token or not presented:
             return False
         return hmac.compare_digest(presented.encode("utf-8", "replace"), self._token.encode("ascii"))
+
+    def log_413(self, path: str, size: int) -> None:
+        if path in EXPORT_PATHS:
+            self._logger.warning("event=export_rejected_413 bytes=%d", size)
+        else:
+            self._logger.warning("event=request_rejected_413 route=%s bytes=%d", path, size)
 
     def log_error_type(self, what: str, type_name: str) -> None:
         self._logger.error("%s: %s", what, type_name)
@@ -492,8 +574,8 @@ class Receiver:
             self._logger.error("spool append failed: %s", type(exc).__name__)
             raise _HttpError(503)
 
-    def handle_export(self, signal: str, payload: dict) -> Tuple[int, dict]:
-        ident = self._ident_provider(payload)
+    def handle_export(self, signal: str, payload: dict, raw: Optional[bytes] = None) -> Tuple[int, dict]:
+        ident = self._ident_provider(payload, raw)
         dropped = 0
         for session_id, sub_payload in split_by_session(signal, payload, self._fallback).items():
             try:
@@ -521,7 +603,7 @@ class Receiver:
         payload = envelope.get("payload")
         if envelope.get("signal", "event") != "event" or not isinstance(payload, dict):
             return 400, {}
-        scrubbed = {"signal": "event", "payload": scrub.scrub_values(payload, self._ident_provider(None))}
+        scrubbed = {"signal": "event", "payload": scrub.scrub_values(payload, self._ident_provider(None, None))}
         self._append(self._session(scrubbed["payload"]), scrubbed)
         try:
             self._on_event(scrubbed)

@@ -1,4 +1,5 @@
 import gzip
+import http.client
 import json
 import os
 import signal
@@ -45,7 +46,8 @@ def _a_dead_pid():
 @pytest.fixture
 def holder():
     """A live process whose command line names cpp_telemetry, standing in for a running forwarder."""
-    proc = subprocess.Popen([sys.executable, "-B", "-c", HOLDER_CODE, "cpp_telemetry"])
+    proc = subprocess.Popen([sys.executable, "-B", "-c", HOLDER_CODE, str(PLUGIN_ROOT / "bin" / "cpp_telemetry"),
+                             "forwarder"])
     yield proc.pid
     proc.kill()
     proc.wait(5)
@@ -415,3 +417,81 @@ def test_token_is_32_hex_and_0600_and_kept(tmp_path):
     assert lifecycle.ensure_token(tmp_path) == token == lifecycle.read_token(tmp_path)
     (tmp_path / "token").write_text("not a token")
     assert lifecycle.read_token(tmp_path) is None and lifecycle.ensure_token(tmp_path) != token
+
+
+class _Relay(BaseHTTPRequestHandler):
+    """Relays /healthz to the real forwarder and echoes its body with its own port number."""
+
+    target = 0
+
+    def do_GET(self):
+        conn = http.client.HTTPConnection("127.0.0.1", self.target, timeout=2)
+        try:
+            conn.request("GET", self.path)
+            body = json.loads(conn.getresponse().read().decode("utf-8"))
+        finally:
+            conn.close()
+        body["port"] = self.server.server_address[1]
+        data = json.dumps(body).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, *args):
+        pass
+
+
+def _ours_on(tmp_path, cfg, port):
+    ours = receiver.Receiver(cfg, spool.Spool(tmp_path, cfg), receiver.IdentityProvider(), PLUGIN_VERSION,
+                             lambda hook: [], lambda event: None, receiver.ForwarderState(), port=port,
+                             token=_token(tmp_path))
+    thread = threading.Thread(target=ours.serve_forever, daemon=True)
+    thread.start()
+    return ours, thread
+
+
+def test_relay_mimic_on_another_port_is_foreign(tmp_path):
+    base = free_port_run()
+    cfg = _cfg(base)
+    ours, ours_thread = _ours_on(tmp_path, cfg, base + 5)
+    relay_handler = type("RelayTo", (_Relay,), {"target": base + 5})
+    relay = ThreadingHTTPServer(("127.0.0.1", base), relay_handler)
+    relay_thread = threading.Thread(target=relay.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+    relay_thread.start()
+    try:
+        assert lifecycle.healthz(base + 5, tmp_path) is not None
+        assert lifecycle.healthz(base, tmp_path) is None
+        assert lifecycle.choose_port(cfg, tmp_path) == base + 1
+    finally:
+        relay.shutdown()
+        relay.server_close()
+        relay_thread.join(5)
+        ours.close()
+        ours_thread.join(5)
+
+
+def test_forwarder_argv_rule():
+    rule = lifecycle._forwarder_argv
+    assert rule(["/usr/bin/python3", "-B", "/x/bin/cpp_telemetry", "forwarder"])
+    assert rule(["cpp_telemetry", "forwarder"])
+    assert not rule(["zsh", "-c", "python3 -B /x/bin/cpp_telemetry forwarder"])
+    assert not rule(["python3", "/x/bin/cpp_telemetry", "status"])
+    assert not rule(["python3", "/x/bin/cpp_telemetry_old", "forwarder"])
+    assert not rule(["python3", "-c", "pass", "cpp_telemetry"])
+
+
+def test_proof_only_holder_counts_as_held(tmp_path, unrelated):
+    base = free_port_run()
+    cfg = _cfg(base)
+    (tmp_path / "forwarder.lock").write_text("%d\n" % unrelated)
+    ours, thread = _ours_on(tmp_path, cfg, base)
+    (tmp_path / "port").write_text(str(base))
+    try:
+        assert not lifecycle._names_forwarder(unrelated)
+        assert lifecycle.lock_held(tmp_path) and lifecycle.acquire_lock(tmp_path) is None
+    finally:
+        ours.close()
+        thread.join(5)
+    assert not lifecycle.lock_held(tmp_path)

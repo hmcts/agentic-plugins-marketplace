@@ -23,7 +23,7 @@ from typing import Callable, List, Optional
 
 from . import lifecycle, log
 from .config import Config
-from .receiver import ForwarderState, IdentityProvider, Receiver
+from .receiver import ForwarderState, IdentityProvider, Receiver, read_trusted_email
 from .spool import Spool
 
 __all__ = ["ForwarderState", "run", "LOOP_INTERVAL_S", "REJECTED_UNTIL_FILE"]
@@ -110,6 +110,7 @@ def _serve(cfg: Config, data_dir: Path, version: str, tick: Optional[Tick], on_h
     spool.reap_orphans()
     state = ForwarderState(rejected_until=_read_rejected_until(data_dir))
     token = lifecycle.ensure_token(data_dir)
+    identity = IdentityProvider(trusted_email=read_trusted_email())
     stop = threading.Event()
     reasons: List[str] = []
     start_ts = clock()
@@ -119,7 +120,7 @@ def _serve(cfg: Config, data_dir: Path, version: str, tick: Optional[Tick], on_h
         stop.set()
 
     def make(port: int) -> Receiver:
-        return Receiver(cfg, spool, IdentityProvider(), version,
+        return Receiver(cfg, spool, identity, version,
                         on_hook or _default_on_hook(version, state), lambda event: None, state,
                         port=port, start_ts=start_ts, on_shutdown=on_shutdown, clock=clock, token=token)
 
