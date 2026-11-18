@@ -310,6 +310,23 @@ def _running(port: int, version: str, data_dir: Path) -> Optional[int]:
     return None
 
 
+def _find_locked(cfg: Config, data_dir: Path, version: str) -> Optional[int]:
+    """The port of the forwarder holding the lock, searched over every candidate for up to 3 s.
+
+    None when that forwarder was older and has been shut down (the caller starts a new one).
+    """
+    deadline = time.monotonic() + START_WAIT_S
+    while True:
+        for port in candidates(cfg):
+            kind, _ = _probe(port)
+            if kind == OURS:
+                write_port(data_dir, port)
+                return _running(port, version, data_dir)
+        if time.monotonic() >= deadline or not lock_held(data_dir):
+            raise NotStarted("the lock holder answers on no candidate port")
+        time.sleep(POLL_S)
+
+
 def ensure_running(cfg: Config, data_dir: Path, plugin_root: Path, version: str) -> int:
     """Return the port of a running forwarder of this version (or newer), starting one when needed."""
     data_dir = Path(data_dir)
@@ -318,6 +335,11 @@ def ensure_running(cfg: Config, data_dir: Path, plugin_root: Path, version: str)
         port = _running(recorded, version, data_dir)
         if port is not None:
             return port
+    if lock_held(data_dir):
+        # A live forwarder holds the lock but not the recorded port: find it, never spawn a second one.
+        found = _find_locked(cfg, data_dir, version)
+        if found is not None:
+            return found
     if (data_dir / OPT_OUT_FILE).exists() and Spool(data_dir, cfg).is_empty():
         raise NotStarted("opted out with an empty spool")
     port = choose_port(cfg, data_dir)

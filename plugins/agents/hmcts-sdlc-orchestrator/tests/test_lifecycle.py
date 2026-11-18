@@ -143,6 +143,7 @@ def test_lock_holds_the_pid_and_a_stale_lock_is_taken_over(tmp_path):
 
 def test_forwarder_exits_0_when_a_live_pid_holds_the_lock(tmp_path, monkeypatch):
     (tmp_path / "forwarder.lock").write_text("%d\n" % os.getppid())
+    assert lifecycle.lock_held(tmp_path)  # else run() would take the lock and never return
     reaped = []
     monkeypatch.setattr(spool.Spool, "reap_orphans", lambda self: reaped.append(1) or [])
     assert forwarder.run(_cfg(free_port_run()), tmp_path, PLUGIN_ROOT, PLUGIN_VERSION) == 0
@@ -295,3 +296,21 @@ def test_cli_ensure_running_and_forwarder_bodies(data_dir, spawned, capsys):
     captured = capsys.readouterr()
     assert (captured.out, captured.err) == ("", "")
     assert lifecycle.stop(data_dir) is True
+
+
+def test_ensure_running_finds_a_locked_forwarder_on_a_scan_port(tmp_path, spawned):
+    # The forwarder sits on base+1 (base was foreign when it started); base is free now and the port file is stale.
+    base = free_port_run()
+    cfg = _cfg(base)
+    running = receiver.Receiver(cfg, spool.Spool(tmp_path, cfg), receiver.IdentityProvider(), PLUGIN_VERSION,
+                                lambda hook: [], lambda event: None, receiver.ForwarderState(), port=base + 1)
+    thread = threading.Thread(target=running.serve_forever, daemon=True)
+    thread.start()
+    (tmp_path / "forwarder.lock").write_text("%d\n" % os.getppid())
+    (tmp_path / "port").write_text(str(base))
+    try:
+        assert lifecycle.ensure_running(cfg, tmp_path, PLUGIN_ROOT, PLUGIN_VERSION) == base + 1
+        assert spawned == [] and lifecycle.read_port(tmp_path) == base + 1
+    finally:
+        running.close()
+        thread.join(5)
