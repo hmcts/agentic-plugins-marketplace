@@ -36,14 +36,30 @@ def test_unknown_or_missing_subcommand_exits_2(argv):
     assert cli.main(argv) == 2
 
 
-NOT_WIRED = ["status", "login", "optout", "on", "git-event", "uninstall"]
+NOT_WIRED = ["git-event"]  # Task 8
+DORMANT_EXIT = {"status": 0, "login": 1, "optout": 0, "on": 0, "uninstall": 0}
+
+
+def test_every_subcommand_is_known():
+    from cpp_telemetry import cli
+    assert set(NOT_WIRED) | set(DORMANT_EXIT) | {"start", "forwarder", "ensure-running"} == set(SUBCOMMANDS) \
+        == set(cli.COMMANDS)
 
 
 @pytest.mark.parametrize("name", NOT_WIRED)
 def test_every_unwired_subcommand_is_accepted(name, data_dir):
     from cpp_telemetry import cli
-    assert set(NOT_WIRED) | {"start", "forwarder", "ensure-running"} == set(SUBCOMMANDS) == set(cli.COMMANDS)
     assert cli.main([name]) == 0
+
+
+@pytest.mark.parametrize("name", sorted(DORMANT_EXIT))
+def test_user_commands_say_one_line_when_dormant(name, data_dir, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("CPP_HARNESS_HOME", str(tmp_path / "harness"))
+    from cpp_telemetry import cli
+    assert cli.main([name]) == DORMANT_EXIT[name]
+    out = capsys.readouterr().out
+    assert out.count("\n") == 1 and out.startswith("cpp telemetry: ")
+    assert not (data_dir / "spool").exists() and not (data_dir / "forwarder.lock").exists()
 
 
 @pytest.mark.parametrize("name", ["forwarder", "ensure-running"])

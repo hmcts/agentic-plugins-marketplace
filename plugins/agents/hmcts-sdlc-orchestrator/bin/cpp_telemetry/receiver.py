@@ -125,6 +125,8 @@ class ForwarderState:
     last_ack: Optional[float] = None
     last_error: Optional[str] = None
     engine_version: Optional[str] = None
+    # session id -> Stop hooks counted by this forwarder (the snapshot's turn seq).
+    turn_seq: Dict[str, int] = dataclasses.field(default_factory=dict)
 
 
 class IdentityProvider:

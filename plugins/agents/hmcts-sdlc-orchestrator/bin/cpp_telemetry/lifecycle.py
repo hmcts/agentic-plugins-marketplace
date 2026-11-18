@@ -319,13 +319,22 @@ def _probe(port: int, data_dir: Path, timeout: float = 0.5) -> Tuple[str, Option
 
 def _post(port: int, path: str, data_dir: Path, timeout: float = 2.0) -> Optional[int]:
     """POST an empty JSON object with the control token; the status, or None on no answer."""
+    return post_json(port, path, data_dir, {}, timeout)
+
+
+def post_json(port: int, path: str, data_dir: Path, body: dict, timeout: float = 2.0) -> Optional[int]:
+    """POST ``body`` as JSON with the control token; the status, or None on no answer.
+
+    ``port`` must come from ``ensure_running`` in the same invocation (ruling 23):
+    never post the token to a port read from ``<data>/port`` without the proof check.
+    """
     headers = {"Content-Type": "application/json"}
     token = read_token(data_dir)
     if token is not None:
         headers[TOKEN_HEADER] = token
     conn = _connection(port, timeout)
     try:
-        conn.request("POST", path, body=b"{}", headers=headers)
+        conn.request("POST", path, body=json.dumps(body).encode("utf-8"), headers=headers)
         resp = conn.getresponse()
         resp.read(65536)
         return resp.status

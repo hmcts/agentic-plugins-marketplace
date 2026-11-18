@@ -9,8 +9,8 @@ spool holds no batch; every open batch is then closed and the lock released.
 
 ``_default_tick`` builds the upload step: one ``uploader.Uploader`` per run, with
 this run's ``Spool``, ``ForwarderState`` and a ``TokenCache`` on ``<data>``.
-``_default_on_hook`` builds the hook handler (Task 7 replaces it with the
-snapshot module).
+``_default_on_hook`` builds the hook handler: ``snapshot.from_hook`` with this
+run's ``IdentityProvider``; a SessionStart's engine version is stamped on the spool.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from . import lifecycle, log
+from . import lifecycle, log, snapshot
 from .auth import TokenCache
 from .config import Config
 from .receiver import ForwarderState, IdentityProvider, Receiver, read_trusted_email
@@ -41,11 +41,16 @@ def _default_tick(cfg: Config, data_dir: Path, spool: Spool, state: ForwarderSta
     return Uploader(cfg, spool, TokenCache(data_dir), state, log.get_logger(data_dir), data_dir=data_dir).tick
 
 
-def _default_on_hook(version: str, state: ForwarderState) -> OnHook:
-    """The hook handler; records nothing until the snapshot module exists."""
+def _default_on_hook(version: str, state: ForwarderState, identity: Optional[IdentityProvider] = None,
+                     spool: Optional[Spool] = None) -> OnHook:
+    """The hook handler: ``snapshot.from_hook`` with this run's identity; stamps the engine version on the spool."""
 
     def on_hook(hook: dict) -> List[dict]:
-        return []
+        ident = identity(None, None) if identity is not None else None
+        envelopes = snapshot.from_hook(hook, version, state, ident=ident)
+        if spool is not None and state.engine_version is not None:
+            spool.set_engine_version(state.engine_version)
+        return envelopes
 
     return on_hook
 
@@ -118,7 +123,7 @@ def _serve(cfg: Config, data_dir: Path, version: str, tick: Optional[Tick], on_h
 
     def make(port: int) -> Receiver:
         return Receiver(cfg, spool, identity, version,
-                        on_hook or _default_on_hook(version, state), lambda event: None, state,
+                        on_hook or _default_on_hook(version, state, identity, spool), lambda event: None, state,
                         port=port, start_ts=start_ts, on_shutdown=on_shutdown, clock=clock, token=token)
 
     receiver = _bind(cfg, data_dir, make, logger)

@@ -348,7 +348,8 @@ def test_cli_ensure_running_and_forwarder_bodies(data_dir, spawned, capsys):
     # A second forwarder finds the lock held and exits 0 at once.
     assert cli.main(["forwarder"]) == 0
     captured = capsys.readouterr()
-    assert (captured.out, captured.err) == ("", "")
+    # ensure-running prints the proof-checked port for the nudge script; the forwarder prints nothing.
+    assert (captured.out, captured.err) == ("%d\n" % base, "")
     assert lifecycle.stop(data_dir) is True
 
 
