@@ -15,7 +15,8 @@
   A listener without a valid proof is foreign, whatever body it echoes.
 - ``ensure_running`` keeps a forwarder of the same or a newer version, replaces an
   older one through ``POST /shutdown``, and otherwise starts a detached process
-  with ``python3 -B`` and waits up to 3 s for its ``/healthz``.
+  with ``python3 -I -B`` (isolated: no cwd, no PYTHON* variables, no user site) and
+  waits up to 3 s for its ``/healthz``.
 
 All loopback calls use ``http.client`` directly, so no proxy setting applies.
 """
@@ -384,7 +385,7 @@ def _spawn(plugin_root: Path, data_dir: Path) -> subprocess.Popen:
     env["CLAUDE_PLUGIN_DATA"] = str(data_dir)
     env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
     return subprocess.Popen(
-        [sys.executable, "-B", str(Path(plugin_root) / "bin" / "cpp_telemetry"), "forwarder"],
+        [sys.executable, "-I", "-B", str(Path(plugin_root) / "bin" / "cpp_telemetry"), "forwarder"],
         start_new_session=True,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,

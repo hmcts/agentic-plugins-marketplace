@@ -338,7 +338,7 @@ def test_forwarder_tick_errors_are_logged_by_type_only(tmp_path, monkeypatch):
 # ---------------------------------------------------------------- the detached process
 
 
-def test_spawn_command_is_detached_with_dash_b(tmp_path, monkeypatch):
+def test_spawn_command_is_detached_and_isolated(tmp_path, monkeypatch):
     calls = []
 
     class FakePopen:
@@ -348,7 +348,7 @@ def test_spawn_command_is_detached_with_dash_b(tmp_path, monkeypatch):
     monkeypatch.setattr(lifecycle.subprocess, "Popen", FakePopen)
     lifecycle._spawn(PLUGIN_ROOT, tmp_path)
     [(args, kwargs)] = calls
-    assert args == [sys.executable, "-B", str(PLUGIN_ROOT / "bin" / "cpp_telemetry"), "forwarder"]
+    assert args == [sys.executable, "-I", "-B", str(PLUGIN_ROOT / "bin" / "cpp_telemetry"), "forwarder"]
     assert kwargs["start_new_session"] is True and kwargs["close_fds"] is True
     assert kwargs["stdin"] == kwargs["stdout"] == kwargs["stderr"] == subprocess.DEVNULL
     assert kwargs["env"]["CLAUDE_PLUGIN_DATA"] == str(tmp_path)

@@ -1,4 +1,4 @@
-"""Entry point: python3 -B "$CLAUDE_PLUGIN_ROOT/bin/cpp_telemetry" <command>.
+"""Entry point: python3 -I -B "$CLAUDE_PLUGIN_ROOT/bin/cpp_telemetry" <command>.
 
 Run as a directory there is no package context, so the package's parent
 directory goes first on sys.path, and the package directory itself (which the
