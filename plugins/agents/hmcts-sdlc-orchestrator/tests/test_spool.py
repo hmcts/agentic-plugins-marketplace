@@ -165,7 +165,7 @@ def test_reaper_closes_orphan_and_next_seq_is_greater(tmp_path, clock):
     done.mkdir()
     (done / "100.open.jsonl").write_text(json.dumps(good[0]) + "\n", encoding="utf-8")
     sp = spool.Spool(tmp_path, Config(), clock=clock)
-    sp.append(SID_B, env())  # opens 100's successor batch; must not be touched by the reaper's gz check
+    sp.append(SID_B, env())  # a second open batch in SID_B: the reaper closes it too
     with gzip.open(str(done / "100.json.gz"), "wt", encoding="utf-8") as fh:
         json.dump({"marker": "already closed"}, fh)
 
@@ -310,3 +310,44 @@ def test_expire_prunes_stale_empty_session_dirs(tmp_path, sp, clock):
     assert sp.expire(clock.now) == []
     assert not (tmp_path / "spool" / SID).exists()
     assert (tmp_path / "spool" / SID_B).exists()
+
+
+def test_next_seq_follows_the_manifest_after_upload_when_the_clock_steps_back(tmp_path, sp, clock):
+    sp.append(SID, env())
+    (path,) = sp.close_all()
+    sp.delete(path)  # uploaded: only the manifest remembers the number
+    clock.now = T0 - 60
+    sp.append(SID, env())
+    (open_path,) = (tmp_path / "spool" / SID).glob("*.open.jsonl")
+    assert open_path.name == "{}.open.jsonl".format(int(T0 * 1000) + 1)
+
+
+def test_gap_joins_the_existing_open_batch(tmp_path, sp, clock):
+    sp.append(SID, env("old"))
+    (old,) = sp.close_all()
+    clock.now = T0 + 31 * DAY
+    sp.append(SID, env("current"))
+    (open_path,) = (tmp_path / "spool" / SID).glob("*.open.jsonl")
+    (gap,) = sp.expire()
+    lines = [json.loads(line) for line in open_path.read_text(encoding="utf-8").splitlines()]
+    assert [line["payload"].get("body", line["payload"].get("name")) for line in lines] == ["current", "gap"]
+    assert lines[1] == gap and not old.exists()
+
+
+def test_threaded_appends_keep_every_line(tmp_path, sp):
+    import threading
+
+    def worker(n):
+        for i in range(50):
+            sp.append(SID, env("t{}-{}".format(n, i)))
+
+    threads = [threading.Thread(target=worker, args=(n,)) for n in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    (path,) = sp.close_all()
+    batch = read_gz(path)
+    bodies = sorted(e["payload"]["body"] for e in batch["events"])
+    assert bodies == sorted("t{}-{}".format(n, i) for n in range(8) for i in range(50))
+    assert batch["content_sha256"] == sha(batch["events"])
