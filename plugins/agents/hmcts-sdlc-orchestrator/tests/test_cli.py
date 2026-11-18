@@ -335,6 +335,50 @@ def test_uninstall_keeps_the_shims_when_the_hooks_path_cannot_be_restored(fake_f
     assert "git shims kept" in capsys.readouterr().out
 
 
+@needs_git
+def test_uninstall_removes_every_hook_name(fake_forwarder, monkeypatch, tmp_path):
+    monkeypatch.setattr(lifecycle, "stop", lambda data: True)
+    shims = _hooked(tmp_path, "")
+    assert len([p for p in shims.iterdir() if p.name in git_event.SHIM_NAMES]) == 28
+    assert cli.main(["uninstall"]) == 0
+    assert not shims.exists() and _global("--get", "core.hooksPath") is None
+
+
+@needs_git
+@pytest.mark.parametrize("local", ["ours", "theirs"])
+def test_uninstall_unsets_a_local_hooks_path_only_when_it_names_the_shims(fake_forwarder, monkeypatch, tmp_path,
+                                                                           local):
+    monkeypatch.setattr(lifecycle, "stop", lambda data: True)
+    shims = _hooked(tmp_path, "")
+    repo = tmp_path / "checkout"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, timeout=30)
+    value = str(shims) if local == "ours" else str(tmp_path / "their-hooks")
+    subprocess.run(["git", "-C", str(repo), "config", "--local", "core.hooksPath", value], check=True, timeout=30)
+    monkeypatch.chdir(repo)  # uninstall runs from the session's project
+    assert cli.main(["uninstall"]) == 0
+    done = subprocess.run(["git", "-C", str(repo), "config", "--local", "--get", "core.hooksPath"],
+                          capture_output=True, text=True, timeout=30)
+    assert done.stdout.strip() == ("" if local == "ours" else value)
+    assert not shims.exists()
+
+
+@needs_git
+def test_uninstall_restores_on_git_without_type_path(fake_forwarder, monkeypatch, tmp_path):
+    monkeypatch.setattr(lifecycle, "stop", lambda data: True)
+    shims = _hooked(tmp_path, "~/prev-hooks")
+    real_config = git_event._config
+
+    def old_git(*args):
+        if "--type=path" in args:  # git < 2.18
+            return subprocess.CompletedProcess(args, 129, b"", b"")
+        return real_config(*args)
+
+    monkeypatch.setattr(git_event, "_config", old_git)
+    assert cli.main(["uninstall"]) == 0
+    assert _global("--get", "core.hooksPath") == "~/prev-hooks" and _global("--get", "cpp.previousHooksPath") is None
+    assert not shims.exists()
+
+
 def test_status_reports_every_line_and_no_values(fake_forwarder, monkeypatch, capsys):
     key = settings.COMPETING_KEYS[0]
     fake_forwarder.settings.write_text(json.dumps({"env": {key: COLLECTOR}}))

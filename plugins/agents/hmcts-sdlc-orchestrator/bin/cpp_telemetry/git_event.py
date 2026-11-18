@@ -1,13 +1,14 @@
 """Git attribution: the chaining hook shims and the ``git`` events they record.
 
-- ``install_shims(plugin_root, version)`` copies ``git-hooks/post-commit``,
-  ``post-rewrite`` and ``pre-push`` to ``~/.cpp-harness/git-hooks/`` (``CPP_HARNESS_HOME``
+- ``install_shims(plugin_root, version)`` copies the one script ``git-hooks/hook`` to
+  ``~/.cpp-harness/git-hooks/`` under every name of ``SHIM_NAMES`` (``CPP_HARNESS_HOME``
   replaces ``~/.cpp-harness``), mode 0755, and writes ``plugin-root`` and ``version`` beside
   them. The shims are copied again only when ``version`` differs (or a shim is missing);
   ``plugin-root`` follows the plugin when it moves. Each file is replaced atomically.
 - The developer points git at that directory once (the README onboarding line keeps the
   previous ``core.hooksPath`` in ``cpp.previousHooksPath``). Each shim runs the hook it
-  replaces, then the repository's own hook, then ``git-event`` within a 1 s budget.
+  replaces, then the repository's own hook; post-commit, post-rewrite and pre-push then run
+  ``git-event`` within a 1 s budget.
 - ``collect(kind, argv, stdin, cwd)`` builds ``{"name": "git", "kind", "repo", "branch",
   "sha", "ts"}`` plus ``remote`` for a push. ``repo`` is the basename of the origin URL
   without ``.git`` (fallback: the directory basename), never the URL; ``remote`` is the
@@ -34,7 +35,16 @@ from .snapshot import repo_basename
 from .spool import iso_ms
 
 KINDS = ("commit", "rewrite", "push")
-SHIM_NAMES = ("post-commit", "post-rewrite", "pre-push")
+SHIM_SOURCE = "hook"
+# Every standard hook name (githooks(5)). The global core.hooksPath replaces the repository's
+# hooks directory for all of them, so each must exist and chain; only three record an event.
+SHIM_NAMES = (
+    "applypatch-msg", "pre-applypatch", "post-applypatch", "pre-commit", "pre-merge-commit",
+    "prepare-commit-msg", "commit-msg", "post-commit", "pre-rebase", "post-checkout", "post-merge", "pre-push",
+    "pre-receive", "update", "proc-receive", "post-receive", "post-update", "reference-transaction",
+    "push-to-checkout", "pre-auto-gc", "post-rewrite", "sendemail-validate", "fsmonitor-watchman",
+    "p4-changelist", "p4-prepare-changelist", "p4-post-changelist", "p4-pre-submit", "post-index-change",
+)
 SHIMS_DIR = "git-hooks"
 PLUGIN_ROOT_FILE = "plugin-root"
 VERSION_FILE = "version"
@@ -92,8 +102,9 @@ def install_shims(plugin_root: Path, version: str) -> Path:
     target.mkdir(parents=True, exist_ok=True)
     current = _read(target / VERSION_FILE) == version and all((target / n).is_file() for n in SHIM_NAMES)
     if not current:
+        script = (Path(plugin_root) / SHIMS_DIR / SHIM_SOURCE).read_bytes()
         for name in SHIM_NAMES:
-            _write_atomic(target / name, (Path(plugin_root) / SHIMS_DIR / name).read_bytes(), 0o755)
+            _write_atomic(target / name, script, 0o755)
     root = str(Path(plugin_root).resolve())
     if _read(target / PLUGIN_ROOT_FILE) != root:
         _write_atomic(target / PLUGIN_ROOT_FILE, (root + "\n").encode("utf-8"), 0o644)
@@ -208,27 +219,39 @@ def post(data_dir: Path, payload: dict, port: Optional[int] = None) -> bool:
 
 
 def _config(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "config", "--global"] + list(args), stdin=subprocess.DEVNULL,
+    """``git config <args>`` in this process's cwd (the session's project for ``--local``)."""
+    return subprocess.run(["git", "config"] + list(args), stdin=subprocess.DEVNULL,
                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=CONFIG_TIMEOUT_S, check=False)
 
 
-def _get(key: str, path: bool = False) -> Optional[str]:
-    """The global value of ``key`` (``~`` expanded when ``path``), or None when it is not set."""
-    done = _config(*(["--type=path"] if path else []), "--get", key)
-    if done.returncode == 1:
+def _get(key: str, path: bool = False, scope: str = "--global") -> Optional[str]:
+    """The value of ``key`` in ``scope`` (``~`` expanded when ``path``), or None when it is not set.
+
+    git before 2.18 rejects ``--type=path``: the raw value is then read and ``~`` expanded
+    here. A ``--local`` read outside a repository counts as not set.
+    """
+    if path:
+        done = _config(scope, "--type=path", "--get", key)
+        if done.returncode == 0:
+            return done.stdout.decode("utf-8", "surrogateescape").rstrip("\n")
+        if done.returncode == 1:
+            return None
+    done = _config(scope, "--get", key)
+    if done.returncode == 1 or (done.returncode != 0 and scope == "--local"):
         return None
     if done.returncode != 0:
         raise RestoreError("git config --get failed")
-    return done.stdout.decode("utf-8", "surrogateescape").rstrip("\n")
+    value = done.stdout.decode("utf-8", "surrogateescape").rstrip("\n")
+    return os.path.expanduser(value) if path else value
 
 
 def _set(key: str, value: str) -> None:
-    if _config(key, value).returncode != 0:
+    if _config("--global", key, value).returncode != 0:
         raise RestoreError("git config set failed")
 
 
-def _unset(key: str) -> None:
-    if _config("--unset-all", key).returncode not in (0, 5):  # 5: the key was not set
+def _unset(key: str, scope: str = "--global") -> None:
+    if _config(scope, "--unset-all", key).returncode not in (0, 5):  # 5: the key was not set
         raise RestoreError("git config --unset failed")
 
 
@@ -246,8 +269,10 @@ def restore_hooks_path() -> None:
 
     An empty or absent previous value (or one naming our own directory) unsets
     ``core.hooksPath``; a ``core.hooksPath`` the developer has since pointed elsewhere is
-    left alone. ``cpp.previousHooksPath`` is then removed. Raises ``RestoreError`` or
-    ``OSError`` / ``subprocess.SubprocessError`` when git cannot do it.
+    left alone. ``cpp.previousHooksPath`` is then removed. A ``--local`` ``core.hooksPath``
+    of the repository uninstall runs in is unset when it names our directory (any other
+    local value is left alone). Raises ``RestoreError`` or ``OSError`` /
+    ``subprocess.SubprocessError`` when git cannot do it.
     """
     previous = _get("cpp.previousHooksPath")
     if _is_shims_dir(_get("core.hooksPath", path=True)):
@@ -257,6 +282,8 @@ def restore_hooks_path() -> None:
             _unset("core.hooksPath")
     if previous is not None:
         _unset("cpp.previousHooksPath")
+    if _is_shims_dir(_get("core.hooksPath", path=True, scope="--local")):
+        _unset("core.hooksPath", scope="--local")
 
 
 def uninstall_shims() -> bool:

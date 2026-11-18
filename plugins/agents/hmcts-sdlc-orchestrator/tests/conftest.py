@@ -1,3 +1,5 @@
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -24,6 +26,28 @@ def _isolated_environment(tmp_path, monkeypatch):
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("CPP_HARNESS_HOME", str(tmp_path / "_harness"))
     monkeypatch.delenv("CPP_HARNESS_TELEMETRY", raising=False)
+
+
+def find_shellcheck(environ=None):
+    """``SHELLCHECK`` when set (it must then exist), else the venv's or PATH's shellcheck, else None."""
+    environ = os.environ if environ is None else environ
+    named = environ.get("SHELLCHECK")
+    if named:
+        tool = named if os.path.sep in named else shutil.which(named)
+        if tool is None or not os.access(tool, os.X_OK):
+            pytest.fail("SHELLCHECK=%s is set but not an executable" % named)
+        return tool
+    beside = Path(sys.executable).parent / "shellcheck"
+    return str(beside) if beside.exists() else shutil.which("shellcheck")
+
+
+@pytest.fixture
+def shellcheck():
+    """The shellcheck binary; a skip only when SHELLCHECK is unset and none is installed."""
+    tool = find_shellcheck()
+    if tool is None:
+        pytest.skip("shellcheck not installed (set SHELLCHECK to make this a failure)")
+    return tool
 
 
 @pytest.fixture

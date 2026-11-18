@@ -298,10 +298,6 @@ def test_telemetry_command_body_matches_the_allowed_tools_prefix():
     assert commands and all(line.startswith(allowed + " ") for line in commands)
 
 
-def test_shellcheck_clean():
-    shellcheck = Path(sys.executable).parent / "shellcheck"
-    tool = str(shellcheck) if shellcheck.exists() else shutil.which("shellcheck")
-    if tool is None:
-        pytest.skip("shellcheck not installed")
-    done = subprocess.run([tool, str(START), str(NUDGE)], capture_output=True, text=True, timeout=60)
+def test_shellcheck_clean(shellcheck):
+    done = subprocess.run([shellcheck, str(START), str(NUDGE)], capture_output=True, text=True, timeout=60)
     assert done.returncode == 0, done.stdout + done.stderr

@@ -20,11 +20,19 @@ from types import SimpleNamespace
 import pytest
 
 from cpp_telemetry import PLUGIN_VERSION, cli, config, git_event, lifecycle, receiver, spool
+from tests.conftest import find_shellcheck
 from tests.helpers_net import free_port_run
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
-SHIM_NAMES = ("post-commit", "post-rewrite", "pre-push")
-SHIMS = [PLUGIN_ROOT / "git-hooks" / name for name in SHIM_NAMES]
+SOURCE = PLUGIN_ROOT / "git-hooks" / "hook"
+# Every standard hook name (githooks(5)): a global core.hooksPath must silence none of them.
+SHIM_NAMES = (
+    "applypatch-msg", "pre-applypatch", "post-applypatch", "pre-commit", "pre-merge-commit",
+    "prepare-commit-msg", "commit-msg", "post-commit", "pre-rebase", "post-checkout", "post-merge", "pre-push",
+    "pre-receive", "update", "proc-receive", "post-receive", "post-update", "reference-transaction",
+    "push-to-checkout", "pre-auto-gc", "post-rewrite", "sendemail-validate", "fsmonitor-watchman",
+    "p4-changelist", "p4-prepare-changelist", "p4-post-changelist", "p4-pre-submit", "post-index-change",
+)
 BASH = shutil.which("bash") or "/bin/bash"
 GIT = shutil.which("git")
 ORIGIN = "https://example.invalid/org/repo.git"
@@ -157,8 +165,9 @@ def foreign():
 def test_install_shims_copies_and_refreshes_on_version_change(tmp_path):
     target = git_event.install_shims(PLUGIN_ROOT, "1.0.0")
     assert target == Path(os.environ["CPP_HARNESS_HOME"]) / "git-hooks"
-    for name in SHIM_NAMES:
-        assert (target / name).read_bytes() == (PLUGIN_ROOT / "git-hooks" / name).read_bytes()
+    assert sorted(p.name for p in target.iterdir()) == sorted(SHIM_NAMES + ("plugin-root", "version"))
+    for name in SHIM_NAMES:  # one script under every standard hook name
+        assert (target / name).read_bytes() == SOURCE.read_bytes()
         assert stat.S_IMODE((target / name).stat().st_mode) == 0o755
     assert (target / "plugin-root").read_text() == str(PLUGIN_ROOT) + "\n"
     assert (target / "version").read_text() == "1.0.0\n"
@@ -169,20 +178,21 @@ def test_install_shims_copies_and_refreshes_on_version_change(tmp_path):
     assert (target / "post-commit").read_text() == "edited\n"  # same version: not copied again
     assert (target / "plugin-root").read_text() == str(moved.resolve()) + "\n"  # but the root follows the plugin
     git_event.install_shims(PLUGIN_ROOT, "1.0.1")
-    assert (target / "post-commit").read_bytes() == SHIMS[0].read_bytes()
+    assert (target / "post-commit").read_bytes() == SOURCE.read_bytes()
     assert (target / "version").read_text() == "1.0.1\n" and list(target.glob("*.tmp")) == []
 
 
 def test_install_shims_copies_again_when_a_shim_is_missing():
     target = git_event.install_shims(PLUGIN_ROOT, PLUGIN_VERSION)
-    (target / "pre-push").unlink()
+    (target / "commit-msg").unlink()
     git_event.install_shims(PLUGIN_ROOT, PLUGIN_VERSION)
-    assert (target / "pre-push").read_bytes() == SHIMS[2].read_bytes()
+    assert (target / "commit-msg").read_bytes() == SOURCE.read_bytes()
 
 
-def test_shim_sources_are_one_executable_body():
-    assert len({path.read_bytes() for path in SHIMS}) == 1
-    assert all(path.stat().st_mode & stat.S_IXUSR for path in SHIMS)
+def test_the_shim_source_is_one_executable_script_installed_under_every_hook_name():
+    assert [path.name for path in (PLUGIN_ROOT / "git-hooks").iterdir()] == ["hook"]
+    assert SOURCE.stat().st_mode & stat.S_IXUSR
+    assert git_event.SHIM_NAMES == SHIM_NAMES and len(SHIM_NAMES) == 28
 
 
 def test_cli_and_git_event_agree_on_the_kinds():
@@ -336,6 +346,57 @@ def test_shim_never_chains_itself_when_the_previous_path_is_ours(world, forwarde
     assert len(_events(forwarder, "commit")) == 1
 
 
+# ---------------------------------------------------------------- pass-through for every other hook name
+
+
+@needs_git
+def test_other_hooks_still_reach_the_previous_and_repo_hooks(world, forwarder):
+    for name in ("pre-commit", "commit-msg", "post-checkout"):
+        _hook(world.prev / name, "prev-" + name, world.log)
+        _hook(world.repo / ".git" / "hooks" / name, "repo-" + name, world.log)
+    done = _git(world, "commit", "--allow-empty", "-q", "-m", "first")
+    assert (done.returncode, done.stderr) == (0, "")
+    head = _head(world)
+    done = _git(world, "checkout", "-q", "-b", "other")
+    assert (done.returncode, done.stderr) == (0, "")
+    assert world.log.read_text().splitlines() == [
+        "prev-pre-commit|", "repo-pre-commit|",
+        "prev-commit-msg|.git/COMMIT_EDITMSG", "repo-commit-msg|.git/COMMIT_EDITMSG",
+        "prev-post-checkout|%s %s 1" % (head, head), "repo-post-checkout|%s %s 1" % (head, head),
+    ]
+    assert [p["kind"] for p in (envelope["payload"] for envelope in forwarder)] == ["commit"]  # no event for the others
+
+
+@needs_git
+@pytest.mark.parametrize("failing", ["prev", "repo"])
+def test_a_failing_pre_commit_blocks_the_commit(world, forwarder, failing):
+    _hook(world.prev / "pre-commit", "prev", world.log, code=1 if failing == "prev" else 0)
+    _hook(world.repo / ".git" / "hooks" / "pre-commit", "repo", world.log, code=1 if failing == "repo" else 0)
+    done = _git(world, "commit", "--allow-empty", "-q", "-m", "first")
+    assert done.returncode != 0
+    assert _git(world, "rev-parse", "-q", "--verify", "HEAD").stdout == ""  # nothing was committed
+    assert world.log.read_text() == ("prev|\n" if failing == "prev" else "prev|\nrepo|\n")
+    assert forwarder == []
+    shim = _shim(world, "pre-commit")
+    assert shim.returncode == 1  # the chained hook's own code
+
+
+@needs_git
+def test_shim_reads_the_previous_path_on_git_without_type_path(world):
+    home = Path(world.env["HOME"])
+    _git(world, "config", "--global", "cpp.previousHooksPath", "~/prev-hooks")
+    _hook(home / "prev-hooks" / "pre-commit", "prev", world.log)
+    old_git = world.tmp / "old-git"
+    old_git.mkdir()
+    (old_git / "git").write_text('#!/bin/sh\nfor arg in "$@"; do [ "$arg" = "--type=path" ] && exit 129; done\n'
+                                 'exec \'%s\' "$@"\n' % GIT)  # git < 2.18 rejects --type=path
+    (old_git / "git").chmod(0o755)
+    env = dict(world.env, PATH="%s:%s" % (old_git, world.env["PATH"]))
+    done = _shim(world, "pre-commit", env=env)
+    assert (done.returncode, done.stderr) == (0, "")
+    assert world.log.read_text() == "prev|\n"
+
+
 # ---------------------------------------------------------------- collect, post, git-event
 
 
@@ -423,11 +484,13 @@ def test_git_event_without_a_kind_is_a_usage_error(data_dir):
 # ---------------------------------------------------------------- lint
 
 
-def test_shellcheck_clean_shims():
-    shellcheck = Path(sys.executable).parent / "shellcheck"
-    tool = str(shellcheck) if shellcheck.exists() else shutil.which("shellcheck")
-    if tool is None:
-        pytest.skip("shellcheck not installed")
-    done = subprocess.run([tool, "--shell=bash"] + [str(path) for path in SHIMS], capture_output=True, text=True,
-                          timeout=60)
+def test_a_named_but_missing_shellcheck_fails_instead_of_skipping(tmp_path):
+    with pytest.raises(pytest.fail.Exception):
+        find_shellcheck({"SHELLCHECK": str(tmp_path / "no-such-shellcheck")})
+    with pytest.raises(pytest.fail.Exception):
+        find_shellcheck({"SHELLCHECK": "no-such-shellcheck-on-path"})
+
+
+def test_shellcheck_clean_shims(shellcheck):
+    done = subprocess.run([shellcheck, "--shell=bash", str(SOURCE)], capture_output=True, text=True, timeout=60)
     assert done.returncode == 0, done.stdout + done.stderr
