@@ -260,7 +260,8 @@ def test_uninstall_opts_out_stops_and_removes_the_shims(fake_forwarder, monkeypa
     stopped = []
     monkeypatch.setattr(lifecycle, "stop", lambda data: stopped.append(Path(data)) or True)
     assert cli.main(["uninstall"]) == 0
-    assert (fake_forwarder.data / lifecycle.OPT_OUT_FILE).exists() and fake_forwarder.events
+    assert fake_forwarder.events[0]["payload"]["name"] == "opt_out"
+    assert not fake_forwarder.data.exists()  # the opt-out marker went with the whole data directory
     assert stopped == [fake_forwarder.data] and not shims.exists()
 
 
@@ -275,6 +276,7 @@ def test_uninstall_deletes_the_spool_after_the_drain_timeout(fake_forwarder, mon
     monkeypatch.setattr(cli, "DRAIN_POLL_S", 0.01)
     assert cli.main(["uninstall"]) == 0
     assert stopped and fake_forwarder.spool.is_empty() and list(fake_forwarder.spool.root.glob("*/*.jsonl")) == []
+    assert not fake_forwarder.data.exists()
 
 
 def _global(*args):
@@ -301,8 +303,12 @@ def test_uninstall_restores_hooks_path_before_removing_the_shims(fake_forwarder,
     _hooked(tmp_path, value)
     seen = []
     real_rmtree = git_event.shutil.rmtree
-    monkeypatch.setattr(git_event.shutil, "rmtree",
-                        lambda path, **kw: seen.append(_global("--get", "core.hooksPath")) or real_rmtree(path, **kw))
+    def rmtree(path, **kw):  # the same shutil also removes the data directory afterwards
+        if Path(path) == shims:
+            seen.append(_global("--get", "core.hooksPath"))
+        return real_rmtree(path, **kw)
+
+    monkeypatch.setattr(git_event.shutil, "rmtree", rmtree)
     assert cli.main(["uninstall"]) == 0
     restored = {"PREV": prev}.get(expected, expected)
     assert seen == [restored]  # restored before the directory went

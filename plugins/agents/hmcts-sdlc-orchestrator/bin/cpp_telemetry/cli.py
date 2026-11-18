@@ -1,6 +1,8 @@
 """Command line: python3 -I -B "$CLAUDE_PLUGIN_ROOT/bin/cpp_telemetry" <command>.
 
-- ``start`` (SessionStart hook): dormant check; silent when ``<data>/opt-out`` exists,
+- ``start`` (SessionStart hook): dormant check (dormant with a ``managed-keys.json`` left
+  from before, the ``off`` steps run: the keys are taken back and the forwarder stopped,
+  silently; a plain dormant start touches nothing); silent when ``<data>/opt-out`` exists,
   where batches left in the spool get a drain-only forwarder (signed in) or are deleted
   (signed out), so they never stay for good; otherwise ``lifecycle.ensure_running`` first, then ``settings.apply`` with the port it
   returns; one line naming the competing keys ``apply`` moved aside (names only,
@@ -20,9 +22,12 @@
   verified pid). Never writes ``<data>/opt-out`` and never deletes the spool, so the next
   normal start applies the keys again. Silent, always exit 0, creates no data directory.
 - ``uninstall``: ``optout``; signed in, wait up to ``DRAIN_WAIT_S`` for the forwarder
-  to drain and exit, else (and when signed out) stop it; delete what is left in the
-  spool; point ``core.hooksPath`` back at ``cpp.previousHooksPath``, then remove the git
-  shims directory (kept when git could not restore the hooks path).
+  to drain and exit, else (and when signed out) stop it; point ``core.hooksPath`` back at
+  ``cpp.previousHooksPath``, then remove the git shims directory (kept when git could not
+  restore the hooks path); clear the token cache and remove the whole data directory
+  (kept, and said so, while a forwarder still holds the lock). One line names the real
+  outcome of each step: settings restored or the key names it could not restore, no
+  forwarder running or its pid, hooks path restored or left as is, data removed or kept.
 - ``ensure-running`` (the nudge script): print the proof-checked forwarder port.
 - ``git-event <kind> [hook args]`` (the git shims): never starts a forwarder. Dormant,
   opted out, or no forwarder answering the healthz proof on ``<data>/port``: nothing
@@ -40,10 +45,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 from . import PLUGIN_VERSION, config, log, paths
 
@@ -152,7 +158,8 @@ def _drain_after_opt_out(cfg: config.Config, data: Path) -> None:
 def _start(args: argparse.Namespace) -> int:
     cfg, data = _configured_data()
     if cfg is None or data is None:
-        # Dormant: no settings key, no output, no process, no spool.
+        # Dormant: no settings key, no output, no process, no spool; keys left from before are taken back.
+        _off_when_keys_left()
         return 0
     from . import lifecycle
 
@@ -330,15 +337,37 @@ def _delete_spool_when_idle(cfg: config.Config, data: Path) -> None:
         Spool(data, cfg).clear()
 
 
-def _opt_out(cfg: config.Config) -> Optional[Tuple[int, bool]]:
+class _OptedOut(NamedTuple):
+    restored: int  # settings keys this opt-out put back
+    signed_in: bool
+    unrestored: Optional[List[str]]  # None when the settings were restored; else the recorded key names
+
+
+def _recorded_keys(data: Path) -> List[str]:
+    """The key names in ``managed-keys.json`` (written and moved aside), names only; [] when unreadable."""
+    from . import settings
+
+    try:
+        record = json.loads(settings.managed_keys_path(data).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    names = set()
+    for part in ("written", "removed"):
+        entries = record.get(part) if isinstance(record, dict) else None
+        if isinstance(entries, dict):
+            names.update(k for k in entries if isinstance(k, str))
+    return sorted(names)
+
+
+def _opt_out(cfg: config.Config) -> Optional[_OptedOut]:
     """Restore the settings, write ``<data>/opt-out`` and tell the forwarder.
 
     Signed in: ``ensure_running`` first (before the opt-out file, which with an empty
     spool would stop it starting), then ``opt_out`` and ``/flush``; the forwarder
     uploads what is left and exits. Signed out: no forwarder is started; a running one
     (healthz proof on the recorded port) gets the event and deletes its spool itself;
-    with none running the spool is deleted here. Returns (restored key count, signed
-    in), or None when the data directory cannot be made.
+    with none running the spool is deleted here. Returns the outcome, or None when the
+    data directory cannot be made.
     """
     from . import auth, lifecycle, settings
     from .spool import iso_ms
@@ -348,11 +377,13 @@ def _opt_out(cfg: config.Config) -> Optional[Tuple[int, bool]]:
     except OSError:
         return None
     logger = log.get_logger(data)
+    unrestored: Optional[List[str]] = None
     try:
         restored = settings.restore(data)
     except (OSError, settings.SettingsError) as exc:
         logger.warning("optout: settings not restored (%s)", type(exc).__name__)
         restored = []
+        unrestored = _recorded_keys(data)
     configured = cfg.is_configured()
     signed_in = configured and auth.TokenCache(data).signed_in()
     if signed_in:
@@ -366,7 +397,7 @@ def _opt_out(cfg: config.Config) -> Optional[Tuple[int, bool]]:
         lifecycle.post_json(port, "/flush", data, {})
     elif not signed_in:
         _delete_spool_when_idle(cfg, data)
-    return len(restored), signed_in
+    return _OptedOut(len(restored), signed_in, unrestored)
 
 
 def _optout(args: argparse.Namespace) -> int:
@@ -374,7 +405,7 @@ def _optout(args: argparse.Namespace) -> int:
     if outcome is None:
         _say("opt-out not recorded: the data directory cannot be created")
         return 1
-    restored, signed_in = outcome
+    restored, signed_in = outcome.restored, outcome.signed_in
     after = "data already captured is uploaded, then the forwarder stops" if signed_in \
         else "data not yet uploaded is deleted"
     _say("opted out; {} setting(s) restored; {}; /telemetry on resumes".format(restored, after))
@@ -403,22 +434,44 @@ def _on(args: argparse.Namespace) -> int:
     return 0
 
 
-def _off(args: argparse.Namespace) -> int:
-    """Per-session off switch: put the user's settings back and stop the forwarder, silently."""
+def _switch_off(data: Path, step: str) -> None:
+    """Put the user's settings back and stop the forwarder, silently (errors go to the log by type)."""
     from . import lifecycle, settings
 
-    data = paths.data_dir(create=False)
-    if not data.is_dir():
-        return 0
     try:
         settings.restore(data)
     except Exception as exc:  # noqa: BLE001 - telemetry never fails a session
-        log.get_logger(data).warning("off: settings not restored (%s)", type(exc).__name__)
+        log.get_logger(data).warning("%s: settings not restored (%s)", step, type(exc).__name__)
     try:
         lifecycle.stop(data)
     except Exception as exc:  # noqa: BLE001
-        log.get_logger(data).warning("off: stop failed (%s)", type(exc).__name__)
+        log.get_logger(data).warning("%s: stop failed (%s)", step, type(exc).__name__)
+
+
+def _off(args: argparse.Namespace) -> int:
+    """Per-session off switch: put the user's settings back and stop the forwarder, silently."""
+    data = paths.data_dir(create=False)
+    if not data.is_dir():
+        return 0
+    _switch_off(data, "off")
     return 0
+
+
+def _off_when_keys_left() -> None:
+    """Dormant now (the override was removed or is invalid) with keys applied earlier still in place.
+
+    The keys would point at a port nothing binds after a reboot, so they are taken back
+    and the forwarder is stopped, as ``off`` does. A plain dormant start (no record)
+    touches nothing and creates nothing.
+    """
+    from . import settings
+
+    try:
+        data = paths.data_dir(create=False)
+        if settings.managed_keys_path(data).is_file():
+            _switch_off(data, "start")
+    except Exception:  # noqa: BLE001 - a hook must never fail on telemetry
+        pass
 
 
 def _wait_for_release(data: Path) -> bool:
@@ -433,31 +486,57 @@ def _wait_for_release(data: Path) -> bool:
     return True
 
 
+def _remove_data_dir(data: Path) -> bool:
+    """Delete the whole data directory (tokens first); True when nothing of it is left."""
+    from . import auth
+
+    try:
+        auth.TokenCache(data).clear()
+    except OSError:
+        pass  # the tree removal below still tries
+    shutil.rmtree(str(data), ignore_errors=True)
+    return not data.exists()
+
+
 def _uninstall(args: argparse.Namespace) -> int:
-    from . import lifecycle
+    """Opt out, drain or stop, restore the git hooks path, remove the data directory; one line per outcome."""
+    from . import git_event, lifecycle, settings
 
     cfg = config.load()
     outcome = _opt_out(cfg)
     if outcome is None:
         _say("uninstall stopped: the data directory cannot be created")
         return 1
-    restored, signed_in = outcome
     data = paths.data_dir()
-    from . import git_event
-
     try:
         # Signed in, the forwarder uploads the rest (the opt_out event too) and exits by itself.
-        if not (signed_in and _wait_for_release(data)):
+        if not (outcome.signed_in and _wait_for_release(data)):
             lifecycle.stop(data)
-        # Nothing stays on the laptop: what the drain did not upload in time is deleted (R-04).
-        _delete_spool_when_idle(cfg, data)
     except Exception as exc:  # noqa: BLE001
         log.get_logger(data).warning("uninstall: stop failed (%s)", type(exc).__name__)
-    if git_event.uninstall_shims():
-        shims = "git shims removed"
+    parts = ["opted out"]
+    if outcome.unrestored is None:
+        parts.append("{} setting(s) restored".format(outcome.restored))
     else:
-        shims = "git shims kept because git could not restore core.hooksPath"
-    _say("uninstalled: opted out, {} setting(s) restored, forwarder stopped, {}".format(restored, shims))
+        names = ", ".join(outcome.unrestored) or "the keys it applied"
+        parts.append("could not restore {} in {}; reset them by hand".format(names, settings.user_settings_path()))
+    pid = lifecycle.read_lock_pid(data) if lifecycle.lock_held(data) else None
+    if pid is None:
+        parts.append("no forwarder running")
+    else:
+        parts.append("forwarder still running (pid {})".format(pid))
+    if git_event.uninstall_shims():
+        parts.append("git hooks path restored, git shims removed")
+    else:
+        parts.append("git hooks path left as is (git could not restore core.hooksPath), git shims kept")
+    # Nothing stays on the laptop (R-04). Last filesystem step: nothing below may log or recreate the directory.
+    if pid is not None:
+        parts.append("data directory kept while the forwarder runs ({}); run /telemetry uninstall again".format(data))
+    elif _remove_data_dir(data):
+        parts.append("data removed")
+    else:
+        parts.append("data directory not fully removed ({})".format(data))
+    _say("uninstalled: " + "; ".join(parts))
     return 0
 
 
