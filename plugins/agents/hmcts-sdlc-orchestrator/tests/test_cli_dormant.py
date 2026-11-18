@@ -36,10 +36,40 @@ def test_unknown_or_missing_subcommand_exits_2(argv):
     assert cli.main(argv) == 2
 
 
-@pytest.mark.parametrize("name", SUBCOMMANDS)
-def test_every_subcommand_is_accepted(name, data_dir):
+NOT_WIRED = ["status", "login", "optout", "on", "git-event", "uninstall"]
+
+
+@pytest.mark.parametrize("name", NOT_WIRED)
+def test_every_unwired_subcommand_is_accepted(name, data_dir):
+    from cpp_telemetry import cli
+    assert set(NOT_WIRED) | {"start", "forwarder", "ensure-running"} == set(SUBCOMMANDS) == set(cli.COMMANDS)
+    assert cli.main([name]) == 0
+
+
+@pytest.mark.parametrize("name", ["forwarder", "ensure-running"])
+def test_forwarder_and_ensure_running_are_dormant_without_override(name, data_dir, capsys):
     from cpp_telemetry import cli
     assert cli.main([name]) == 0
+    captured = capsys.readouterr()
+    assert (captured.out, captured.err) == ("", "")
+    assert list(data_dir.iterdir()) == []
+
+
+def test_dormant_start_does_not_create_the_data_dir(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path / "absent" / "data"))
+    from cpp_telemetry import cli
+    assert cli.main(["start"]) == 0
+    assert not (tmp_path / "absent").exists()
+    assert capsys.readouterr().out == ""
+
+
+def test_dormant_start_exits_0_when_the_data_dir_cannot_be_created(tmp_path, monkeypatch, capsys):
+    (tmp_path / "file").write_text("x")
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path / "file" / "data"))
+    from cpp_telemetry import cli
+    assert cli.main(["start"]) == 0
+    captured = capsys.readouterr()
+    assert (captured.out, captured.err) == ("", "")
 
 
 def _run_package(args, tmp_path, package_dir=PACKAGE_DIR):
@@ -49,7 +79,7 @@ def _run_package(args, tmp_path, package_dir=PACKAGE_DIR):
     env["HOME"] = str(tmp_path / "home")
     env["CLAUDE_PLUGIN_DATA"] = str(tmp_path / "data")
     return subprocess.run(
-        [sys.executable, str(package_dir)] + args,
+        [sys.executable, "-B", str(package_dir)] + args,
         env=env,
         cwd=str(tmp_path),
         capture_output=True,
@@ -68,12 +98,19 @@ def test_directory_entry_point_unknown_subcommand_exits_2(tmp_path):
     assert result.returncode == 2 and "invalid choice" in result.stderr
 
 
-def test_directory_entry_point_writes_no_module_bytecode_under_plugin_root(tmp_path):
+def test_directory_entry_point_with_dash_b_writes_no_bytecode_under_plugin_root(tmp_path):
     copy = tmp_path / "plugin" / "bin" / "cpp_telemetry"
     shutil.copytree(str(PACKAGE_DIR), str(copy), ignore=shutil.ignore_patterns("__pycache__"))
     result = _run_package(["start"], tmp_path, package_dir=copy)
     assert result.returncode == 0
-    # The interpreter caches __main__ itself before any package code runs;
-    # only a caller passing -B avoids that. No package module may be cached.
-    cached = [p.name for p in (tmp_path / "plugin").rglob("*.pyc")]
-    assert all(name.startswith("__main__.") for name in cached)
+    # Every call site runs the package with -B, so nothing at all is cached under the plugin root.
+    assert [p.name for p in (tmp_path / "plugin").rglob("*.pyc")] == []
+    assert "dont_write_bytecode" not in (PACKAGE_DIR / "__main__.py").read_text()
+
+
+def test_package_directory_does_not_shadow_the_standard_library(tmp_path):
+    copy = tmp_path / "plugin" / "bin" / "cpp_telemetry"
+    shutil.copytree(str(PACKAGE_DIR), str(copy), ignore=shutil.ignore_patterns("__pycache__"))
+    (copy / "json.py").write_text("raise SystemExit(7)\n")
+    result = _run_package(["start"], tmp_path, package_dir=copy)
+    assert (result.returncode, result.stdout, result.stderr) == (0, "", "")

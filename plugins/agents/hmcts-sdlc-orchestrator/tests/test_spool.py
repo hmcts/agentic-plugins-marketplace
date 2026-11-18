@@ -351,3 +351,48 @@ def test_threaded_appends_keep_every_line(tmp_path, sp):
     bodies = sorted(e["payload"]["body"] for e in batch["events"])
     assert bodies == sorted("t{}-{}".format(n, i) for n in range(8) for i in range(50))
     assert batch["content_sha256"] == sha(batch["events"])
+
+
+def test_unhashable_signal_is_refused_not_raised(tmp_path, sp):
+    sp.append(SID, {"signal": ["logs"], "payload": {}})
+    sp.append(SID, {"signal": {"x": 1}, "payload": {}})
+    assert not (tmp_path / "spool" / SID).exists()
+
+
+def test_close_due_survives_a_non_os_error(tmp_path, sp, clock, monkeypatch):
+    sp.append(SID, env())
+    clock.now += 11
+
+    def broken(session_id, seq):
+        raise ValueError("invented failure")
+
+    monkeypatch.setattr(sp, "_close", broken)
+    assert sp.close_due() == [] and sp.close_all() == []
+    assert "ValueError" in (tmp_path / "forwarder.log").read_text()
+
+
+def test_total_bytes_skips_only_a_vanished_file(tmp_path, sp, monkeypatch):
+    sp.append(SID, env("abc"))
+    sp.append(SID_B, env("def"))
+    full = sp.total_bytes()
+    vanished = next((tmp_path / "spool" / SID).glob("*.open.jsonl"))
+    real_lstat = spool.os.lstat
+
+    def lstat(path, *args, **kwargs):
+        if str(path) == str(vanished):
+            raise FileNotFoundError(str(path))
+        return real_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(spool.os, "lstat", lstat)
+    assert sp.total_bytes() == full - vanished.stat().st_size
+
+
+def test_is_empty_counts_open_and_closed_batches(tmp_path, sp):
+    assert sp.is_empty()
+    sp.append(SID, env())
+    assert not sp.is_empty()
+    sp.close_all()
+    assert not sp.is_empty()
+    for path in sp.closed_batches_oldest_first():
+        sp.delete(path)
+    assert sp.is_empty()

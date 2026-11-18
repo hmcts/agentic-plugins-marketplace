@@ -8,7 +8,10 @@ sign-in application.
 
 ``override.json`` may set any ``Config`` field by name. Unknown keys are
 ignored; a value whose type does not match the field's default is ignored; a
-file that is not a JSON object is ignored with one log line.
+file that is not a JSON object is ignored with one log line. A value out of
+range is ignored with one log line: ``port`` and both ``port_scan`` ends must lie
+in 1024-65535 with the scan ordered low to high; every other number must be
+greater than zero. Reading the override never creates the data directory.
 """
 from __future__ import annotations
 
@@ -87,7 +90,7 @@ class Config:
 
 def load(data_dir: Optional[Path] = None) -> Config:
     """Build the configuration from the constants and ``<data>/override.json``."""
-    directory = paths.data_dir() if data_dir is None else Path(data_dir)
+    directory = paths.data_dir(create=False) if data_dir is None else Path(data_dir)
     values: Dict[str, Any] = {
         "ingest_url": INGEST_URL,
         "tenant_id": TENANT_ID,
@@ -102,7 +105,8 @@ def _read_override(directory: Path) -> Dict[str, Any]:
     path = directory / OVERRIDE_FILE
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError):
+        # No override, or no data directory at all (dormant): nothing to read, nothing to log.
         return {}
     except (OSError, ValueError):
         data = None
@@ -117,9 +121,26 @@ def _read_override(directory: Path) -> Dict[str, Any]:
         value = _typed(data[field.name], field.default)
         if value is None:
             logger.warning("override.json key ignored: %s has the wrong type", field.name)
+        elif not _in_range(field.name, value):
+            logger.warning("override.json key ignored: %s is out of range", field.name)
         else:
             accepted[field.name] = value
     return accepted
+
+
+PORT_MIN = 1024
+PORT_MAX = 65535
+
+
+def _in_range(name: str, value: Any) -> bool:
+    if name == "port":
+        return PORT_MIN <= value <= PORT_MAX
+    if name == "port_scan":
+        low, high = value
+        return PORT_MIN <= low <= high <= PORT_MAX
+    if isinstance(value, int):
+        return value > 0
+    return True
 
 
 def _typed(value: Any, default: Any) -> Any:

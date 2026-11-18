@@ -193,7 +193,7 @@ def test_id_values_skip_only_the_self_steps():
     hook = {"tool_use_id": "toolu_01devuserXYZ", "session_id": "sess-devuser-01", "request_id": ["devuser"]}
     assert scrub.scrub_payload("hook", hook, IDENT) == {
         "tool_use_id": "toolu_01devuserXYZ",
-        "session_id": "sess-[REDACTED:self]-01",  # hook stdin key, not on the allowlist (ruling 8)
+        "session_id": "sess-devuser-01",  # hook stdin key, on the allowlist since Task 5
         "request_id": ["[REDACTED:self]"],
     }
 
@@ -489,3 +489,58 @@ def test_first_user_email_finds_the_attribute():
     assert scrub.first_user_email(_load("otlp-logs-small.json")) == "devuser@example.invalid"
     assert scrub.first_user_email({"resourceLogs": []}) is None
     assert scrub.first_user_email(None) is None
+
+
+def test_hook_session_id_keeps_a_hex_username_out():
+    hex_ident = scrub.Identity(username="abcd", home="/home/abcd", hostname="laptop-01", email="")
+    hook = {"session_id": "1111abcd-0000-0000-0000-00000000abcd", "cwd": "/home/abcd/repo"}
+    assert scrub.scrub_payload("hook", hook, hex_ident) == {
+        "session_id": "1111abcd-0000-0000-0000-00000000abcd",
+        "cwd": "~/repo",
+    }
+    assert "session_id" in scrub.ID_KEYS
+
+
+def test_colliding_keys_get_suffixes_in_linear_time():
+    hook = {"user%d@example.invalid" % n: n for n in range(9000)}
+    started = time.perf_counter()
+    out = scrub.scrub_payload("hook", hook, IDENT)
+    elapsed = time.perf_counter() - started
+    assert list(out)[:3] == ["[REDACTED:email]", "[REDACTED:email]#2", "[REDACTED:email]#3"]
+    assert out["[REDACTED:email]#9000"] == 8999 and len(out) == 9000
+    assert elapsed < 2.0
+
+
+def test_suffix_counter_skips_a_literal_suffixed_key():
+    hook = {"devuser": 1, "[REDACTED:self]#2": 2, "laptop-01": 3, "x@example.invalid": 4}
+    out = scrub.scrub_payload("hook", hook, IDENT)
+    assert out == {"[REDACTED:self]": 1, "[REDACTED:self]#2": 2, "[REDACTED:self]#3": 3, "[REDACTED:email]": 4}
+
+
+def test_object_over_10000_keys_drops_the_hook_record():
+    hook = {"k%d" % n: n for n in range(10_001)}
+    try:
+        scrub.scrub_payload("hook", hook, IDENT)
+    except scrub.TooManyKeys:
+        pass
+    else:
+        raise AssertionError("an object over the key cap must not be scrubbed")
+    assert scrub.scrub_payload("hook", {"k%d" % n: n for n in range(10_000)}, IDENT)["k9999"] == 9999
+
+
+def test_otlp_record_over_10000_keys_is_dropped_and_counted():
+    huge = {"kvlistValue": {"values": [{"key": "k%d" % n, "value": {"intValue": "1"}} for n in range(10_001)]}}
+    payload = _logs_with([{"key": "body.map", "value": huge}])
+    good = {"attributes": [{"key": "event.name", "value": {"stringValue": "kept"}}]}
+    payload["resourceLogs"][0]["scopeLogs"][0]["logRecords"].append(good)
+    records = []
+    handler = logging.Handler()
+    handler.emit = records.append
+    logger = logging.getLogger("cpp_telemetry")
+    logger.addHandler(handler)
+    try:
+        out = scrub.scrub_payload("logs", payload, IDENT)
+    finally:
+        logger.removeHandler(handler)
+    assert out["resourceLogs"][0]["scopeLogs"][0]["logRecords"] == [good]
+    assert len(records) == 1 and "dropped 1 record" in records[0].getMessage()

@@ -161,3 +161,39 @@ def test_logger_writes_to_current_data_dir_only(tmp_path):
 def test_logger_creates_no_file_until_used(tmp_path):
     log.get_logger(tmp_path)
     assert not (tmp_path / "forwarder.log").exists()
+
+
+def test_out_of_range_override_values_are_ignored_with_one_line_each(tmp_path):
+    override = dict(CONFIGURED, port=80, batch_max_bytes=0, spool_max_bytes=-1, port_scan=[4337, 4329], dwell_days=0)
+    (tmp_path / "override.json").write_text(json.dumps(override))
+    cfg = config.load(tmp_path)
+    assert cfg.is_configured()
+    assert (cfg.port, cfg.batch_max_bytes, cfg.spool_max_bytes, cfg.port_scan, cfg.dwell_days) == (
+        4328, 1_000_000, 2_000_000_000, (4329, 4337), 30)
+    lines = (tmp_path / "forwarder.log").read_text().splitlines()
+    assert len(lines) == 5 and all("out of range" in line for line in lines)
+
+
+def test_port_and_scan_bounds(tmp_path):
+    for bad in ({"port": 1023}, {"port": 65536}, {"port_scan": [1000, 1005]}, {"port_scan": [65530, 65540]}):
+        (tmp_path / "override.json").write_text(json.dumps(bad))
+        cfg = config.load(tmp_path)
+        assert cfg.port == 4328 and cfg.port_scan == (4329, 4337), bad
+    (tmp_path / "override.json").write_text(json.dumps({"port": 1024, "port_scan": [65535, 65535]}))
+    cfg = config.load(tmp_path)
+    assert cfg.port == 1024 and cfg.port_scan == (65535, 65535)
+
+
+def test_load_without_argument_does_not_create_the_data_dir(tmp_path, monkeypatch):
+    target = tmp_path / "absent" / "data"
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(target))
+    assert not config.load().is_configured()
+    assert not (tmp_path / "absent").exists()
+
+
+def test_load_under_a_regular_file_is_dormant_and_silent(tmp_path, monkeypatch, capsys):
+    (tmp_path / "file").write_text("x")
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path / "file" / "data"))
+    assert config.load() == config.Config()
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err == ""

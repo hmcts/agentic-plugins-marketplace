@@ -70,7 +70,10 @@ def valid_session_id(session_id: Any) -> bool:
 
 
 def _is_envelope(item: Any) -> bool:
-    return isinstance(item, dict) and item.get("signal") in SIGNALS and isinstance(item.get("payload"), dict)
+    if not isinstance(item, dict):
+        return False
+    signal = item.get("signal")
+    return isinstance(signal, str) and signal in SIGNALS and isinstance(item.get("payload"), dict)
 
 
 def _reject_constant(name: str) -> Any:
@@ -341,7 +344,7 @@ class Spool:
     def _close_logged(self, session_id: str, seq: int, closed: List[Path]) -> None:
         try:
             done = self._close(session_id, seq)
-        except OSError as exc:
+        except Exception as exc:  # noqa: BLE001 - one bad batch must not stop the others closing
             log.get_logger(self._data_dir).error("closing a batch failed: %s", type(exc).__name__)
             return
         if done is not None:
@@ -498,10 +501,20 @@ class Spool:
         for _, directory in self._session_dirs():
             try:
                 with os.scandir(str(directory)) as entries:
-                    total += sum(e.stat(follow_symlinks=False).st_size for e in entries if e.is_file(follow_symlinks=False))
-            except FileNotFoundError:
+                    files = [e.path for e in entries if e.is_file(follow_symlinks=False)]
+            except (FileNotFoundError, NotADirectoryError):
                 continue
+            for path in files:
+                try:
+                    total += os.lstat(path).st_size
+                except OSError:  # removed between the listing and the stat: skip only this file
+                    continue
         return total
+
+    def is_empty(self) -> bool:
+        """True when the spool holds no open and no closed batch."""
+        with self._lock:
+            return not self._open_files() and not self.closed_batches_oldest_first()
 
     def is_full(self) -> bool:
         return self.total_bytes() > self._cfg.spool_max_bytes

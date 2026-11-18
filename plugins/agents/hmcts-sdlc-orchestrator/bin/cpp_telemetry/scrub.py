@@ -16,6 +16,11 @@ wherever it appears (resource, scope, record, data point, span, span event).
 A scalar string directly under an id key on ``ID_KEYS`` skips steps 1 and 2,
 so an id never gains a placeholder; steps 3 and 4 still apply to it. Dict keys
 and kvlist keys are scrubbed like values; OTLP attribute names are not.
+
+An object whose keys are scrubbed may hold at most ``MAX_KEYS`` keys. A larger
+one drops its record: an OTLP log record, data point or span is removed from
+the payload (one counted log line); for any other payload ``scrub_payload``
+raises ``TooManyKeys`` and the caller drops it.
 """
 from __future__ import annotations
 
@@ -45,6 +50,7 @@ DROP_KEYS = frozenset(
 ID_KEYS = frozenset(
     {
         "session.id",
+        "session_id",
         "prompt.id",
         "tool_use_id",
         "tool.use_id",
@@ -369,6 +375,13 @@ _KEY_VALUE_LISTS = frozenset({"attributes", "filteredAttributes"})
 _OTLP_TEXT_KEYS = frozenset({"stringValue", "message"})
 _SHORT_LITERAL = 4
 _MAX_DEPTH = 64
+# The records of an OTLP payload: one oversized record is dropped, not the payload.
+_OTLP_RECORD_LISTS = frozenset({"logRecords", "dataPoints", "spans"})
+MAX_KEYS = 10_000
+
+
+class TooManyKeys(ValueError):
+    """An object whose keys are scrubbed holds more than ``MAX_KEYS`` keys."""
 
 
 @dataclass(frozen=True)
@@ -477,23 +490,37 @@ def _is_dropped(key: Any) -> bool:
     return isinstance(key, str) and key in DROP_KEYS
 
 
-def _unique(key: str, taken) -> str:
-    """``key``, or ``key#2``, ``key#3``, ... when an earlier key already holds that name."""
-    candidate, n = key, 1
-    while candidate in taken:
+def _unique(key: str, taken, counters: dict) -> str:
+    """``key``, or ``key#2``, ``key#3``, ... when an earlier key already holds that name.
+
+    ``counters`` keeps the last suffix used per base key, so a run of collisions
+    costs O(1) each instead of rescanning every earlier suffix.
+    """
+    if key not in taken:
+        return key
+    n = counters.get(key, 1)
+    while True:
         n += 1
         candidate = "%s#%d" % (key, n)
-    return candidate
+        if candidate not in taken:
+            counters[key] = n
+            return candidate
+
+
+def _check_key_count(count: int) -> None:
+    if count > MAX_KEYS:
+        raise TooManyKeys("object holds more than %d keys" % MAX_KEYS)
 
 
 class _Walk:
-    """One payload walk: the identity and a count of containers cut at _MAX_DEPTH."""
+    """One payload walk: the identity, containers cut at _MAX_DEPTH, records dropped at MAX_KEYS."""
 
-    __slots__ = ("ident", "cut")
+    __slots__ = ("ident", "cut", "dropped")
 
     def __init__(self, ident: Identity):
         self.ident = ident
         self.cut = 0
+        self.dropped = 0
 
     def empty(self, container: Any) -> Any:
         self.cut += 1
@@ -504,8 +531,11 @@ def _scrub_key_values(items: list, walk: _Walk, depth: int, scrub_keys: bool) ->
     """An OTLP ``[{key, value}]`` list: drop DROP_KEYS entries; kvlist keys are scrubbed too."""
     if depth >= _MAX_DEPTH:
         return walk.empty(items)
+    if scrub_keys:
+        _check_key_count(len(items))
     kept = []
     taken = set()
+    counters: dict = {}
     for item in items:
         if not isinstance(item, dict):
             kept.append(_scrub_otlp(item, walk, depth + 1))
@@ -516,7 +546,7 @@ def _scrub_key_values(items: list, walk: _Walk, depth: int, scrub_keys: bool) ->
         out = {}
         for field, value in item.items():
             if field == "key" and scrub_keys and isinstance(value, str):
-                out[field] = _unique(scrub_text(value, walk.ident), taken)
+                out[field] = _unique(scrub_text(value, walk.ident), taken, counters)
                 taken.add(out[field])
             elif field == "value":
                 out[field] = _scrub_otlp(value, walk, depth + 1, id_scalar=_is_id_key(key))
@@ -544,6 +574,8 @@ def _scrub_otlp(node: Any, walk: _Walk, depth: int, id_scalar: bool = False) -> 
                     )
                     for inner_key, inner in value.items()
                 }
+            elif key in _OTLP_RECORD_LISTS and isinstance(value, list):
+                out[key] = _scrub_records(value, walk, depth + 1)
             elif key in _OTLP_TEXT_KEYS:
                 out[key] = _redact(value, walk.ident, not (id_scalar and key == "stringValue"))
             else:
@@ -554,15 +586,30 @@ def _scrub_otlp(node: Any, walk: _Walk, depth: int, id_scalar: bool = False) -> 
     return node
 
 
+def _scrub_records(records: list, walk: _Walk, depth: int) -> list:
+    """An OTLP record list: a record holding an object over MAX_KEYS keys is dropped and counted."""
+    if depth >= _MAX_DEPTH:
+        return walk.empty(records)
+    kept = []
+    for record in records:
+        try:
+            kept.append(_scrub_otlp(record, walk, depth + 1))
+        except TooManyKeys:
+            walk.dropped += 1
+    return kept
+
+
 def _scrub_any(node: Any, walk: _Walk, depth: int) -> Any:
     if isinstance(node, (dict, list)) and depth >= _MAX_DEPTH:
         return walk.empty(node)
     if isinstance(node, dict):
+        _check_key_count(len(node))
         out = {}
+        counters: dict = {}
         for key, value in node.items():
             if _is_dropped(key):
                 continue
-            new_key = _unique(scrub_text(key, walk.ident), out) if isinstance(key, str) else key
+            new_key = _unique(scrub_text(key, walk.ident), out, counters) if isinstance(key, str) else key
             if _is_id_key(key) and isinstance(value, str):
                 out[new_key] = _redact(value, walk.ident, False)
             else:
@@ -583,15 +630,22 @@ def scrub_payload(signal: str, payload: dict, ident: Identity) -> dict:
     value and dict key scrubbed and DROP_KEYS keys removed. Scrubbed keys that
     collide get ``#2``, ``#3``, ... appended to the later key. A container 64
     levels deep is replaced by an empty one of the same type and one warning is
-    logged (a count, no content).
+    logged (a count, no content). An OTLP record holding an object of more than
+    ``MAX_KEYS`` scrubbed keys is dropped (one counted warning); elsewhere such an
+    object raises ``TooManyKeys``.
     """
     walk = _Walk(ident)
-    if signal in _OTLP_SIGNALS:
-        out = _scrub_otlp(payload, walk, 0)
-    else:
-        out = _scrub_any(payload, walk, 0)
-    if walk.cut:
-        _LOG.warning("scrub: emptied %d container(s) nested %d or more levels deep", walk.cut, _MAX_DEPTH)
+    try:
+        if signal in _OTLP_SIGNALS:
+            out = _scrub_otlp(payload, walk, 0)
+        else:
+            out = _scrub_any(payload, walk, 0)
+    finally:
+        if walk.cut:
+            _LOG.warning("scrub: emptied %d container(s) nested %d or more levels deep", walk.cut, _MAX_DEPTH)
+        if walk.dropped:
+            _LOG.warning("scrub: dropped %d record(s) holding an object of more than %d keys",
+                         walk.dropped, MAX_KEYS)
     return out
 
 
