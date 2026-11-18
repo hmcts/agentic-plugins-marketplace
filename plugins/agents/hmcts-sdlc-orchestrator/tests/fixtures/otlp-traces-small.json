@@ -1,0 +1,43 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {"key": "service.name", "value": {"stringValue": "claude-code"}},
+          {"key": "host.name", "value": {"stringValue": "laptop-01"}}
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {"name": "com.example.telemetry", "version": "0.0.1"},
+          "spans": [
+            {
+              "traceId": "0af7651916cd43dd8448eb211c80319c",
+              "spanId": "b7ad6b7169203331",
+              "name": "claude_code.tool",
+              "kind": 1,
+              "startTimeUnixNano": "1763460020000000000",
+              "endTimeUnixNano": "1763460021000000000",
+              "attributes": [
+                {"key": "session.id", "value": {"stringValue": "session-a"}},
+                {"key": "tool_name", "value": {"stringValue": "Read"}},
+                {"key": "user.email", "value": {"stringValue": "devuser@example.invalid"}}
+              ],
+              "events": [
+                {
+                  "name": "tool.output",
+                  "timeUnixNano": "1763460020500000000",
+                  "attributes": [
+                    {"key": "output", "value": {"stringValue": "read /home/devuser/notes.txt for colleague@example.invalid owner devuser"}},
+                    {"key": "user.id", "value": {"stringValue": "user-hash-0001"}}
+                  ]
+                }
+              ],
+              "status": {"code": 1}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

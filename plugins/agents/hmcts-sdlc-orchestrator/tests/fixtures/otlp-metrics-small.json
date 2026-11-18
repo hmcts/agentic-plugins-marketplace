@@ -1,0 +1,75 @@
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          {"key": "service.name", "value": {"stringValue": "claude-code"}},
+          {"key": "host.name", "value": {"stringValue": "laptop-01"}}
+        ]
+      },
+      "scopeMetrics": [
+        {
+          "scope": {"name": "com.example.telemetry", "version": "0.0.1"},
+          "metrics": [
+            {
+              "name": "claude_code.token.usage",
+              "unit": "tokens",
+              "sum": {
+                "aggregationTemporality": 1,
+                "isMonotonic": true,
+                "dataPoints": [
+                  {
+                    "asInt": "100",
+                    "timeUnixNano": "1763460010000000000",
+                    "attributes": [
+                      {"key": "session.id", "value": {"stringValue": "session-a"}},
+                      {"key": "type", "value": {"stringValue": "input"}},
+                      {"key": "user.email", "value": {"stringValue": "devuser@example.invalid"}},
+                      {"key": "user.account_uuid", "value": {"stringValue": "00000000-0000-0000-0000-00000000aaaa"}},
+                      {"key": "organization.id", "value": {"stringValue": "org-0001"}}
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "claude_code.session.count",
+              "gauge": {
+                "dataPoints": [
+                  {
+                    "asDouble": 1.0,
+                    "timeUnixNano": "1763460010000000000",
+                    "attributes": [
+                      {"key": "session.id", "value": {"stringValue": "session-a"}},
+                      {"key": "user.id", "value": {"stringValue": "user-hash-0001"}}
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "claude_code.request.duration",
+              "unit": "ms",
+              "histogram": {
+                "aggregationTemporality": 1,
+                "dataPoints": [
+                  {
+                    "count": "2",
+                    "sum": 300.0,
+                    "bucketCounts": ["1", "1"],
+                    "explicitBounds": [100.0],
+                    "timeUnixNano": "1763460010000000000",
+                    "attributes": [
+                      {"key": "session.id", "value": {"stringValue": "session-a"}},
+                      {"key": "vcs.repository.url.full", "value": {"stringValue": "https://example.invalid/devuser/repo.git"}}
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
