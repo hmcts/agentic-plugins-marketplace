@@ -492,10 +492,10 @@ def test_first_user_email_finds_the_attribute():
 
 
 def test_hook_session_id_keeps_a_hex_username_out():
-    hex_ident = scrub.Identity(username="abcd", home="/home/abcd", hostname="laptop-01", email="")
-    hook = {"session_id": "1111abcd-0000-0000-0000-00000000abcd", "cwd": "/home/abcd/repo"}
+    hex_ident = scrub.Identity(username="aaaa", home="/home/aaaa", hostname="laptop-01", email="")
+    hook = {"session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "cwd": "/home/aaaa/repo"}
     assert scrub.scrub_payload("hook", hook, hex_ident) == {
-        "session_id": "1111abcd-0000-0000-0000-00000000abcd",
+        "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
         "cwd": "~/repo",
     }
     assert "session_id" in scrub.ID_KEYS
