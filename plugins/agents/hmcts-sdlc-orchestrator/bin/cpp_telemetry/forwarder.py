@@ -7,10 +7,10 @@ calls ``tick(now)`` every ``LOOP_INTERVAL_S``. There is no idle exit. The loop
 ends on SIGTERM, on ``POST /shutdown``, or once ``<data>/opt-out`` exists and the
 spool holds no batch; every open batch is then closed and the lock released.
 
-Seams for later tasks: ``_default_tick`` builds the upload step (Task 6 replaces
-the no-op with the uploader, which needs this run's ``Spool`` and
-``ForwarderState``), and ``_default_on_hook`` builds the hook handler (Task 7
-replaces it with the snapshot module).
+``_default_tick`` builds the upload step: one ``uploader.Uploader`` per run, with
+this run's ``Spool``, ``ForwarderState`` and a ``TokenCache`` on ``<data>``.
+``_default_on_hook`` builds the hook handler (Task 7 replaces it with the
+snapshot module).
 """
 from __future__ import annotations
 
@@ -22,26 +22,23 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 from . import lifecycle, log
+from .auth import TokenCache
 from .config import Config
 from .receiver import ForwarderState, IdentityProvider, Receiver, read_trusted_email
 from .spool import Spool
+from .uploader import REJECTED_UNTIL_FILE, Uploader
 
 __all__ = ["ForwarderState", "run", "LOOP_INTERVAL_S", "REJECTED_UNTIL_FILE"]
 
 LOOP_INTERVAL_S = 5.0
-REJECTED_UNTIL_FILE = "rejected-until"
 
 Tick = Callable[[float], None]
 OnHook = Callable[[dict], List[dict]]
 
 
 def _default_tick(cfg: Config, data_dir: Path, spool: Spool, state: ForwarderState) -> Tick:
-    """The upload step; a no-op until the uploader exists."""
-
-    def tick(now: float) -> None:
-        return None
-
-    return tick
+    """The upload step: one uploader for this run, called with ``now`` every ``LOOP_INTERVAL_S``."""
+    return Uploader(cfg, spool, TokenCache(data_dir), state, log.get_logger(data_dir), data_dir=data_dir).tick
 
 
 def _default_on_hook(version: str, state: ForwarderState) -> OnHook:

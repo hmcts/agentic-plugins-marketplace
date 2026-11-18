@@ -494,6 +494,32 @@ class Spool:
                 except OSError:
                     pass
 
+    def clear(self) -> int:
+        """Delete every batch, open file and manifest (the ingest refused this developer).
+
+        Returns the number of batches (open and closed) removed. Session directories
+        go too; the next append starts a fresh batch.
+        """
+        removed = 0
+        with self._lock:
+            for _, directory in self._session_dirs():
+                try:
+                    with os.scandir(str(directory)) as entries:
+                        files = [(e.name, Path(e.path)) for e in entries if not e.is_dir(follow_symlinks=False)]
+                except FileNotFoundError:
+                    continue
+                for name, path in files:
+                    if _OPEN_RE.fullmatch(name) or _CLOSED_RE.fullmatch(name):
+                        removed += 1
+                    _remove(path)
+                try:
+                    os.rmdir(str(directory))
+                except OSError:
+                    pass
+            self._open.clear()
+        log.get_logger(self._data_dir).warning("spool cleared: %d batch(es) removed", removed)
+        return removed
+
     # ------------------------------------------------------------------ size guard
 
     def total_bytes(self) -> int:

@@ -396,3 +396,19 @@ def test_is_empty_counts_open_and_closed_batches(tmp_path, sp):
     for path in sp.closed_batches_oldest_first():
         sp.delete(path)
     assert sp.is_empty()
+
+
+def test_clear_removes_every_batch_and_manifest_then_append_works(tmp_path, sp, clock):
+    sp.append(SID, env("closed"))
+    sp.close_all()
+    clock.now += 1
+    sp.append(SID, env("open"))
+    sp.append(SID_B, env("other session"))
+    (tmp_path / "spool" / SID / "stray.json.gz.tmp").write_bytes(b"x")
+    assert sp.clear() == 3
+    assert sp.is_empty()
+    assert list((tmp_path / "spool").iterdir()) == []
+    clock.now += 1
+    sp.append(SID, env("after"))
+    (path,) = sp.close_all()
+    assert [e["payload"]["body"] for e in read_gz(path)["events"]] == ["after"]
