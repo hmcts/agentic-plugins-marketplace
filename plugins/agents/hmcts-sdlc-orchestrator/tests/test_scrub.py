@@ -139,7 +139,7 @@ def test_patterns_redact_with_guard_labels():
 
 
 def test_long_runs_scrub_quickly():
-    # 200 KB of [a-z0-9-] took about 25 s through the vault pattern before its literal prefilter.
+    # Without its literal prefilter the vault pattern took 6.4 s on 100 KB of [a-z0-9-] (quadratic).
     text = "a" * 200_000 + " " + "b.c" * 50_000
     start = time.perf_counter()
     assert scrub.scrub_text(text, IDENT) == text
@@ -172,6 +172,8 @@ def test_scrub_never_raises_on_non_string_values():
                                     None,
                                     3,
                                     {"key": None},
+                                    {"key": ["user.email"]},
+                                    {"key": {"a": 1}},
                                     {"key": "user.email"},
                                     {"key": "k", "value": None},
                                     {"key": "n", "value": {"intValue": 3}},
@@ -205,13 +207,13 @@ def test_scrub_never_raises_on_non_string_values():
     record = out["resourceLogs"][3]["scopeLogs"][0]["logRecords"][1]
     assert record["body"] == {"stringValue": 7}
     assert [item.get("key") if isinstance(item, dict) else item for item in record["attributes"]] == [
-        None, 3, None, "k", "n", "d", "a", "kv"
+        None, 3, None, ["user.email"], {"a": 1}, "k", "n", "d", "a", "kv"
     ]
-    assert _attr(record["attributes"][2:], "n") == {"intValue": 3}
-    assert _attr(record["attributes"][2:], "a") == {
+    assert _attr(record["attributes"][5:], "n") == {"intValue": 3}
+    assert _attr(record["attributes"][5:], "a") == {
         "arrayValue": {"values": [{"stringValue": "[REDACTED:self]"}, {"boolValue": False}, None]}
     }
-    assert _attr(record["attributes"][2:], "kv") == {
+    assert _attr(record["attributes"][5:], "kv") == {
         "kvlistValue": {"values": [{"key": "p", "value": {"stringValue": "~/x"}}]}
     }
     for odd in (None, [], "text", 12, {"resourceLogs": None}, {"resourceSpans": "x"}):

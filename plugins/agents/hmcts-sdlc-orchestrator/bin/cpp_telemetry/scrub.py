@@ -44,11 +44,14 @@ _EMAIL_RE = re.compile(r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.
 # Ported from the two guard scripts, in script order. The parity test compares
 # this list with ``patterns_from_shell`` on both scripts: edit the scripts first.
 #
-# The scripts run these with ``grep -E``. The one dialect difference that
-# applies here: inside a bracket expression GNU and BSD grep read a backslash
-# literally, so the guard's ``[^/\s:]`` excludes "\" and "s", while Python reads
-# ``\s`` as whitespace (what the pattern evidently means). The Python reading
-# redacts strictly more, which is the safe side for a scrubber.
+# The scripts run these with ``grep -E``; the pattern text is kept identical and
+# Python reads it more widely in two ways, both on the safe side for a scrubber:
+# - inside a bracket expression GNU grep reads a backslash literally (checked
+#   with GNU grep 3.11; BSD grep not checked), so the guard's ``[^/\s:]``
+#   excludes "\" and "s", while Python reads ``\s`` as whitespace (what the
+#   pattern evidently means);
+# - grep matches line by line, while Python's ``\s`` and negated classes can
+#   cross a newline inside a multi-line value.
 #
 # Three patterns are plain literals; they are split into adjacent string
 # literals so this source file does not itself match the guard hooks that
@@ -199,8 +202,10 @@ def scrub_text(text: str, ident: Identity) -> str:
 def _scrub_key_values(items: list, ident: Identity) -> list:
     kept = []
     for item in items:
-        if isinstance(item, dict) and item.get("key") in DROP_KEYS:
-            continue
+        if isinstance(item, dict):
+            key = item.get("key")
+            if isinstance(key, str) and key in DROP_KEYS:
+                continue
         kept.append(_scrub_otlp(item, ident))
     return kept
 
