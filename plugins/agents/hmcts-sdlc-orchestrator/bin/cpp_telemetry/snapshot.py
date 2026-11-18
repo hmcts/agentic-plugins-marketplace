@@ -4,7 +4,7 @@
 the string values read from the developer's machine (the repo basename and the
 branch) pass through ``scrub.scrub_text``; ``session_id`` is passed through
 untouched; ``entrypoint``, ``source`` and ``reason`` are kept only when they are
-one short word. No prompt, reply, tool input, transcript text or path ever goes
+one short word, and are scrubbed too. No prompt, reply, tool input, transcript text or path ever goes
 into an envelope.
 
 - ``SessionStart`` -> ``session_start`` {session_id, ts, repo, branch, plugin_version,
@@ -63,8 +63,12 @@ def _git(cwd: str, *args: str) -> str:
 
 
 def repo_basename(url: str) -> str:
-    """``repo`` from ``https://host/org/repo.git``, ``git@host:org/repo.git`` or ``/srv/repo/``."""
-    tail = re.split(r"[/:\\]", url.strip().rstrip("/\\"))[-1]
+    """``repo`` from ``https://host/org/repo.git``, ``git@host:org/repo.git`` or ``/srv/repo/``.
+
+    A ``?query`` or ``#fragment`` is dropped first.
+    """
+    path = url.strip().split("#", 1)[0].split("?", 1)[0]
+    tail = re.split(r"[/:\\]", path.rstrip("/\\"))[-1]
     return tail[:-4] if tail.endswith(".git") else tail
 
 
@@ -111,22 +115,26 @@ def from_hook(hook_json: dict, plugin_version: str, state: Any, *, ident: Option
     session_id = hook_json.get("session_id")
     session_id = session_id if isinstance(session_id, str) else None
     base = {"session_id": session_id, "ts": iso_ms(clock())}
+    if event in ("SessionStart", "SessionEnd") and ident is None:
+        ident = scrub.identity_from_environment(None)
+
+    def word(key: str, default: Optional[str]) -> Optional[str]:
+        return scrub.scrub_text(_word(hook_json.get(key, default), default), ident)  # None passes through
+
     if event == "SessionStart":
-        ident = ident if ident is not None else scrub.identity_from_environment(None)
         repo, branch = _repo_and_branch(hook_json.get("cwd"))
         engine = engine_version(hook_json.get("transcript_path"))
         if engine is not None:
             state.engine_version = engine
         payload = dict(name="session_start", **base, repo=scrub.scrub_text(repo, ident),
                        branch=scrub.scrub_text(branch, ident), plugin_version=plugin_version,
-                       engine_version=engine, entrypoint=_word(hook_json.get("entrypoint", "cli"), "cli"),
-                       source=_word(hook_json.get("source"), None))
+                       engine_version=engine, entrypoint=word("entrypoint", "cli"), source=word("source", None))
     elif event == "Stop":
         payload = dict(name="turn", **base, seq=_next_seq(state, session_id))
     elif event == "SubagentStop":
         payload = dict(name="subagent_stop", **base)
     elif event == "SessionEnd":
-        payload = dict(name="session_end", **base, reason=_word(hook_json.get("reason"), None))
+        payload = dict(name="session_end", **base, reason=word("reason", None))
     else:
         return []
     return [{"signal": "hook", "payload": payload}]

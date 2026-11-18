@@ -146,7 +146,12 @@ def test_ensure_running_prints_the_proof_checked_port(fake_forwarder, monkeypatc
     assert capsys.readouterr().out == "%d\n" % fake_forwarder.port
 
 
+def _sign_in(data):
+    auth.TokenCache(data).save(make_token("acc"), make_token("ref"), time.time() + 3600)
+
+
 def test_optout_restores_and_posts_opt_out_event(fake_forwarder, capsys):
+    _sign_in(fake_forwarder.data)
     key = settings.COMPETING_KEYS[0]
     fake_forwarder.settings.write_text(json.dumps({"env": {key: COLLECTOR}}))
     assert cli.main(["start"]) == 0
@@ -162,6 +167,68 @@ def test_optout_restores_and_posts_opt_out_event(fake_forwarder, capsys):
     assert "opt_out" in json.dumps(json.loads(__import__("gzip").decompress(batch.read_bytes())))
     out = capsys.readouterr().out
     assert out.count("\n") == 1 and COLLECTOR not in out
+
+
+def _no_spawn(monkeypatch):
+    def refuse(*args, **kwargs):
+        raise AssertionError("a signed-out opt-out must not start a forwarder")
+
+    monkeypatch.setattr(lifecycle, "ensure_running", refuse)
+
+
+def test_signed_out_optout_without_a_forwarder_deletes_the_spool_and_spawns_nothing(configured, monkeypatch,
+                                                                                     capsys):
+    _no_spawn(monkeypatch)
+    sp = spool.Spool(configured.data, config.load(configured.data))
+    sp.append("sess-1", {"signal": "event", "payload": {"name": "x"}})
+    sp.close_all()
+    sp.append("sess-2", {"signal": "event", "payload": {"name": "y"}})
+    assert cli.main(["optout"]) == 0
+    assert (configured.data / lifecycle.OPT_OUT_FILE).exists()
+    assert sp.is_empty() and list(sp.root.glob("*/*.jsonl")) == [] and port_is_free(configured.base)
+    assert capsys.readouterr().out.count("\n") == 1
+
+
+def test_signed_out_optout_posts_to_a_running_forwarder_without_spawning(fake_forwarder, monkeypatch):
+    _no_spawn(monkeypatch)
+    assert cli.main(["optout"]) == 0
+    (event,) = fake_forwarder.events
+    assert event["payload"]["name"] == "opt_out"
+    assert (fake_forwarder.data / lifecycle.OPT_OUT_FILE).exists()
+
+
+def test_optout_when_the_data_dir_cannot_be_made_says_one_line(tmp_path, monkeypatch, capsys):
+    (tmp_path / "file").write_text("x")
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path / "file" / "data"))
+    assert cli.main(["optout"]) == 1
+    assert capsys.readouterr().out.count("\n") == 1
+
+
+def test_signed_in_uninstall_waits_for_the_forwarder_to_drain(fake_forwarder, monkeypatch):
+    _sign_in(fake_forwarder.data)
+    held = iter([True, True, False])
+    monkeypatch.setattr(lifecycle, "lock_held", lambda data: next(held, False))
+    stopped = []
+    monkeypatch.setattr(lifecycle, "stop", lambda data: stopped.append(data) or True)
+    monkeypatch.setattr(cli, "DRAIN_POLL_S", 0.01)
+    assert cli.main(["uninstall"]) == 0
+    assert stopped == [] and fake_forwarder.events[0]["payload"]["name"] == "opt_out"
+
+
+def test_signed_in_uninstall_stops_the_forwarder_after_the_drain_wait(fake_forwarder, monkeypatch):
+    _sign_in(fake_forwarder.data)
+    monkeypatch.setattr(lifecycle, "lock_held", lambda data: True)
+    stopped = []
+    monkeypatch.setattr(lifecycle, "stop", lambda data: stopped.append(data) or True)
+    monkeypatch.setattr(cli, "DRAIN_WAIT_S", 0.1)
+    monkeypatch.setattr(cli, "DRAIN_POLL_S", 0.01)
+    started = time.monotonic()
+    assert cli.main(["uninstall"]) == 0
+    assert stopped == [fake_forwarder.data] and time.monotonic() - started < 5
+
+
+def test_drain_wait_is_30_s():
+    assert cli.DRAIN_WAIT_S == 30.0
 
 
 def test_on_removes_opt_out_and_starts_without_reading_stdin(fake_forwarder, monkeypatch, capsys):

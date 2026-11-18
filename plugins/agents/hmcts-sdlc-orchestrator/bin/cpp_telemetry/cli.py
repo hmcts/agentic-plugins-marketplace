@@ -1,4 +1,4 @@
-"""Command line: python3 -B "$CLAUDE_PLUGIN_ROOT/bin/cpp_telemetry" <command>.
+"""Command line: python3 -I -B "$CLAUDE_PLUGIN_ROOT/bin/cpp_telemetry" <command>.
 
 - ``start`` (SessionStart hook): dormant check; silent when ``<data>/opt-out`` exists;
   ``lifecycle.ensure_running`` first, then ``settings.apply`` with the port it
@@ -9,10 +9,13 @@
 - ``forwarder``: run the forwarder in this process (the detached child).
 - ``status``: forwarder, spool, last ack, sign-in, roster, opt-out and moved-aside keys.
 - ``login``: device-code sign-in (exit 1 when not configured or not signed in).
-- ``optout``: restore the settings, post an ``opt_out`` event and flush; the
-  forwarder stops once the spool is empty and ``<data>/opt-out`` exists.
+- ``optout``: restore the settings, write ``<data>/opt-out``, post an ``opt_out``
+  event and flush. Signed in, the forwarder uploads the rest and exits once the
+  spool is empty; signed out, no forwarder is started and the spool is deleted
+  (by the running forwarder, or here when none runs).
 - ``on``: remove ``<data>/opt-out``, then the ``start`` steps (stdin is not read).
-- ``uninstall``: ``optout``, stop the forwarder, remove the git shims directory.
+- ``uninstall``: ``optout``; signed in, wait up to ``DRAIN_WAIT_S`` for the forwarder
+  to drain and exit, else (and when signed out) stop it; remove the git shims directory.
 - ``ensure-running`` (the nudge script): print the proof-checked forwarder port.
 
 Every control POST goes to the port ``ensure_running`` returned in the same
@@ -279,32 +282,75 @@ def _login(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------- opt-out
 
 
-def _opt_out(cfg: config.Config) -> int:
-    """Restore the settings, write ``<data>/opt-out``, post ``opt_out`` and flush; the restored-key count."""
-    from . import lifecycle, settings
+DRAIN_WAIT_S = 30.0
+DRAIN_POLL_S = 0.25
+
+
+def _running_port(data: Path) -> Optional[int]:
+    """The recorded port when our forwarder answers the healthz proof there; never starts one."""
+    from . import lifecycle
+
+    port = lifecycle.read_port(data)
+    return port if port is not None and lifecycle.healthz(port, data) is not None else None
+
+
+def _delete_spool_when_idle(cfg: config.Config, data: Path) -> None:
+    """Signed out, nothing can upload: with no forwarder holding the lock, delete the spool here (R-04)."""
+    from . import lifecycle
+    from .spool import SPOOL_DIR, Spool
+
+    if (data / SPOOL_DIR).exists() and not lifecycle.lock_held(data):
+        Spool(data, cfg).clear()
+
+
+def _opt_out(cfg: config.Config) -> Optional[Tuple[int, bool]]:
+    """Restore the settings, write ``<data>/opt-out`` and tell the forwarder.
+
+    Signed in: ``ensure_running`` first (before the opt-out file, which with an empty
+    spool would stop it starting), then ``opt_out`` and ``/flush``; the forwarder
+    uploads what is left and exits. Signed out: no forwarder is started; a running one
+    (healthz proof on the recorded port) gets the event and deletes its spool itself;
+    with none running the spool is deleted here. Returns (restored key count, signed
+    in), or None when the data directory cannot be made.
+    """
+    from . import auth, lifecycle, settings
     from .spool import iso_ms
 
-    data = paths.data_dir()
+    try:
+        data = paths.data_dir()
+    except OSError:
+        return None
     logger = log.get_logger(data)
     try:
         restored = settings.restore(data)
     except (OSError, settings.SettingsError) as exc:
         logger.warning("optout: settings not restored (%s)", type(exc).__name__)
         restored = []
-    # Before the opt-out file: with it present and an empty spool no forwarder would start.
-    port = _ensure(cfg, data) if cfg.is_configured() else None
+    configured = cfg.is_configured()
+    signed_in = configured and auth.TokenCache(data).signed_in()
+    if signed_in:
+        port = _ensure(cfg, data)
+    else:
+        port = _running_port(data) if configured else None
     (data / lifecycle.OPT_OUT_FILE).write_text("", encoding="utf-8")
     if port is not None:
         event = {"name": "opt_out", "plugin_version": PLUGIN_VERSION, "ts": iso_ms(time.time())}
         lifecycle.post_json(port, "/event", data, {"signal": "event", "payload": event})
         lifecycle.post_json(port, "/flush", data, {})
-    return len(restored)
+    elif not signed_in:
+        _delete_spool_when_idle(cfg, data)
+    return len(restored), signed_in
 
 
 def _optout(args: argparse.Namespace) -> int:
-    restored = _opt_out(config.load())
-    _say("opted out; {} setting(s) restored; data already captured is uploaded, then the forwarder stops; "
-         "/telemetry on resumes".format(restored))
+    outcome = _opt_out(config.load())
+    if outcome is None:
+        _say("opt-out not recorded: the data directory cannot be created")
+        return 1
+    restored, signed_in = outcome
+    after = "data already captured is uploaded, then the forwarder stops" if signed_in \
+        else "data not yet uploaded is deleted"
+    _say("opted out; {} setting(s) restored; {}; /telemetry on resumes".format(restored, after))
     return 0
 
 
@@ -330,13 +376,34 @@ def _on(args: argparse.Namespace) -> int:
     return 0
 
 
+def _wait_for_release(data: Path) -> bool:
+    """True once no forwarder holds the lock, polling up to ``DRAIN_WAIT_S``."""
+    from . import lifecycle
+
+    deadline = time.monotonic() + DRAIN_WAIT_S
+    while lifecycle.lock_held(data):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(DRAIN_POLL_S)
+    return True
+
+
 def _uninstall(args: argparse.Namespace) -> int:
     from . import lifecycle
 
-    restored = _opt_out(config.load())
+    cfg = config.load()
+    outcome = _opt_out(cfg)
+    if outcome is None:
+        _say("uninstall stopped: the data directory cannot be created")
+        return 1
+    restored, signed_in = outcome
     data = paths.data_dir()
     try:
-        lifecycle.stop(data)
+        # Signed in, the forwarder uploads the rest (the opt_out event too) and exits by itself.
+        if not (signed_in and _wait_for_release(data)):
+            lifecycle.stop(data)
+        if not signed_in:
+            _delete_spool_when_idle(cfg, data)
     except Exception as exc:  # noqa: BLE001
         log.get_logger(data).warning("uninstall: stop failed (%s)", type(exc).__name__)
     shutil.rmtree(str(_harness_home() / SHIMS_DIR), ignore_errors=True)

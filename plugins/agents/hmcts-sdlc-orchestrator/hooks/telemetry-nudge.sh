@@ -1,20 +1,28 @@
 #!/usr/bin/env bash
 # Stop / SubagentStop / SessionEnd hook: hand the hook JSON to the local telemetry forwarder.
-# Prints nothing and always exits 0 within 3 s: a watchdog ends the work after 2.5 s.
+# Prints nothing and always exits 0 inside the hook timeout: a watchdog ends the work after
+# 2 s (Stop and SubagentStop, 3 s timeout) or 4 s (SessionEnd, 5 s timeout).
 # The control token goes only to the port that `ensure-running` proof-checked in this run,
 # and never on a command line (curl reads the header from a file descriptor).
+# Every Python call runs isolated (-I -B) from the data directory, never the session's cwd.
 
 set -u
 
 [ "${CPP_HARNESS_TELEMETRY:-on}" = "off" ] && exit 0
+root="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 data="${CLAUDE_PLUGIN_DATA:-${HOME:-}/.claude/plugins/data/hmcts-sdlc-orchestrator}"
 [ -e "$data/opt-out" ] && exit 0
-root="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 input=""
 IFS= read -r -d '' input || true
 [ -n "$input" ] || exit 0
 exec >/dev/null 2>&1
+cd "$data" || cd / || exit 0
+
+case "$input" in
+  *'"hook_event_name":"SessionEnd"'* | *'"hook_event_name": "SessionEnd"'*) limit=4 ;;
+  *) limit=2 ;;
+esac
 
 nudge() {
   local py port token
@@ -22,7 +30,7 @@ nudge() {
   command -v "$py" >/dev/null 2>&1 || py=python
   command -v "$py" >/dev/null 2>&1 || return 0
   # Finds or starts the forwarder and prints its port once the healthz proof passes.
-  port="$("$py" -B "$root/bin/cpp_telemetry" ensure-running </dev/null)" || return 0
+  port="$("$py" -I -B "$root/bin/cpp_telemetry" ensure-running </dev/null)" || return 0
   case "$port" in '' | *[!0-9]*) return 0 ;; esac
   token=""
   [ -r "$data/token" ] && IFS= read -r token <"$data/token"
@@ -33,7 +41,7 @@ nudge() {
       --data-binary @- "http://127.0.0.1:$port/hook"; then
     return 0
   fi
-  "$py" -B - "$port" "$data/token" <(printf '%s' "$input") <<'PY'
+  "$py" -I -B - "$port" "$data/token" <(printf '%s' "$input") <<'PY'
 import sys
 import urllib.request
 
@@ -55,7 +63,7 @@ PY
 
 nudge &
 worker=$!
-(sleep 2.5 && kill "$worker") &
+(sleep "$limit" && kill "$worker") &
 watchdog=$!
 wait "$worker"
 kill "$watchdog"

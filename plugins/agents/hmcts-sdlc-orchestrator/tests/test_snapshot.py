@@ -101,9 +101,21 @@ def test_repo_and_branch_values_are_scrubbed(tmp_path):
 
 
 @pytest.mark.parametrize("url", ["https://example.invalid/org/repo.git", "git@example.invalid:org/repo.git",
-                                 "https://example.invalid/org/repo/", "/srv/git/repo.git", "repo"])
+                                 "https://example.invalid/org/repo/", "/srv/git/repo.git", "repo",
+                                 "https://example.invalid/org/repo.git?ref=main#readme",
+                                 "https://example.invalid/org/repo#frag", "https://example.invalid/org/repo/?x=1"])
 def test_repo_basename_forms(url):
     assert snapshot.repo_basename(url) == "repo"
+
+
+def test_entrypoint_source_and_reason_are_scrubbed(tmp_path):
+    word = IDENT.username  # a one-word value that is the developer's own name
+    (start,) = snapshot.from_hook(_start_hook(tmp_path, tmp_path / "absent.jsonl", entrypoint=word, source=word),
+                                  "1.1.0", ForwarderState(), ident=IDENT)
+    assert start["payload"]["entrypoint"] == start["payload"]["source"] == scrub.SELF_PLACEHOLDER
+    (end,) = snapshot.from_hook({"hook_event_name": "SessionEnd", "session_id": "s", "reason": word}, "1.1.0",
+                                ForwarderState(), ident=IDENT)
+    assert end["payload"]["reason"] == scrub.SELF_PLACEHOLDER
 
 
 @pytest.mark.parametrize("first_line", ['{"version": "1.0 beta"}', '{"version": 3}', "not json", "[1]", ""])

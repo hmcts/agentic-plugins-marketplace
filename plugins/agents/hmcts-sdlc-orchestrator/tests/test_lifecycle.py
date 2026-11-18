@@ -214,8 +214,88 @@ def test_forwarder_takes_the_lock_before_reaping_and_exits_on_opt_out(tmp_path, 
     assert "opt-out" in (tmp_path / "forwarder.log").read_text()
 
 
+def _signed_in(data_dir):
+    from cpp_telemetry import auth
+    from tests.fakes import make_token
+    auth.TokenCache(data_dir).save(make_token("acc"), make_token("ref"), time.time() + 3600)
+
+
+def _run_in_thread(base, data_dir, result):
+    thread = threading.Thread(
+        target=lambda: result.append(forwarder.run(_cfg(base), data_dir, PLUGIN_ROOT, PLUGIN_VERSION,
+                                                   tick=lambda now: None)), daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 5
+    while lifecycle.healthz(base, data_dir) is None and time.monotonic() < deadline:
+        time.sleep(0.02)
+    return thread
+
+
+def _spool_files(data_dir):
+    return sorted(p.name for p in (Path(data_dir) / "spool").glob("*/*") if p.is_file())
+
+
+def test_signed_out_opt_out_deletes_the_spool_and_exits(tmp_path, monkeypatch):
+    monkeypatch.setattr(forwarder, "LOOP_INTERVAL_S", 0.02)
+    base = free_port_run()
+    result = []
+    thread = _run_in_thread(base, tmp_path, result)
+    try:
+        assert post_json(base, "/v1/logs", json.loads((FIXTURES / "otlp-logs-small.json").read_text()))[0] == 200
+        assert post_json(base, "/flush", {}, token=lifecycle.read_token(tmp_path))[0] == 200
+        assert post_json(base, "/v1/logs", json.loads((FIXTURES / "otlp-logs-small.json").read_text()))[0] == 200
+        assert any(name.endswith(".json.gz") for name in _spool_files(tmp_path))
+        (tmp_path / "opt-out").write_text("")
+        thread.join(5)
+        assert result == [0] and lifecycle.healthz(base, tmp_path) is None
+        assert [n for n in _spool_files(tmp_path) if n.endswith((".json.gz", ".jsonl"))] == []
+        assert not lifecycle.lock_held(tmp_path)
+    finally:
+        if thread.is_alive():
+            post_json(base, "/shutdown", {}, token=lifecycle.read_token(tmp_path))
+            thread.join(5)
+
+
+def test_signed_out_opt_out_also_deletes_the_spool_on_shutdown(tmp_path, monkeypatch):
+    monkeypatch.setattr(forwarder, "LOOP_INTERVAL_S", 5.0)  # the loop never reaches its opt-out check
+    base = free_port_run()
+    result = []
+    thread = _run_in_thread(base, tmp_path, result)
+    try:
+        assert post_json(base, "/v1/logs", json.loads((FIXTURES / "otlp-logs-small.json").read_text()))[0] == 200
+        (tmp_path / "opt-out").write_text("")
+        assert lifecycle.stop(tmp_path) is True
+        thread.join(5)
+        assert [n for n in _spool_files(tmp_path) if n.endswith((".json.gz", ".jsonl"))] == []
+    finally:
+        if thread.is_alive():
+            post_json(base, "/shutdown", {}, token=lifecycle.read_token(tmp_path))
+            thread.join(5)
+
+
+def test_signed_in_opt_out_keeps_the_spool_for_upload_on_shutdown(tmp_path, monkeypatch):
+    monkeypatch.setattr(forwarder, "LOOP_INTERVAL_S", 0.02)
+    _signed_in(tmp_path)
+    base = free_port_run()
+    result = []
+    thread = _run_in_thread(base, tmp_path, result)
+    try:
+        assert post_json(base, "/v1/logs", json.loads((FIXTURES / "otlp-logs-small.json").read_text()))[0] == 200
+        (tmp_path / "opt-out").write_text("")
+        time.sleep(0.3)
+        assert thread.is_alive()  # waits for the upload to empty the spool
+        assert lifecycle.stop(tmp_path) is True
+        thread.join(5)
+        assert any(name.endswith(".json.gz") for name in _spool_files(tmp_path))
+    finally:
+        if thread.is_alive():
+            post_json(base, "/shutdown", {}, token=lifecycle.read_token(tmp_path))
+            thread.join(5)
+
+
 def test_forwarder_loop_ticks_and_waits_for_an_empty_spool_before_opt_out_exit(tmp_path, monkeypatch):
     monkeypatch.setattr(forwarder, "LOOP_INTERVAL_S", 0.02)
+    _signed_in(tmp_path)  # signed out, an opt-out deletes the spool at once instead
     base = free_port_run()
     ticks = []
     result = []

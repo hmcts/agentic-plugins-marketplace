@@ -6,6 +6,9 @@ when it is one of the configured candidates, else ``lifecycle.choose_port``) and
 calls ``tick(now)`` every ``LOOP_INTERVAL_S``. There is no idle exit. The loop
 ends on SIGTERM, on ``POST /shutdown``, or once ``<data>/opt-out`` exists and the
 spool holds no batch; every open batch is then closed and the lock released.
+After an opt-out while signed out nothing can ever upload, so nothing may stay on
+the laptop (R-04): the loop ends at once and the whole spool is deleted instead,
+on whichever path the forwarder stops.
 
 ``_default_tick`` builds the upload step: one ``uploader.Uploader`` per run, with
 this run's ``Spool``, ``ForwarderState`` and a ``TokenCache`` on ``<data>``.
@@ -112,6 +115,7 @@ def _serve(cfg: Config, data_dir: Path, version: str, tick: Optional[Tick], on_h
     spool.reap_orphans()
     state = ForwarderState(rejected_until=_read_rejected_until(data_dir))
     token = lifecycle.ensure_token(data_dir)
+    cache = TokenCache(data_dir)  # signed in or not decides drain or delete after an opt-out
     identity = IdentityProvider(trusted_email=read_trusted_email())
     stop = threading.Event()
     reasons: List[str] = []
@@ -140,7 +144,7 @@ def _serve(cfg: Config, data_dir: Path, version: str, tick: Optional[Tick], on_h
                 step(clock())
             except Exception as exc:  # noqa: BLE001 - the loop outlives any one failed step
                 logger.error("upload step failed: %s", type(exc).__name__)
-            if (data_dir / lifecycle.OPT_OUT_FILE).exists() and spool.is_empty():
+            if (data_dir / lifecycle.OPT_OUT_FILE).exists() and (spool.is_empty() or not cache.signed_in()):
                 reasons.append("opt-out")
                 break
     finally:
@@ -148,7 +152,12 @@ def _serve(cfg: Config, data_dir: Path, version: str, tick: Optional[Tick], on_h
         receiver.close()
         server.join(5)
         try:
-            closed = len(spool.close_all())
+            if (data_dir / lifecycle.OPT_OUT_FILE).exists() and not cache.signed_in():
+                deleted = spool.clear()
+                logger.info("opted out while signed out: %d batch(es) deleted", deleted)
+                closed = 0
+            else:
+                closed = len(spool.close_all())
         except Exception as exc:  # noqa: BLE001
             logger.error("drain failed: %s", type(exc).__name__)
             closed = 0
