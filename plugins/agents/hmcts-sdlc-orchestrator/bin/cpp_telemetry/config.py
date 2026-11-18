@@ -11,7 +11,10 @@ ignored; a value whose type does not match the field's default is ignored; a
 file that is not a JSON object is ignored with one log line. A value out of
 range is ignored with one log line: ``port`` and both ``port_scan`` ends must lie
 in 1024-65535 with the scan ordered low to high; every other number must be
-greater than zero. Reading the override never creates the data directory.
+greater than zero. ``ingest_url`` and ``auth_base_url`` must be ``https://`` unless
+the host is 127.0.0.1 or localhost: another value is ignored with one log line and
+the plugin stays dormant (``is_configured`` also refuses such a URL). Reading the
+override never creates the data directory.
 """
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+from urllib.parse import urlsplit
 
 from . import log, paths
 
@@ -85,7 +89,26 @@ class Config:
             self.auth_base_url = "https://login.microsoftonline.com/{}".format(self.tenant_id)
 
     def is_configured(self) -> bool:
-        return all((self.ingest_url, self.tenant_id, self.client_id, self.api_app_id))
+        return all((self.ingest_url, self.tenant_id, self.client_id, self.api_app_id)) \
+            and secure_url(self.ingest_url) and secure_url(self.auth_base_url)
+
+
+URL_KEYS = ("ingest_url", "auth_base_url")
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost")
+
+
+def secure_url(url: str) -> bool:
+    """True for an ``https://`` URL with a host, or ``http(s)://`` to 127.0.0.1 / localhost."""
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+    except ValueError:
+        return False
+    if not host:
+        return False
+    if parts.scheme == "https":
+        return True
+    return parts.scheme == "http" and host in LOOPBACK_HOSTS
 
 
 def load(data_dir: Optional[Path] = None) -> Config:
@@ -102,6 +125,7 @@ def load(data_dir: Optional[Path] = None) -> Config:
 
 
 def _read_override(directory: Path) -> Dict[str, Any]:
+    """The accepted override values; an endpoint refused for its scheme blanks ``ingest_url`` (dormant)."""
     path = directory / OVERRIDE_FILE
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -115,6 +139,7 @@ def _read_override(directory: Path) -> Dict[str, Any]:
         logger.warning("override.json ignored: not a readable JSON object")
         return {}
     accepted: Dict[str, Any] = {}
+    insecure = False
     for field in dataclasses.fields(Config):
         if field.name not in data:
             continue
@@ -123,8 +148,14 @@ def _read_override(directory: Path) -> Dict[str, Any]:
             logger.warning("override.json key ignored: %s has the wrong type", field.name)
         elif not _in_range(field.name, value):
             logger.warning("override.json key ignored: %s is out of range", field.name)
+        elif field.name in URL_KEYS and value and not secure_url(value):
+            logger.warning("override.json key ignored: %s must be https unless the host is loopback", field.name)
+            insecure = True
         else:
             accepted[field.name] = value
+    if insecure:
+        # Never fall back to a derived endpoint: a refused endpoint keeps the plugin dormant.
+        accepted["ingest_url"] = ""
     return accepted
 
 

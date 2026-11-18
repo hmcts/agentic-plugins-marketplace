@@ -8,7 +8,9 @@ secret). The scope asked for is ``<cfg.scope> offline_access openid``.
 ``refresh_token`` and ``expires_at`` (epoch seconds). ``TokenCache`` reads the
 file on every access: ``login`` writes it from another process while the
 forwarder runs. ``get_access_token`` refreshes when the access token has 300 s
-or less left.
+or less left. Writes are fsynced before ``os.replace``; a ``TokenCache`` removes
+stale ``*.tmp`` leftovers in ``<data>/auth/`` when built. A 429 while polling the
+token endpoint lengthens the interval like ``slow_down``.
 
 No request follows a redirect, so a bearer token never reaches another host.
 Log lines carry error words, status codes and exception class names only:
@@ -37,6 +39,7 @@ NOTICE_FILE = "notice-login-at"
 NOTICE_EVERY_S = 86_400
 REFRESH_MARGIN_S = 300
 SLOW_DOWN_S = 5
+STALE_TMP_S = 600
 AUTH_TIMEOUT_S = 30.0
 MAX_REPLY_BYTES = 1_048_576
 DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
@@ -129,6 +132,8 @@ def write_private(path: Path, text: str) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())  # the new bytes are on disk before the name points at them
         os.chmod(str(tmp), 0o600)
         os.replace(str(tmp), str(path))
     except BaseException:
@@ -139,12 +144,53 @@ def write_private(path: Path, text: str) -> None:
         raise
 
 
+_TMP_RE = re.compile(r".+\.([0-9]{1,10})\.[0-9]+\.tmp")
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:  # PermissionError: alive, owned by someone else
+        return True
+    return True
+
+
+def _remove_stale_tmp(directory: Path) -> None:
+    """Remove ``*.tmp`` leftovers of ``write_private`` in ``directory`` (never created here).
+
+    A temp file is stale when the pid in its name is dead or unreadable, or when it is
+    older than ``STALE_TMP_S``; a fresh one of a live writer is kept (it may be mid-write).
+    """
+    try:
+        with os.scandir(str(directory)) as entries:
+            names = [e.name for e in entries if e.name.endswith(".tmp") and e.is_file(follow_symlinks=False)]
+    except OSError:
+        return
+    now = time.time()
+    for name in names:
+        path = os.path.join(str(directory), name)
+        match = _TMP_RE.fullmatch(name)
+        try:
+            fresh = now - os.lstat(path).st_mtime < STALE_TMP_S
+        except OSError:
+            continue
+        if match and fresh and _pid_alive(int(match.group(1))):
+            continue
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 class TokenCache:
     """``<data>/auth/token.json``, read from disk on every access."""
 
     def __init__(self, data_dir: Path) -> None:
         self._data_dir = Path(data_dir)
         self._lock = threading.RLock()
+        _remove_stale_tmp(self._data_dir / AUTH_DIR)
 
     @property
     def data_dir(self) -> Path:
@@ -278,7 +324,7 @@ def poll_device_flow(cfg: Config, flow: DeviceFlow, cache: Optional[TokenCache] 
         word = error_word(body)
         if word == "authorization_pending":
             continue
-        if word == "slow_down":
+        if word == "slow_down" or status == 429:
             interval += SLOW_DOWN_S
             continue
         if status >= 500:

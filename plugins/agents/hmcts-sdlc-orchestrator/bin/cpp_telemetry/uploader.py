@@ -20,12 +20,17 @@ Replies:
 - 413: drop with a gap ``too_large``; 400: drop with a gap ``rejected_400``. A batch
   over ``cfg.upload_max_bytes`` (on disk or inflated) is dropped the same way before
   any attempt.
+- Any other 4xx (not 400, 401, 403, 409, 413 or 429) is deterministic: drop with a
+  gap ``rejected_<code>``, so one such batch never blocks the ones behind it.
 - 429, 5xx, any other status, or no answer: back off 5 s doubling to 300 s,
   ``state.last_error`` set. A token refresh that fails while a refresh token is
   still cached backs off the same way (``token_refresh``).
 
 A refused batch that holds only ``gap`` records is deleted without a new gap, so
 a session the ingest refuses for good does not regress gap after gap.
+
+A tick that had at least one 200 writes its time to ``<data>/last-ack`` (0600), which
+``status`` reads while the forwarder runs or not.
 
 Log lines carry status codes, error words, counts and exception class names:
 never a token, a URL or batch content.
@@ -52,6 +57,9 @@ MAX_BATCHES_PER_TICK = 20
 MAX_RESEQUENCE = 3
 MAX_UNAUTHORIZED = 3
 REJECTED_UNTIL_FILE = "rejected-until"
+LAST_ACK_FILE = "last-ack"
+# 4xx replies with their own handling above; every other 4xx drops the batch with a gap.
+_LISTED_4XX = frozenset((400, 401, 403, 409, 413, 429))
 
 _NEXT, _STOP, _RESEQUENCED = "next", "stop", "resequenced"
 
@@ -95,6 +103,20 @@ class Uploader:
         return self._cfg.ingest_url.rstrip("/") + "/v1/batches"
 
     def tick(self, now: float) -> None:
+        acked_before = self._state.last_ack
+        try:
+            self._tick(now)
+        finally:
+            if self._state.last_ack is not None and self._state.last_ack != acked_before:
+                self._record_ack(self._state.last_ack)
+
+    def _record_ack(self, when: float) -> None:
+        try:
+            auth.write_private(self._data_dir / LAST_ACK_FILE, "{}\n".format(when))
+        except OSError as exc:
+            self._logger.error("last-ack not written: %s", type(exc).__name__)
+
+    def _tick(self, now: float) -> None:
         self._spool.close_due(now)
         self._spool.expire(now)
         if not self._cfg.ingest_url or self._state.rejected_until > now or now < self.next_attempt_at:
@@ -159,6 +181,8 @@ class Uploader:
             self._spool.resequence(path)
             return _RESEQUENCED
         reason = {409: "rejected_409", 413: "too_large", 400: "rejected_400"}.get(status)
+        if reason is None and 400 <= status < 500 and status not in _LISTED_4XX:
+            reason = "rejected_%d" % status
         if reason is not None:
             self._logger.warning("upload refused: %d %s", status, word)
             return self._drop(path, body, reason)
