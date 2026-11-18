@@ -1,6 +1,8 @@
 """The configured CLI: start, status, login, optout, on, uninstall, ensure-running."""
 import io
 import json
+import shutil
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -8,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from cpp_telemetry import PLUGIN_VERSION, auth, cli, config, lifecycle, receiver, settings, spool, uploader
+from cpp_telemetry import PLUGIN_VERSION, auth, cli, config, git_event, lifecycle, receiver, settings, spool, uploader
 from tests.fakes import DEVICECODE_PATH, fake_auth, make_token  # noqa: F401 - fixtures
 from tests.helpers_net import free_port_run, port_is_free
 
@@ -19,6 +21,8 @@ CONFIGURED = {
     "api_app_id": "00000000-0000-0000-0000-000000000003",
 }
 COLLECTOR = "https://collector.example.invalid:4318"
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 
 
 class _NoRead(io.StringIO):
@@ -132,12 +136,21 @@ def test_start_survives_a_forwarder_that_cannot_start(configured, monkeypatch, c
     assert "NotStarted" in (configured.data / "forwarder.log").read_text()
 
 
-def test_start_calls_install_shims_when_the_module_exists(fake_forwarder, monkeypatch):
-    calls = []
-    fake_module = SimpleNamespace(install_shims=lambda root, version: calls.append((root, version)))
-    monkeypatch.setitem(cli.sys.modules, "cpp_telemetry.git_event", fake_module)
+def test_start_installs_the_git_shims(fake_forwarder, tmp_path):
     assert cli.main(["start"]) == 0
-    assert calls and calls[0][1] == PLUGIN_VERSION
+    shims = tmp_path / "harness" / "git-hooks"
+    assert (shims / "post-commit").exists() and (shims / "version").read_text() == PLUGIN_VERSION + "\n"
+
+
+def test_start_survives_a_shim_install_failure(fake_forwarder, monkeypatch):
+    def broken(root, version):
+        raise OSError("read-only home")
+
+    monkeypatch.setattr(git_event, "install_shims", broken)
+    monkeypatch.setattr(cli.sys, "stdin", io.StringIO(json.dumps({"hook_event_name": "SessionStart"})))
+    assert cli.main(["start"]) == 0
+    assert "git shims not installed (OSError)" in (fake_forwarder.data / "forwarder.log").read_text()
+    assert fake_forwarder.hooks  # the rest of start still ran
 
 
 def test_ensure_running_prints_the_proof_checked_port(fake_forwarder, monkeypatch, capsys):
@@ -249,6 +262,77 @@ def test_uninstall_opts_out_stops_and_removes_the_shims(fake_forwarder, monkeypa
     assert cli.main(["uninstall"]) == 0
     assert (fake_forwarder.data / lifecycle.OPT_OUT_FILE).exists() and fake_forwarder.events
     assert stopped == [fake_forwarder.data] and not shims.exists()
+
+
+def test_uninstall_deletes_the_spool_after_the_drain_timeout(fake_forwarder, monkeypatch):
+    _sign_in(fake_forwarder.data)
+    fake_forwarder.spool.append("sess-1", {"signal": "event", "payload": {"name": "x"}})
+    fake_forwarder.spool.close_all()
+    stopped = []
+    monkeypatch.setattr(lifecycle, "lock_held", lambda data: not stopped)  # never drains until stopped
+    monkeypatch.setattr(lifecycle, "stop", lambda data: stopped.append(data) or True)
+    monkeypatch.setattr(cli, "DRAIN_WAIT_S", 0.1)
+    monkeypatch.setattr(cli, "DRAIN_POLL_S", 0.01)
+    assert cli.main(["uninstall"]) == 0
+    assert stopped and fake_forwarder.spool.is_empty() and list(fake_forwarder.spool.root.glob("*/*.jsonl")) == []
+
+
+def _global(*args):
+    done = subprocess.run(["git", "config", "--global"] + list(args), capture_output=True, text=True, timeout=10)
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def _hooked(tmp_path, previous):
+    shims = git_event.install_shims(PLUGIN_ROOT, PLUGIN_VERSION)
+    _global("core.hooksPath", str(shims))
+    if previous is not None:
+        _global("cpp.previousHooksPath", previous)
+    return shims
+
+
+@needs_git
+@pytest.mark.parametrize("previous, expected", [("PREV", "PREV"), ("", None), (None, None), ("SHIMS", None)])
+def test_uninstall_restores_hooks_path_before_removing_the_shims(fake_forwarder, monkeypatch, tmp_path, previous,
+                                                                 expected):
+    monkeypatch.setattr(lifecycle, "stop", lambda data: True)
+    prev = str(tmp_path / "prev-hooks")
+    shims = git_event.shims_dir()
+    value = {"PREV": prev, "SHIMS": str(shims)}.get(previous, previous)
+    _hooked(tmp_path, value)
+    seen = []
+    real_rmtree = git_event.shutil.rmtree
+    monkeypatch.setattr(git_event.shutil, "rmtree",
+                        lambda path, **kw: seen.append(_global("--get", "core.hooksPath")) or real_rmtree(path, **kw))
+    assert cli.main(["uninstall"]) == 0
+    restored = {"PREV": prev}.get(expected, expected)
+    assert seen == [restored]  # restored before the directory went
+    assert _global("--get", "core.hooksPath") == restored and _global("--get", "cpp.previousHooksPath") is None
+    assert not shims.exists()
+
+
+@needs_git
+def test_uninstall_leaves_a_hooks_path_it_does_not_own(fake_forwarder, monkeypatch, tmp_path):
+    monkeypatch.setattr(lifecycle, "stop", lambda data: True)
+    _hooked(tmp_path, "")
+    mine = str(tmp_path / "my-own-hooks")
+    _global("core.hooksPath", mine)  # the developer moved on after onboarding
+    assert cli.main(["uninstall"]) == 0
+    assert _global("--get", "core.hooksPath") == mine and _global("--get", "cpp.previousHooksPath") is None
+    assert not git_event.shims_dir().exists()
+
+
+def test_uninstall_keeps_the_shims_when_the_hooks_path_cannot_be_restored(fake_forwarder, monkeypatch, tmp_path,
+                                                                          capsys):
+    monkeypatch.setattr(lifecycle, "stop", lambda data: True)
+    shims = git_event.install_shims(PLUGIN_ROOT, PLUGIN_VERSION)
+
+    def broken():
+        raise git_event.RestoreError("config locked")
+
+    monkeypatch.setattr(git_event, "restore_hooks_path", broken)
+    assert cli.main(["uninstall"]) == 0
+    assert (shims / "post-commit").exists()  # a dangling core.hooksPath would silently drop the developer's hooks
+    assert "git shims kept" in capsys.readouterr().out
 
 
 def test_status_reports_every_line_and_no_values(fake_forwarder, monkeypatch, capsys):

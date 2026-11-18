@@ -18,6 +18,12 @@ def _isolated_environment(tmp_path, monkeypatch):
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
     # settings.user_settings_path() honours CLAUDE_CONFIG_DIR; never reach a real settings file.
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
+    # git config --global (uninstall, the shims) and the shims directory stay in temp files.
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(home / ".gitconfig"))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.setenv("CPP_HARNESS_HOME", str(tmp_path / "_harness"))
+    monkeypatch.delenv("CPP_HARNESS_TELEMETRY", raising=False)
 
 
 @pytest.fixture

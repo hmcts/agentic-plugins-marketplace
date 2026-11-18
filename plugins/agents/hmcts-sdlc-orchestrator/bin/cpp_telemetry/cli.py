@@ -3,7 +3,7 @@
 - ``start`` (SessionStart hook): dormant check; silent when ``<data>/opt-out`` exists;
   ``lifecycle.ensure_running`` first, then ``settings.apply`` with the port it
   returns; one line naming the competing keys ``apply`` moved aside (names only,
-  no chaining: D-49); git shims (Task 8); the daily sign-in notice; one line when
+  no chaining: D-49); the git shims (``git_event.install_shims``); the daily sign-in notice; one line when
   the plugin is behind the marketplace and autoUpdate could not be set; then the
   hook JSON on stdin, when it names a ``hook_event_name``, goes to ``/hook``.
 - ``forwarder``: run the forwarder in this process (the detached child).
@@ -15,8 +15,14 @@
   (by the running forwarder, or here when none runs).
 - ``on``: remove ``<data>/opt-out``, then the ``start`` steps (stdin is not read).
 - ``uninstall``: ``optout``; signed in, wait up to ``DRAIN_WAIT_S`` for the forwarder
-  to drain and exit, else (and when signed out) stop it; remove the git shims directory.
+  to drain and exit, else (and when signed out) stop it; delete what is left in the
+  spool; point ``core.hooksPath`` back at ``cpp.previousHooksPath``, then remove the git
+  shims directory (kept when git could not restore the hooks path).
 - ``ensure-running`` (the nudge script): print the proof-checked forwarder port.
+- ``git-event <kind> [hook args]`` (the git shims): never starts a forwarder. Dormant,
+  opted out, or no forwarder answering the healthz proof on ``<data>/port``: nothing
+  happens. Otherwise the ``git`` event of ``git_event.collect`` goes to ``/event``.
+  Always exit 0 (2 for an unknown kind).
 
 Every control POST goes to the port ``ensure_running`` returned in the same
 invocation, with the token from ``<data>/token`` (ruling 23). Errors go to the
@@ -29,7 +35,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -39,7 +44,7 @@ from . import PLUGIN_VERSION, config, log, paths
 
 PREFIX = "cpp telemetry: "
 HOOK_STDIN_MAX = 1024 * 1024
-SHIMS_DIR = "git-hooks"
+GIT_KINDS = ("commit", "rewrite", "push")  # git_event.KINDS, kept here so parsing imports nothing more
 
 
 def _say(text: str) -> None:
@@ -74,16 +79,9 @@ def _behind(installed: str, listed: str) -> bool:
     return ours is not None and theirs is not None and ours < theirs
 
 
-def _harness_home() -> Path:
-    env = os.environ.get("CPP_HARNESS_HOME")
-    return Path(env) if env else Path.home() / ".cpp-harness"
-
-
 def _install_shims(root: Path) -> None:
-    try:
-        from . import git_event  # Task 8 adds the module
-    except ImportError:
-        return
+    from . import git_event
+
     git_event.install_shims(root, PLUGIN_VERSION)
 
 
@@ -398,21 +396,59 @@ def _uninstall(args: argparse.Namespace) -> int:
         return 1
     restored, signed_in = outcome
     data = paths.data_dir()
+    from . import git_event
+
     try:
         # Signed in, the forwarder uploads the rest (the opt_out event too) and exits by itself.
         if not (signed_in and _wait_for_release(data)):
             lifecycle.stop(data)
-        if not signed_in:
-            _delete_spool_when_idle(cfg, data)
+        # Nothing stays on the laptop: what the drain did not upload in time is deleted (R-04).
+        _delete_spool_when_idle(cfg, data)
     except Exception as exc:  # noqa: BLE001
         log.get_logger(data).warning("uninstall: stop failed (%s)", type(exc).__name__)
-    shutil.rmtree(str(_harness_home() / SHIMS_DIR), ignore_errors=True)
-    _say("uninstalled: opted out, {} setting(s) restored, forwarder stopped, git shims removed".format(restored))
+    if git_event.uninstall_shims():
+        shims = "git shims removed"
+    else:
+        shims = "git shims kept because git could not restore core.hooksPath"
+    _say("uninstalled: opted out, {} setting(s) restored, forwarder stopped, {}".format(restored, shims))
     return 0
 
 
-def _not_wired(args: argparse.Namespace) -> int:
-    """Placeholder for a subcommand whose body a later task adds."""
+# ---------------------------------------------------------------------- git events
+
+
+def _read_stdin_text() -> str:
+    stream = sys.stdin
+    try:
+        if stream is None or stream.isatty():
+            return ""
+        text = stream.read(HOOK_STDIN_MAX)
+    except (OSError, ValueError, AttributeError):
+        return ""
+    return text if isinstance(text, str) else ""
+
+
+def _git_event(args: argparse.Namespace) -> int:
+    """Record one git event when a forwarder already runs; drop it otherwise (never starts one)."""
+    cfg = config.load()
+    if not cfg.is_configured():
+        return 0
+    from . import lifecycle
+
+    data = paths.data_dir(create=False)
+    if not data.is_dir() or (data / lifecycle.OPT_OUT_FILE).exists():
+        return 0
+    from . import git_event
+
+    try:
+        port = git_event.forwarder_port(data)  # proof first: no git is run for an event nobody takes
+        if port is None:
+            return 0
+        stdin = _read_stdin_text() if args.kind != "commit" else ""
+        payload = git_event.collect(args.kind, list(args.hook_args), stdin, os.environ.get(git_event.CWD_ENV) or None)
+        git_event.post(data, payload, port)
+    except Exception as exc:  # noqa: BLE001 - a git command never fails on telemetry
+        log.get_logger(data).warning("git-event: %s", type(exc).__name__)
     return 0
 
 
@@ -423,7 +459,7 @@ COMMANDS: Dict[str, Callable[[argparse.Namespace], int]] = {
     "login": _login,
     "optout": _optout,
     "on": _on,
-    "git-event": _not_wired,
+    "git-event": _git_event,
     "uninstall": _uninstall,
     "ensure-running": _ensure_running,
 }
@@ -434,7 +470,10 @@ def _parser() -> argparse.ArgumentParser:
     subcommands = parser.add_subparsers(dest="command", metavar="command")
     subcommands.required = True
     for name in COMMANDS:
-        subcommands.add_parser(name)
+        sub = subcommands.add_parser(name)
+        if name == "git-event":
+            sub.add_argument("kind", choices=GIT_KINDS)
+            sub.add_argument("hook_args", nargs=argparse.REMAINDER)
     return parser
 
 

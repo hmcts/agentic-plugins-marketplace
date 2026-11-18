@@ -36,20 +36,21 @@ def test_unknown_or_missing_subcommand_exits_2(argv):
     assert cli.main(argv) == 2
 
 
-NOT_WIRED = ["git-event"]  # Task 8
 DORMANT_EXIT = {"status": 0, "login": 1, "optout": 0, "on": 0, "uninstall": 0}
 
 
 def test_every_subcommand_is_known():
     from cpp_telemetry import cli
-    assert set(NOT_WIRED) | set(DORMANT_EXIT) | {"start", "forwarder", "ensure-running"} == set(SUBCOMMANDS) \
+    assert set(DORMANT_EXIT) | {"start", "forwarder", "ensure-running", "git-event"} == set(SUBCOMMANDS) \
         == set(cli.COMMANDS)
 
 
-@pytest.mark.parametrize("name", NOT_WIRED)
-def test_every_unwired_subcommand_is_accepted(name, data_dir):
+@pytest.mark.parametrize("kind", ["commit", "rewrite", "push"])
+def test_dormant_git_event_is_silent_and_writes_no_files(kind, data_dir, capsys):
     from cpp_telemetry import cli
-    assert cli.main([name]) == 0
+    assert cli.main(["git-event", kind, "origin"]) == 0
+    assert capsys.readouterr() == ("", "")
+    assert list(data_dir.iterdir()) == []
 
 
 @pytest.mark.parametrize("name", sorted(DORMANT_EXIT))
