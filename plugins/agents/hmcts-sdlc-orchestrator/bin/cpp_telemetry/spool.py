@@ -459,8 +459,12 @@ class Spool:
         log.get_logger(self._data_dir).warning("batch dropped (%s); gap recorded", reason)
         return written
 
-    def expire(self, now: Optional[float] = None) -> List[dict]:
-        """Delete closed batches older than ``dwell_days``; return the gap envelopes written."""
+    def expire(self, now: Optional[float] = None, gaps_recorded: bool = True) -> List[dict]:
+        """Delete closed batches older than ``dwell_days``; return the gap envelopes written.
+
+        ``gaps_recorded=False`` (after an opt-out) deletes them without a gap: a gap
+        would open a new batch, so a drain that can never upload would never end.
+        """
         now = self._clock() if now is None else now
         now_ms = int(now * 1000)
         dwell_ms = self._cfg.dwell_days * _MS_PER_DAY
@@ -468,6 +472,9 @@ class Spool:
         with self._lock:
             for path in self.closed_batches_oldest_first():
                 if now_ms - self._closed_path(path)[1] > dwell_ms:
+                    if not gaps_recorded:
+                        self.delete(path)
+                        continue
                     gap = self.drop_with_gap(path, "dwell")
                     if gap is not None:
                         gaps.append(gap)

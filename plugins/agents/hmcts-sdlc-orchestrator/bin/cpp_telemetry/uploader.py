@@ -46,6 +46,7 @@ from typing import Any, Optional
 
 from . import auth
 from .config import Config
+from .receiver import OPT_OUT_FILE
 from .spool import Spool
 
 UPLOAD_TIMEOUT_S = 30.0
@@ -118,7 +119,8 @@ class Uploader:
 
     def _tick(self, now: float) -> None:
         self._spool.close_due(now)
-        self._spool.expire(now)
+        # After an opt-out nothing new is captured: expired batches go without a gap, so the drain ends.
+        self._spool.expire(now, gaps_recorded=not (self._data_dir / OPT_OUT_FILE).exists())
         if not self._cfg.ingest_url or self._state.rejected_until > now or now < self.next_attempt_at:
             return
         if not self._spool.closed_batches_oldest_first():

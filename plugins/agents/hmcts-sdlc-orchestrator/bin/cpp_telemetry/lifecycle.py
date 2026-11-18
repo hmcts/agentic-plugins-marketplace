@@ -37,14 +37,13 @@ from typing import Callable, List, Optional, Tuple
 
 from . import log
 from .config import PORT_MAX, PORT_MIN, Config
-from .receiver import TOKEN_HEADER, healthz_proof, valid_version
+from .receiver import OPT_OUT_FILE, TOKEN_HEADER, healthz_proof, valid_version
 from .spool import Spool
 
 LOCK_FILE = "forwarder.lock"
 PORT_FILE = "port"
 TOKEN_FILE = "token"
 _TOKEN_RE = re.compile(r"[0-9a-f]{32}")
-OPT_OUT_FILE = "opt-out"
 START_WAIT_S = 3.0
 STOP_WAIT_S = 5.0
 TERM_WAIT_S = 2.0

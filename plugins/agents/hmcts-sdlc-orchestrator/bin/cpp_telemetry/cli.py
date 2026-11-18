@@ -1,7 +1,8 @@
 """Command line: python3 -I -B "$CLAUDE_PLUGIN_ROOT/bin/cpp_telemetry" <command>.
 
-- ``start`` (SessionStart hook): dormant check; silent when ``<data>/opt-out`` exists;
-  ``lifecycle.ensure_running`` first, then ``settings.apply`` with the port it
+- ``start`` (SessionStart hook): dormant check; silent when ``<data>/opt-out`` exists,
+  where batches left in the spool get a drain-only forwarder (signed in) or are deleted
+  (signed out), so they never stay for good; otherwise ``lifecycle.ensure_running`` first, then ``settings.apply`` with the port it
   returns; one line naming the competing keys ``apply`` moved aside (names only,
   no chaining: D-49); the git shims (``git_event.install_shims``); the daily sign-in notice; one line when
   the plugin is behind the marketplace and autoUpdate could not be set; then the
@@ -10,8 +11,8 @@
 - ``status``: forwarder, spool, last ack, sign-in, roster, opt-out and moved-aside keys.
 - ``login``: device-code sign-in (exit 1 when not configured or not signed in).
 - ``optout``: restore the settings, write ``<data>/opt-out``, post an ``opt_out``
-  event and flush. Signed in, the forwarder uploads the rest and exits once the
-  spool is empty; signed out, no forwarder is started and the spool is deleted
+  event and flush. Signed in, the forwarder refuses every new export and hook, uploads
+  what was spooled before and exits once the spool is empty; signed out, no forwarder is started and the spool is deleted
   (by the running forwarder, or here when none runs).
 - ``on``: remove ``<data>/opt-out``, then the ``start`` steps (stdin is not read).
 - ``off`` (the SessionStart hook when ``CPP_HARNESS_TELEMETRY=off``): restore the settings
@@ -125,6 +126,29 @@ def _configured_data() -> Tuple[Optional[config.Config], Optional[Path]]:
         return None, None
 
 
+def _drain_after_opt_out(cfg: config.Config, data: Path) -> None:
+    """Opted out with batches left: never leave them on the laptop for good (R-04).
+
+    Signed in, a drain-only forwarder starts (``ensure_running`` starts one only while
+    the spool holds a batch); its receiver refuses every export and hook, it uploads or
+    expires what is left and exits once the spool is empty. Signed out, nothing can
+    upload, so the spool is deleted (by a running forwarder itself, else here). Silent;
+    stdin is not read and the settings stay restored.
+    """
+    from . import auth
+    from .spool import SPOOL_DIR, Spool
+
+    try:
+        if not (data / SPOOL_DIR).exists() or Spool(data, cfg).is_empty():
+            return
+        if auth.TokenCache(data).signed_in():
+            _ensure(cfg, data)
+        else:
+            _delete_spool_when_idle(cfg, data)
+    except Exception as exc:  # noqa: BLE001 - a hook must never fail on telemetry
+        log.get_logger(data).warning("start: drain after opt-out: %s", type(exc).__name__)
+
+
 def _start(args: argparse.Namespace) -> int:
     cfg, data = _configured_data()
     if cfg is None or data is None:
@@ -133,7 +157,8 @@ def _start(args: argparse.Namespace) -> int:
     from . import lifecycle
 
     if (data / lifecycle.OPT_OUT_FILE).exists():
-        return 0  # opted out: settings stay restored, nothing starts, nothing is recorded
+        _drain_after_opt_out(cfg, data)  # settings stay restored and nothing new is recorded
+        return 0
     hook = _read_hook()
     try:
         _start_session(cfg, data, hook)

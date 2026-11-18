@@ -6,7 +6,8 @@ when it is one of the configured candidates, else ``lifecycle.choose_port``) and
 calls ``tick(now)`` every ``LOOP_INTERVAL_S``. There is no idle exit. The loop
 ends on SIGTERM, on ``POST /shutdown``, or once ``<data>/opt-out`` exists and the
 spool holds no batch; every open batch is then closed and the lock released.
-After an opt-out while signed out nothing can ever upload, so nothing may stay on
+Once opted out, the receiver refuses every export and hook (503), so open sessions
+that keep exporting cannot refill the spool and the drain ends. After an opt-out while signed out nothing can ever upload, so nothing may stay on
 the laptop (R-04): the loop ends at once and the whole spool is deleted instead,
 on whichever path the forwarder stops.
 

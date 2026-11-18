@@ -28,7 +28,11 @@ routes stay token-less because the exporter cannot add a header.
 holding the token can tell this forwarder from a listener that only echoes the body.
 
 Exports, hooks and events get ``503`` while the spool is full or the ingest has
-refused this developer (``state.rejected_until`` in the future). Anything else is
+refused this developer (``state.rejected_until`` in the future). Once the developer
+has opted out (``<data>/opt-out`` exists, a cached stat re-checked at most every
+``OPT_OUT_RECHECK_S``; an ``opt_out`` event on ``/event`` sets it at once), exports
+and hooks get ``503`` too, so nothing new is spooled; ``/event`` and ``/flush`` keep
+working so the drain of what was spooled before can finish. Anything else is
 ``404``. Body caps (compressed and decompressed): OTLP 32 MiB, ``/hook`` 8 MiB,
 ``/event``, ``/flush`` and ``/shutdown`` 1 MiB; an oversized body is drained up to the
 cap and answered ``413`` (one count-only log line). At most 4 bodies are handled at
@@ -70,6 +74,9 @@ UNSLOTTED_PATHS = frozenset({"/flush", "/shutdown"})
 SLOT_WAIT_S = 10.0
 TOKEN_HEADER = "X-Cpp-Telemetry-Token"
 CONTROL_PATHS = frozenset({"/hook", "/event", "/flush", "/shutdown"})
+OPT_OUT_FILE = "opt-out"
+OPT_OUT_RECHECK_S = 2.0
+OPT_OUT_EVENT = "opt_out"
 _NONCE_RE = re.compile(r"[0-9a-f]{16,128}")
 _VERSION_RE = re.compile(r"[0-9A-Za-z._-]{1,32}")
 
@@ -442,7 +449,7 @@ class _Handler(BaseHTTPRequestHandler):
                 receiver.gate()
                 status, body = receiver.handle_hook(self._parse(self._body(path)))
             elif path == "/event":
-                receiver.gate()
+                receiver.gate(capture=False)  # the opt_out event itself arrives after the opt-out
                 status, body = receiver.handle_event(self._parse(self._body(path)))
             elif path == "/flush":
                 self._body(path)
@@ -503,6 +510,9 @@ class Receiver:
         self._closing = False
         self._closed = False
         self._token = token
+        self._opt_out_file = spool.root.parent / OPT_OUT_FILE
+        self._opted_out = False
+        self._opt_out_checked: Optional[float] = None  # time.monotonic() of the last stat
         self._server = _Server(("127.0.0.1", cfg.port if port is None else port), _Handler)
         self._server.receiver = self
         self._server.slots = threading.BoundedSemaphore(HANDLER_SLOTS)
@@ -569,8 +579,32 @@ class Receiver:
     def log_error_type(self, what: str, type_name: str) -> None:
         self._logger.error("%s: %s", what, type_name)
 
-    def gate(self) -> None:
-        """503 while the developer is refused by the ingest or the spool is full."""
+    def opted_out(self) -> bool:
+        """True while ``<data>/opt-out`` exists: the stat is cached and re-checked at most every 2 s.
+
+        The cache is never latched: after ``/telemetry on`` removes the file, the next
+        check lets capture resume on a forwarder that was still draining.
+        """
+        now = time.monotonic()
+        checked = self._opt_out_checked
+        if checked is None or now - checked >= OPT_OUT_RECHECK_S:
+            self._opted_out = self._opt_out_file.exists()
+            self._opt_out_checked = now
+        return self._opted_out
+
+    def note_opt_out(self) -> None:
+        """The ``opt_out`` event arrived: refuse capture now, without waiting for the next stat."""
+        self._opted_out = True
+        self._opt_out_checked = time.monotonic()
+
+    def gate(self, capture: bool = True) -> None:
+        """503 while the developer is refused by the ingest or the spool is full.
+
+        ``capture`` (exports and hooks) is refused after an opt-out too; ``/event``
+        passes ``False`` so the ``opt_out`` event itself is still recorded.
+        """
+        if capture and self.opted_out():
+            raise _HttpError(503)
         if self._state.rejected_until > self._clock() or self._spool.is_full():
             raise _HttpError(503)
 
@@ -616,6 +650,8 @@ class Receiver:
             return 400, {}
         scrubbed = {"signal": "event", "payload": scrub.scrub_values(payload, self._ident_provider(None, None))}
         self._append(self._session(scrubbed["payload"]), scrubbed)
+        if scrubbed["payload"].get("name") == OPT_OUT_EVENT:
+            self.note_opt_out()
         try:
             self._on_event(scrubbed)
         except Exception as exc:  # noqa: BLE001
