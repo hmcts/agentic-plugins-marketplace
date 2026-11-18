@@ -1,8 +1,8 @@
 import json
+import logging
+import re
 import time
 from pathlib import Path
-
-import pytest
 
 from cpp_telemetry import scrub
 
@@ -16,6 +16,7 @@ FIXTURE_BY_SIGNAL = {
     "metrics": "otlp-metrics-small.json",
     "traces": "otlp-traces-small.json",
 }
+TWO_MB = 2_000_000
 
 
 def _load(name):
@@ -36,8 +37,50 @@ def _attribute_keys(node):
     return keys
 
 
+def _strings(node):
+    if isinstance(node, dict):
+        return [s for value in node.values() for s in _strings(value)]
+    if isinstance(node, list):
+        return [s for item in node for s in _strings(item)]
+    return [node] if isinstance(node, str) else []
+
+
 def _attr(attributes, key):
     return next(item["value"] for item in attributes if item["key"] == key)
+
+
+def _sample_corpus():
+    """One sample per guard pattern, built at run time: no file in the tree may hold a
+    string the guard hooks would block."""
+    return [
+        "urn " + "01" + "AA" + "1234567" + " end",
+        "nino " + "AB" + "123456" + "C",
+        "D" + "OB: " + "01/02/1990",
+        "pass" + "port: " + "123456789",
+        "defen" + "dant name: X",
+        "case" + " ref: 12",
+        "see my-vault" + ".vault" + ".azure.net/x",
+        "Account" + "Key=" + "A" * 44,
+        "url?s" + "ig=" + "a" * 30,
+        "DefaultEndpointsProtocol=https;" + "AccountName=x",
+        "AZURE_CLIENT" + "_SECRET = abc",
+        "--pass" + "word=" + "a" * 20,
+        "Bearer " + "eyJ" + "a" * 20 + "." + "b" * 20 + "." + "c" * 20,
+        "-----BEGIN " + "RSA PRIVATE KEY-----",
+        "-----BEGIN " + "CERTIFICATE-----",
+        "client-key" + "-data: x",
+        "AK" + "IA" + "Q" * 16,
+        "gh" + "p_" + "a" * 36,
+        "xo" + "xb-" + "1" * 12,
+        "pass" + "word: '" + "x" * 10 + "'",
+        "postgres" + "://u:p@h jdbc:" + "mysql" + "://svc:" + "s" * 5 + "@db",
+    ]
+
+
+def _timed_scrub(text):
+    start = time.perf_counter()
+    out = scrub.scrub_text(text, IDENT)
+    return out, time.perf_counter() - start
 
 
 def test_drop_keys_are_the_six_keys():
@@ -71,6 +114,15 @@ def test_identity_literals_inside_longer_text():
     assert scrub.scrub_text("mail devuser@example.invalid now", IDENT) == "mail [REDACTED:self] now"
 
 
+def test_short_literals_match_whole_words_only():
+    short = scrub.Identity(username="al", home="/home/al", hostname="dev", email="")
+    text = "also a final value for the devices"
+    assert scrub.scrub_text(text, short) == text
+    assert scrub.scrub_text("al ran it on dev. (/home/al/x)", short) == (
+        "[REDACTED:self] ran it on [REDACTED:self]. (~/x)"
+    )
+
+
 def test_generic_email_redacted():
     text = "ask colleague@example.invalid or Team.Lead+ops@example.invalid"
     assert scrub.scrub_text(text, IDENT) == "ask [REDACTED:email] or [REDACTED:email]"
@@ -95,6 +147,26 @@ def test_tool_output_span_event_is_scrubbed():
     ]
     assert span["traceId"] == "0af7651916cd43dd8448eb211c80319c"
     assert span["spanId"] == "b7ad6b7169203331"
+
+
+def test_id_attribute_values_keep_identity_literals():
+    short = scrub.Identity(username="ab", home="/home/ab", hostname="laptop-01", email="")
+    ids = {"tool_use_id": "toolu_01abXYZ", "request_id": "req_011CabDEF", "session.id": "sess-devuser-01"}
+    attributes = [{"key": key, "value": {"stringValue": value}} for key, value in ids.items()]
+    attributes.append({"key": "prompt", "value": {"stringValue": "sess-devuser-01 by ab"}})
+    attributes.append({"key": "custom.id", "value": {"stringValue": "AK" + "IA" + "Q" * 16}})
+    payload = {"resourceLogs": [{"scopeLogs": [{"logRecords": [{"attributes": attributes}]}]}]}
+    for ident in (short, IDENT):
+        out = scrub.scrub_payload("logs", payload, ident)
+        record = out["resourceLogs"][0]["scopeLogs"][0]["logRecords"][0]
+        got = {item["key"]: item["value"]["stringValue"] for item in record["attributes"]}
+        for key, value in ids.items():
+            assert got[key] == value, (ident.username, key)
+        # The guard patterns still apply to id values.
+        assert got["custom.id"] == "[REDACTED:AWS access key]"
+    assert got["prompt"] == "sess-[REDACTED:self]-01 by ab"
+    hook = {"session_id": "sess-devuser-01", "cwd": "/home/devuser/x"}
+    assert scrub.scrub_payload("hook", hook, IDENT) == {"session_id": "sess-devuser-01", "cwd": "~/x"}
 
 
 def test_patterns_match_guard_scripts():
@@ -130,8 +202,32 @@ others=(
     ]
 
 
+def test_linearise_keeps_matches_identical():
+    corpus = _sample_corpus()
+    texts = [s for name in FIXTURE_BY_SIGNAL.values() for s in _strings(_load(name))] + corpus + ["\n".join(corpus)]
+    for (name, original), (runtime_name, runtime) in zip(scrub.PATTERNS, scrub.RUNTIME_PATTERNS):
+        assert name == runtime_name
+        hits = 0
+        for text in texts:
+            expected = [m.span() for m in original.finditer(text)]
+            assert [m.span() for m in runtime.finditer(text)] == expected, name
+            hits += len(expected)
+        assert hits, name + " never matched the corpus"
+    for text in texts:
+        reference = text
+        for name, original in scrub.PATTERNS:
+            reference = original.sub(lambda _m, label=name: "[REDACTED:" + label + "]", reference)
+        assert scrub._redact_patterns(text) == reference
+
+
+def test_runtime_patterns_have_no_unbounded_repeat():
+    for name, compiled in scrub.RUNTIME_PATTERNS:
+        bare = re.sub(r"\\.", "", compiled.pattern)  # drop escapes
+        bare = re.sub(r"\[[^\]]*\]", "", bare)  # drop character classes
+        assert not re.search(r"[+*]|\{\d+,\}", bare), name
+
+
 def test_patterns_redact_with_guard_labels():
-    # Built at run time: no file in the tree may hold a string the guard hooks would block.
     aws_key = "AK" + "IA" + "Q" * 16
     nino = "A" + "B" + "123456" + "C"
     text = scrub.scrub_text("key " + aws_key + " and nino " + nino, IDENT)
@@ -141,11 +237,36 @@ def test_patterns_redact_with_guard_labels():
 def test_long_runs_scrub_quickly():
     # Without its literal prefilter the vault pattern took 6.4 s on 100 KB of [a-z0-9-] (quadratic).
     text = "a" * 200_000 + " " + "b.c" * 50_000
-    start = time.perf_counter()
-    assert scrub.scrub_text(text, IDENT) == text
-    assert time.perf_counter() - start < 2.0
-    host = "my" + "-vault"  # the vault pattern still applies when its literal is present
+    out, seconds = _timed_scrub(text)
+    assert out == text and seconds < 2.0
+    host = "my" + "-vault"
     assert scrub.scrub_text("see " + host + ".vault.azure.net/", IDENT) == "see [REDACTED:Azure Key Vault URI]/"
+
+
+def test_jwt_pattern_is_linear_on_2mb():
+    unclosed = "eyJ" * (TWO_MB // 3)
+    dotted = ("eyJ" * 1365 + ".!") * (TWO_MB // 4097)
+    for text in (unclosed, dotted):
+        out, seconds = _timed_scrub(text)
+        assert out == text
+        assert seconds < 2.0, seconds
+
+
+def test_db_pattern_is_linear_on_2mb():
+    repeated = ("postgres" + "://user") * (TWO_MB // 15)
+    out, seconds = _timed_scrub(repeated)
+    assert out == repeated
+    assert seconds < 2.0, seconds
+    out, seconds = _timed_scrub(repeated + "@db")
+    assert out.endswith("[REDACTED:DB connection w/ creds]db")
+    assert seconds < 2.0, seconds
+
+
+def test_vault_pattern_is_linear_on_2mb_with_its_literal_present():
+    text = "my" + ".vault" + ".azure.net " + "a" * TWO_MB
+    out, seconds = _timed_scrub(text)
+    assert out == "[REDACTED:Azure Key Vault URI] " + "a" * TWO_MB
+    assert seconds < 2.0, seconds
 
 
 def test_db_connection_pattern_reads_backslash_s_in_brackets_as_whitespace():
@@ -222,6 +343,25 @@ def test_scrub_never_raises_on_non_string_values():
     assert scrub.scrub_text(42, IDENT) == 42
 
 
+def test_depth_is_capped_with_one_log_line():
+    node = "devuser"
+    for _ in range(100):
+        node = [node]
+    records = []
+    handler = logging.Handler()
+    handler.emit = records.append
+    logger = logging.getLogger("cpp_telemetry")
+    logger.addHandler(handler)
+    try:
+        out = scrub.scrub_payload("hook", {"deep": node, "flat": "devuser"}, IDENT)
+    finally:
+        logger.removeHandler(handler)
+    dumped = json.dumps(out)
+    assert "[REDACTED:depth]" in dumped and "devuser" not in dumped
+    assert out["flat"] == "[REDACTED:self]"
+    assert len(records) == 1 and "devuser" not in records[0].getMessage()
+
+
 def test_empty_identity_values_change_nothing():
     blank = scrub.Identity(username="", home="", hostname="", email="")
     assert scrub.scrub_text("plain text stays", blank) == "plain text stays"
@@ -229,13 +369,21 @@ def test_empty_identity_values_change_nothing():
     assert scrub.scrub_text("/etc/hosts by devuser", root_home) == "/etc/hosts by [REDACTED:self]"
 
 
-def test_non_otlp_signal_scrubs_every_string():
-    hook = {"cwd": "/home/devuser/repo", "prompt": "hi devuser", "count": 1, "user.email": "x", "nested": ["laptop-01"]}
+def test_non_otlp_signal_scrubs_every_string_value_but_no_key():
+    hook = {
+        "cwd": "/home/devuser/repo",
+        "prompt": "hi devuser",
+        "count": 1,
+        "user.email": "x",
+        "nested": ["laptop-01"],
+        "devuser": "laptop-01",
+    }
     assert scrub.scrub_payload("hook", hook, IDENT) == {
         "cwd": "~/repo",
         "prompt": "hi [REDACTED:self]",
         "count": 1,
         "nested": ["[REDACTED:self]"],
+        "devuser": "[REDACTED:self]",
     }
 
 
