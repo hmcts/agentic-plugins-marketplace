@@ -83,9 +83,17 @@ fi
 # Our part: a subshell, so its cd stays inside; never more than about 1 s.
 record() (
   [ "${CPP_HARNESS_TELEMETRY:-on}" = "off" ] && exit 0
-  data="${CLAUDE_PLUGIN_DATA:-${HOME:-}/.claude/plugins/data/hmcts-sdlc-orchestrator}"
+  # git runs this without CLAUDE_PLUGIN_DATA: the session start wrote the data directory to
+  # data-dir beside the shims (Claude Code names it after the plugin and its marketplace).
+  data="${CLAUDE_PLUGIN_DATA:-}"
+  if [ -z "$data" ] && [ -r "$self_dir/data-dir" ]; then
+    IFS= read -r data <"$self_dir/data-dir" || true
+  fi
+  [ -n "$data" ] || data="${HOME:-}/.claude/plugins/data/hmcts-sdlc-orchestrator"
   # No data dir, opted out, or no forwarder ever recorded a port: nothing can take the event.
   [ -d "$data" ] && [ ! -e "$data/opt-out" ] && [ -s "$data/port" ] || exit 0
+  CLAUDE_PLUGIN_DATA="$data"
+  export CLAUDE_PLUGIN_DATA
   root=""
   [ -r "$self_dir/plugin-root" ] && IFS= read -r root <"$self_dir/plugin-root"
   [ -n "$root" ] || exit 0

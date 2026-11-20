@@ -1,6 +1,7 @@
 """The configured CLI: start, status, login, optout, on, uninstall, ensure-running."""
 import io
 import json
+import os
 import shutil
 import subprocess
 import threading
@@ -140,10 +141,22 @@ def test_start_installs_the_git_shims(fake_forwarder, tmp_path):
     assert cli.main(["start"]) == 0
     shims = tmp_path / "harness" / "git-hooks"
     assert (shims / "post-commit").exists() and (shims / "version").read_text() == PLUGIN_VERSION + "\n"
+    assert (shims / "data-dir").read_text() == str(fake_forwarder.data.resolve()) + "\n"
+
+
+def test_main_data_dir_option_wins_over_the_environment(configured, tmp_path, monkeypatch, capsys):
+    # configured sets CLAUDE_CONFIG_DIR, so <config dir>/plugins/data is a plugins data root.
+    own = configured.settings.parent / "plugins" / "data" / "hmcts-sdlc-orchestrator-inline"
+    own.mkdir(parents=True)
+    shutil.copy(str(configured.data / "override.json"), str(own / "override.json"))
+    monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path / "elsewhere"))
+    assert cli.main(["--data-dir", str(own), "status"]) == 0
+    assert os.environ["CLAUDE_PLUGIN_DATA"] == os.path.realpath(str(own))
+    assert capsys.readouterr().out.splitlines()[0] == "forwarder: not running"
 
 
 def test_start_survives_a_shim_install_failure(fake_forwarder, monkeypatch):
-    def broken(root, version):
+    def broken(root, version, data_dir=None):
         raise OSError("read-only home")
 
     monkeypatch.setattr(git_event, "install_shims", broken)

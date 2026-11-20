@@ -1,4 +1,16 @@
-"""Command line: python3 -I -B "$CLAUDE_PLUGIN_ROOT/bin/cpp_telemetry" <command>.
+"""Command line: python3 -I -B "$CLAUDE_PLUGIN_ROOT/bin/cpp_telemetry" [--data-dir DIR] <command>.
+
+``--data-dir`` names the plugin data directory and wins over ``CLAUDE_PLUGIN_DATA``.
+Claude Code exports ``CLAUDE_PLUGIN_DATA`` to hook processes but not to the Bash tool,
+so the ``/telemetry`` command passes the directory with this option (its text gets
+``${CLAUDE_PLUGIN_DATA}`` substituted). An empty value is ignored. The command's
+allowed-tools prefix lets the option through without a prompt and ``uninstall`` removes
+the directory, so any other value must resolve (symlinks followed) to this plugin's own
+folder directly under ``<config dir>/plugins/data`` (``~/.claude``, or
+``CLAUDE_CONFIG_DIR``): its name is ``hmcts-sdlc-orchestrator`` or starts with
+``hmcts-sdlc-orchestrator-``. Anything else, or the option given twice, is a usage
+error. The value is exported before any command runs, so the forwarder this run may
+spawn inherits it.
 
 - ``start`` (SessionStart hook): dormant check (dormant with a ``managed-keys.json`` left
   from before, the ``off`` steps run: the keys are taken back and the forwarder stopped,
@@ -90,10 +102,10 @@ def _behind(installed: str, listed: str) -> bool:
     return ours is not None and theirs is not None and ours < theirs
 
 
-def _install_shims(root: Path) -> None:
+def _install_shims(root: Path, data: Path) -> None:
     from . import git_event
 
-    git_event.install_shims(root, PLUGIN_VERSION)
+    git_event.install_shims(root, PLUGIN_VERSION, data)
 
 
 def _start_session(cfg: config.Config, data: Path, hook: Optional[dict]) -> None:
@@ -110,7 +122,7 @@ def _start_session(cfg: config.Config, data: Path, hook: Optional[dict]) -> None
     if result is not None and result.removed:
         _say("moved your own collector settings aside (restored by /telemetry optout): " + ", ".join(result.removed))
     try:
-        _install_shims(root)
+        _install_shims(root, data)
     except Exception as exc:  # noqa: BLE001 - the shims never stop a session start
         logger.warning("start: git shims not installed (%s)", type(exc).__name__)
     if auth.login_notice_due(data):
@@ -592,8 +604,36 @@ COMMANDS: Dict[str, Callable[[argparse.Namespace], int]] = {
 }
 
 
+class _Once(argparse.Action):
+    """Refuse a second ``--data-dir``: arguments after the command's own cannot replace it."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if getattr(namespace, self.dest, None) is not None:
+            parser.error("{} given twice".format(option_string))
+        setattr(namespace, self.dest, values)
+
+
+def _plugin_data_roots() -> List[Path]:
+    """The real paths of ``<config dir>/plugins/data``: ``~/.claude`` and ``CLAUDE_CONFIG_DIR``."""
+    bases = [Path.home() / ".claude"]
+    config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+    if config_dir:
+        bases.append(Path(config_dir))
+    return [Path(os.path.realpath(str(base / "plugins" / "data"))) for base in bases]
+
+
+def _is_own_data_dir(value: str) -> bool:
+    """True when ``value`` is absolute and resolves to this plugin's folder in a plugins data root."""
+    if not os.path.isabs(value):
+        return False
+    real = Path(os.path.realpath(value))
+    named = real.name == paths.PLUGIN_NAME or real.name.startswith(paths.PLUGIN_NAME + "-")
+    return named and real.parent in _plugin_data_roots()
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cpp_telemetry")
+    parser.add_argument("--data-dir", default=None, metavar="DIR", action=_Once)
     subcommands = parser.add_subparsers(dest="command", metavar="command")
     subcommands.required = True
     for name in COMMANDS:
@@ -609,4 +649,9 @@ def main(argv: List[str]) -> int:
         args = _parser().parse_args(argv)
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 2
+    if args.data_dir:
+        if not _is_own_data_dir(args.data_dir):
+            _say("--data-dir must name this plugin's folder in the plugins data directory")
+            return 2
+        os.environ["CLAUDE_PLUGIN_DATA"] = os.path.realpath(args.data_dir)
     return COMMANDS[args.command](args)

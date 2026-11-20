@@ -303,8 +303,71 @@ def test_telemetry_command_front_matter_and_body():
     assert head == ["description: Telemetry status, sign-in, opt-out",
                     "allowed-tools: Bash(python3 -I -B ${CLAUDE_PLUGIN_ROOT}/bin/cpp_telemetry:*)",
                     "argument-hint: status|login|optout|on|uninstall"]
-    assert "python3 -I -B ${CLAUDE_PLUGIN_ROOT}/bin/cpp_telemetry $ARGUMENTS" in text
+    assert 'python3 -I -B ${CLAUDE_PLUGIN_ROOT}/bin/cpp_telemetry --data-dir "${CLAUDE_PLUGIN_DATA}" $ARGUMENTS' in text
     assert "gate" not in text.lower()
+
+
+def _command_line(plugin_root, data, arguments):
+    """The command's bash line as Claude Code hands it to the Bash tool: both plugin variables
+    substituted in the text, $ARGUMENTS replaced, python3 pointed at this interpreter."""
+    (line,) = [entry for entry in COMMAND.read_text().splitlines() if entry.startswith("python3")]
+    line = line.replace("${CLAUDE_PLUGIN_ROOT}", str(plugin_root)).replace("${CLAUDE_PLUGIN_DATA}", str(data))
+    return line.replace("$ARGUMENTS", arguments).replace("python3", sys.executable, 1)
+
+
+def test_telemetry_command_finds_the_data_dir_without_the_environment_variable(tmp_path):
+    # Found 2026-11-20 in a real session: the Bash tool gets no CLAUDE_PLUGIN_DATA, so the
+    # command read the bare-name fallback directory and answered "not configured".
+    home = tmp_path / "home"
+    data = home / ".claude" / "plugins" / "data" / "hmcts-sdlc-orchestrator-inline"
+    data.mkdir(parents=True, mode=0o700)
+    (data / "override.json").write_text(json.dumps({
+        "ingest_url": "http://127.0.0.1:9", "tenant_id": "00000000-0000-0000-0000-000000000001",
+        "client_id": "00000000-0000-0000-0000-000000000002", "api_app_id": "00000000-0000-0000-0000-000000000003",
+        "auth_base_url": "http://127.0.0.1:9/00000000-0000-0000-0000-000000000001"}))
+    done = _run_command(tmp_path, home, data, "status")
+    assert done.returncode == 0, done.stderr
+    assert "not configured" not in done.stdout
+    assert done.stdout.splitlines()[0] == "forwarder: not running"
+    assert not (data.parent / "hmcts-sdlc-orchestrator").exists()  # the bare-name fallback was never touched
+
+
+def _run_command(tmp_path, home, data, arguments):
+    env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE_PLUGIN_") and k != "CLAUDE_CONFIG_DIR"}
+    env["HOME"] = str(home)
+    return subprocess.run([BASH, "-c", _command_line(PLUGIN_ROOT, data, arguments)], env=env, cwd=str(tmp_path),
+                          capture_output=True, text=True, timeout=60)
+
+
+REFUSED = "cpp telemetry: --data-dir must name this plugin's folder in the plugins data directory\n"
+
+
+def test_telemetry_command_with_an_empty_data_dir_falls_back(tmp_path):
+    done = _run_command(tmp_path, tmp_path, "", "status")
+    assert (done.returncode, done.stdout) == (0, "cpp telemetry: not configured (dormant)\n")
+
+
+def test_telemetry_command_refuses_a_data_dir_that_is_not_the_plugins_own(tmp_path):
+    # uninstall removes the directory and the allowed-tools prefix needs no prompt for the option.
+    home = tmp_path / "home"
+    root = home / ".claude" / "plugins" / "data"
+    root.mkdir(parents=True)
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    (root / "hmcts-sdlc-orchestrator-link").symlink_to(victim)
+    for value in ("data", str(tmp_path / "victim"), str(root / "other-plugin-inline"), str(root),
+                  str(root / "hmcts-sdlc-orchestrator-inline" / "sub"), str(root / "hmcts-sdlc-orchestrator-link")):
+        done = _run_command(tmp_path, home, value, "uninstall")
+        assert (done.returncode, done.stdout) == (2, REFUSED), value
+    assert victim.is_dir()
+
+
+def test_telemetry_command_refuses_a_second_data_dir_in_the_arguments(tmp_path):
+    home = tmp_path / "home"
+    data = home / ".claude" / "plugins" / "data" / "hmcts-sdlc-orchestrator-inline"
+    data.mkdir(parents=True)
+    done = _run_command(tmp_path, home, data, "--data-dir %s status" % (data.parent / "hmcts-sdlc-orchestrator-x"))
+    assert done.returncode == 2 and done.stdout == "" and "given twice" in done.stderr
 
 
 def test_telemetry_command_body_matches_the_allowed_tools_prefix():

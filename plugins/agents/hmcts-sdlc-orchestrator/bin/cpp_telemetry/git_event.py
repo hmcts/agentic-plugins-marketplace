@@ -1,10 +1,13 @@
 """Git attribution: the chaining hook shims and the ``git`` events they record.
 
-- ``install_shims(plugin_root, version)`` copies the one script ``git-hooks/hook`` to
+- ``install_shims(plugin_root, version, data_dir)`` copies the one script ``git-hooks/hook`` to
   ``~/.cpp-harness/git-hooks/`` under every name of ``SHIM_NAMES`` (``CPP_HARNESS_HOME``
   replaces ``~/.cpp-harness``), mode 0755, and writes ``plugin-root`` and ``version`` beside
-  them. The shims are copied again only when ``version`` differs (or a shim is missing);
-  ``plugin-root`` follows the plugin when it moves. Each file is replaced atomically.
+  them, and ``data-dir`` when a data directory is given. The shims are copied again only
+  when ``version`` differs (or a shim is missing); ``plugin-root`` and ``data-dir`` follow
+  the plugin when it moves. Each file is replaced atomically. git runs the shims without
+  ``CLAUDE_PLUGIN_DATA``, and Claude Code names the data directory after the plugin and its
+  marketplace, so the shim reads ``data-dir`` to find it.
 - The developer points git at that directory once (the README onboarding line keeps the
   previous ``core.hooksPath`` in ``cpp.previousHooksPath``). Each shim runs the hook it
   replaces, then the repository's own hook; post-commit, post-rewrite and pre-push then run
@@ -47,6 +50,7 @@ SHIM_NAMES = (
 )
 SHIMS_DIR = "git-hooks"
 PLUGIN_ROOT_FILE = "plugin-root"
+DATA_DIR_FILE = "data-dir"
 VERSION_FILE = "version"
 CWD_ENV = "CPP_TELEMETRY_GIT_CWD"  # the hook's working directory (the shim runs Python from the data dir)
 GIT_TIMEOUT_S = 0.5
@@ -96,7 +100,7 @@ def _write_atomic(path: Path, data: bytes, mode: int) -> None:
             pass
 
 
-def install_shims(plugin_root: Path, version: str) -> Path:
+def install_shims(plugin_root: Path, version: str, data_dir: Optional[Path] = None) -> Path:
     """Copy the shims to ``shims_dir()`` when the version differs; returns that directory."""
     target = shims_dir()
     target.mkdir(parents=True, exist_ok=True)
@@ -108,6 +112,10 @@ def install_shims(plugin_root: Path, version: str) -> Path:
     root = str(Path(plugin_root).resolve())
     if _read(target / PLUGIN_ROOT_FILE) != root:
         _write_atomic(target / PLUGIN_ROOT_FILE, (root + "\n").encode("utf-8"), 0o644)
+    if data_dir is not None:
+        data = str(Path(data_dir).resolve())
+        if _read(target / DATA_DIR_FILE) != data:
+            _write_atomic(target / DATA_DIR_FILE, (data + "\n").encode("utf-8"), 0o644)
     if not current:
         _write_atomic(target / VERSION_FILE, (version + "\n").encode("utf-8"), 0o644)  # last: a partial copy is redone
     return target

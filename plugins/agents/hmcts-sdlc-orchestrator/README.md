@@ -102,7 +102,7 @@ The global `core.hooksPath` means every git hook in every repository now runs th
 
 ### Local override (maintainers)
 
-The plugin ships its four ingest constants empty, so an installed plugin is dormant: it starts no forwarder, changes no settings and records nothing. A maintainer can point a laptop at an ingest with an `override.json` file in the plugin data directory (the directory Claude Code passes as `CLAUDE_PLUGIN_DATA`; the fallback is `~/.claude/plugins/data/hmcts-sdlc-orchestrator/`). The file is one JSON object with the keys `ingest_url`, `tenant_id`, `client_id` and `api_app_id`, and optionally `auth_base_url` and `port`. Both URLs must be HTTPS, except to 127.0.0.1 or localhost. An override is for one laptop only; never commit one.
+The plugin ships its four ingest constants empty, so an installed plugin is dormant: it starts no forwarder, changes no settings and records nothing. A maintainer can point a laptop at an ingest with an `override.json` file in the plugin data directory (the directory Claude Code passes as `CLAUDE_PLUGIN_DATA`, named after the plugin and where it came from: `~/.claude/plugins/data/hmcts-sdlc-orchestrator-agentic-plugins-marketplace/` for an install from this marketplace, `~/.claude/plugins/data/hmcts-sdlc-orchestrator-inline/` for a `--plugin-dir` copy). The file is one JSON object with the keys `ingest_url`, `tenant_id`, `client_id` and `api_app_id`, and optionally `auth_base_url` and `port`. Both URLs must be HTTPS, except to 127.0.0.1 or localhost. An override is for one laptop only; never commit one.
 
 ## Source
 

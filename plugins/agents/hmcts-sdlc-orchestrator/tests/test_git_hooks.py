@@ -182,6 +182,16 @@ def test_install_shims_copies_and_refreshes_on_version_change(tmp_path):
     assert (target / "version").read_text() == "1.0.1\n" and list(target.glob("*.tmp")) == []
 
 
+def test_install_shims_records_the_data_dir_and_follows_it(tmp_path):
+    target = git_event.install_shims(PLUGIN_ROOT, PLUGIN_VERSION, tmp_path / "data-a")
+    assert (target / "data-dir").read_text() == str((tmp_path / "data-a").resolve()) + "\n"
+    git_event.install_shims(PLUGIN_ROOT, PLUGIN_VERSION, tmp_path / "data-b")
+    assert (target / "data-dir").read_text() == str((tmp_path / "data-b").resolve()) + "\n"
+    git_event.install_shims(PLUGIN_ROOT, PLUGIN_VERSION)  # no data dir given: the recorded one stays
+    assert (target / "data-dir").read_text() == str((tmp_path / "data-b").resolve()) + "\n"
+    assert list(target.glob("*.tmp")) == []
+
+
 def test_install_shims_copies_again_when_a_shim_is_missing():
     target = git_event.install_shims(PLUGIN_ROOT, PLUGIN_VERSION)
     (target / "commit-msg").unlink()
@@ -216,6 +226,18 @@ def test_post_commit_chains_previous_and_repo_hook_then_posts(world, forwarder):
     assert isinstance(payload.pop("ts"), str)
     assert payload == {"name": "git", "kind": "commit", "repo": "repo", "branch": "main", "sha": _head(world)}
     assert not marker.exists()  # git-event ran isolated from the repository
+
+
+@needs_git
+def test_post_commit_finds_the_data_dir_without_the_environment_variable(world, forwarder):
+    # git runs the shims without CLAUDE_PLUGIN_DATA (found 2026-11-20): the session start
+    # records the directory beside the shims, and the shim passes it on to git-event.
+    git_event.install_shims(PLUGIN_ROOT, PLUGIN_VERSION, world.data)
+    del world.env["CLAUDE_PLUGIN_DATA"]
+    done = _git(world, "commit", "--allow-empty", "-q", "-m", "first")
+    assert (done.returncode, done.stdout, done.stderr) == (0, "", "")
+    (payload,) = [envelope["payload"] for envelope in forwarder]
+    assert (payload["kind"], payload["sha"]) == ("commit", _head(world))
 
 
 @needs_git
