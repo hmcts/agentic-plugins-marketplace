@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# Git hook chain of the hmcts-sdlc-orchestrator plugin. One script, installed under all 28
+# standard hook names in ~/.cpp-harness/git-hooks (the global core.hooksPath after onboarding),
+# so taking over core.hooksPath silences none of the developer's own hooks.
+#
+# 1. Runs the hook this one stands in for: "$(git config --global cpp.previousHooksPath)/<name>",
+#    then the repository's own "<git common dir>/hooks/<name>", each only when executable and not
+#    this script. The stdin of pre-push, pre-receive, post-receive, post-rewrite and
+#    reference-transaction is read once and replayed to each; every other hook inherits stdin.
+# 2. post-commit, post-rewrite and pre-push only: records a "git" event through
+#    `cpp_telemetry git-event` with a 1 s budget, run isolated (python3 -I -B) from the data
+#    directory. With no forwarder running the event is dropped. This part prints nothing and
+#    never fails or blocks the git command.
+# Exit: post-commit and post-rewrite run both chained hooks and always exit 0. Every other name
+# stops at the first chained hook that fails and returns its exit code (a failing pre-commit
+# still blocks the commit; a refused push records nothing), else 0.
+
+set -u  # ${1+"$@"} below: bash 3.2 (macOS) treats an empty "$@" as unbound under set -u
+
+name="${0##*/}"
+kind=""
+case "$name" in
+  post-commit) kind=commit ;;
+  post-rewrite) kind=rewrite ;;
+  pre-push) kind=push ;;
+esac
+case "$0" in
+  */*) self_dir="${0%/*}" ;;
+  *) self_dir=. ;;
+esac
+
+replay=0
+case "$name" in
+  pre-push | pre-receive | post-receive | post-rewrite | reference-transaction) replay=1 ;;
+esac
+input=""
+if [ "$replay" = 1 ] && [ ! -t 0 ]; then
+  IFS= read -r -d '' input || true
+fi
+
+# git before 2.18 has no --type=path: then read the raw value and expand a leading ~/ here.
+prev_dir="$(git config --global --type=path --get cpp.previousHooksPath 2>/dev/null ||
+  git config --global --get cpp.previousHooksPath 2>/dev/null || true)"
+case "$prev_dir" in
+  \~/*) prev_dir="${HOME:-}/${prev_dir#\~/}" ;;
+esac
+prev_hook=""
+[ -n "$prev_dir" ] && prev_hook="$prev_dir/$name"
+repo_hook=""
+common_dir="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+[ -n "$common_dir" ] && repo_hook="$common_dir/hooks/$name"
+
+# Runs one chained hook with the shim's arguments; returns that hook's exit code.
+run_chained() {
+  local hook="$1"
+  shift
+  if [ -z "$hook" ] || [ ! -f "$hook" ] || [ ! -x "$hook" ] || [ "$hook" -ef "$0" ]; then
+    return 0
+  fi
+  if [ "$replay" = 1 ]; then
+    "$hook" ${1+"$@"} < <(printf '%s' "$input")
+  else
+    "$hook" ${1+"$@"}
+  fi
+}
+
+# post-commit and post-rewrite cannot change the outcome: run both hooks whatever they return.
+blocking=1
+case "$kind" in commit | rewrite) blocking=0 ;; esac
+code=0
+run_chained "$prev_hook" ${1+"$@"} || code=$?
+if [ "$blocking" = 1 ] && [ "$code" -ne 0 ]; then
+  exit "$code"
+fi
+if ! [ "$repo_hook" -ef "$prev_hook" ]; then
+  run_chained "$repo_hook" ${1+"$@"} || code=$?
+fi
+if [ "$blocking" = 1 ] && [ "$code" -ne 0 ]; then
+  exit "$code"
+fi
+[ -n "$kind" ] || exit 0
+
+# Our part: a subshell, so its cd stays inside; never more than about 1 s.
+record() (
+  [ "${CPP_HARNESS_TELEMETRY:-on}" = "off" ] && exit 0
+  # git runs this without CLAUDE_PLUGIN_DATA: the session start wrote the data directory to
+  # data-dir beside the shims (Claude Code names it after the plugin and its marketplace).
+  data="${CLAUDE_PLUGIN_DATA:-}"
+  if [ -z "$data" ] && [ -r "$self_dir/data-dir" ]; then
+    IFS= read -r data <"$self_dir/data-dir" || true
+  fi
+  [ -n "$data" ] || data="${HOME:-}/.claude/plugins/data/hmcts-sdlc-orchestrator"
+  # No data dir, opted out, or no forwarder ever recorded a port: nothing can take the event.
+  [ -d "$data" ] && [ ! -e "$data/opt-out" ] && [ -s "$data/port" ] || exit 0
+  CLAUDE_PLUGIN_DATA="$data"
+  export CLAUDE_PLUGIN_DATA
+  root=""
+  [ -r "$self_dir/plugin-root" ] && IFS= read -r root <"$self_dir/plugin-root"
+  [ -n "$root" ] || exit 0
+  py=python3
+  command -v "$py" >/dev/null 2>&1 || py=python
+  command -v "$py" >/dev/null 2>&1 || exit 0
+  CPP_TELEMETRY_GIT_CWD="$PWD"
+  export CPP_TELEMETRY_GIT_CWD
+  cd "$data" || exit 0
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 1 "$py" -I -B "$root/bin/cpp_telemetry" git-event "$kind" ${1+"$@"} < <(printf '%s' "$input")
+    exit 0
+  fi
+  "$py" -I -B "$root/bin/cpp_telemetry" git-event "$kind" ${1+"$@"} < <(printf '%s' "$input") &
+  worker=$!
+  (sleep 1 && kill "$worker") &
+  watchdog=$!
+  wait "$worker"
+  kill "$watchdog"
+  exit 0
+)
+
+record ${1+"$@"} </dev/null >/dev/null 2>&1
+exit 0

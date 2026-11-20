@@ -29,6 +29,34 @@
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-secrets.sh" }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-start.sh", "timeout": 15 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-nudge.sh", "timeout": 3 }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-nudge.sh", "timeout": 3 }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/telemetry-nudge.sh", "timeout": 5 }
+        ]
+      }
     ]
   }
 }

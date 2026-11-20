@@ -1,0 +1,56 @@
+{
+  "resourceLogs": [
+    {
+      "resource": {
+        "attributes": [
+          {"key": "service.name", "value": {"stringValue": "claude-code"}},
+          {"key": "host.name", "value": {"stringValue": "laptop-01"}},
+          {"key": "os.type", "value": {"stringValue": "linux"}}
+        ]
+      },
+      "scopeLogs": [
+        {
+          "scope": {"name": "com.example.telemetry", "version": "0.0.1"},
+          "logRecords": [
+            {
+              "timeUnixNano": "1763460000000000000",
+              "body": {"stringValue": "claude_code.user_prompt"},
+              "attributes": [
+                {"key": "event.name", "value": {"stringValue": "user_prompt"}},
+                {"key": "session.id", "value": {"stringValue": "session-a"}},
+                {"key": "user.email", "value": {"stringValue": "devuser@example.invalid"}},
+                {"key": "user.id", "value": {"stringValue": "user-hash-0001"}},
+                {"key": "user.account_uuid", "value": {"stringValue": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}},
+                {"key": "organization.id", "value": {"stringValue": "org-0001"}},
+                {"key": "prompt", "value": {"stringValue": "open /home/devuser/repo/app.py on laptop-01"}}
+              ]
+            },
+            {
+              "timeUnixNano": "1763460001000000000",
+              "body": {"stringValue": "claude_code.api_request"},
+              "attributes": [
+                {"key": "event.name", "value": {"stringValue": "api_request"}},
+                {"key": "session.id", "value": {"stringValue": "session-a"}},
+                {"key": "model", "value": {"stringValue": "model-x"}},
+                {"key": "input_tokens", "value": {"intValue": "120"}},
+                {"key": "cost_usd", "value": {"doubleValue": 0.01}},
+                {"key": "vcs.repository.url.full", "value": {"stringValue": "https://example.invalid/devuser/repo.git"}}
+              ]
+            },
+            {
+              "timeUnixNano": "1763460002000000000",
+              "body": {"stringValue": "listing of /home/devuser/repo for devuser"},
+              "attributes": [
+                {"key": "event.name", "value": {"stringValue": "tool_result"}},
+                {"key": "session.id", "value": {"stringValue": "session-a"}},
+                {"key": "tool_name", "value": {"stringValue": "Bash"}},
+                {"key": "success", "value": {"boolValue": true}},
+                {"key": "user.email", "value": {"stringValue": "devuser@example.invalid"}}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
